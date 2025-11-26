@@ -5,7 +5,7 @@ export const USE_TILE_RENDERER = true;
 // Sprite sheet configuration
 export const SPRITE_SHEET = {
   // Path to the sprite sheet
-  src: '/assets/sprites3.png',
+  src: '/assets/sprites4.png',
   // Number of columns in the sprite sheet (5 columns confirmed)
   cols: 5,
   // Number of rows - using 6 because: 5 main rows + partial 6th row means
@@ -69,7 +69,7 @@ export const SPRITE_ORDER = [
   'factory_medium',
   'factory_large',
   // Row 5 (indices 25-29)
-  '', // Empty slot
+  'airport', // Bottom left corner
   '', // Empty slot
   '', // Empty slot
   '', // Empty slot
@@ -91,6 +91,7 @@ export const SPRITE_VERTICAL_OFFSETS: Record<string, number> = {
   school: 0.20,         // School - push down ~20%
   tennis: 0.10,         // Tennis court - push down ~10%
   water_tower: -0.30,   // Water tower - push up ~12px
+  airport: -1.2,       // Airport - push up significantly
   // Add more as needed
 };
 
@@ -133,6 +134,7 @@ export const BUILDING_TO_SPRITE: Record<string, string> = {
   // Special buildings
   stadium: 'stadium',
   museum: 'museum',
+  airport: 'airport',
   space_program: 'space_program',
   // Nature
   tree: 'tree',

@@ -1061,6 +1061,94 @@ function SettingsPanel() {
   );
 }
 
+// Background color to filter (RGB: 219, 218, 223)
+const BACKGROUND_COLOR = { r: 219, g: 218, b: 223 };
+// Color distance threshold - pixels within this distance will be made transparent
+const COLOR_THRESHOLD = 10; // Adjust this value to be more/less aggressive
+
+/**
+ * Filters colors close to the background color from an image, making them transparent
+ * @param img The source image to process
+ * @param threshold Maximum color distance to consider as background (default: COLOR_THRESHOLD)
+ * @returns A new HTMLImageElement with filtered colors made transparent
+ */
+function filterBackgroundColor(img: HTMLImageElement, threshold: number = COLOR_THRESHOLD): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Could not get canvas context'));
+        return;
+      }
+      
+      // Draw the original image to the canvas
+      ctx.drawImage(img, 0, 0);
+      
+      // Get image data
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      // Process each pixel
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        
+        // Calculate color distance using Euclidean distance in RGB space
+        const distance = Math.sqrt(
+          Math.pow(r - BACKGROUND_COLOR.r, 2) +
+          Math.pow(g - BACKGROUND_COLOR.g, 2) +
+          Math.pow(b - BACKGROUND_COLOR.b, 2)
+        );
+        
+        // If the color is close to the background color, make it transparent
+        if (distance <= threshold) {
+          data[i + 3] = 0; // Set alpha to 0 (transparent)
+        }
+      }
+      
+      // Put the modified image data back
+      ctx.putImageData(imageData, 0, 0);
+      
+      // Create a new image from the processed canvas
+      const filteredImg = new Image();
+      filteredImg.onload = () => resolve(filteredImg);
+      filteredImg.onerror = () => reject(new Error('Failed to create filtered image'));
+      filteredImg.src = canvas.toDataURL();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+/**
+ * Loads an image and applies background color filtering if it's a sprite sheet
+ * @param src The image source path
+ * @param applyFilter Whether to apply background color filtering (default: true for sprite sheets)
+ * @returns Promise resolving to the loaded (and optionally filtered) image
+ */
+function loadSpriteImage(src: string, applyFilter: boolean = true): Promise<HTMLImageElement> {
+  // Check if this is already cached (as filtered version)
+  const cacheKey = applyFilter ? `${src}_filtered` : src;
+  if (imageCache.has(cacheKey)) {
+    return Promise.resolve(imageCache.get(cacheKey)!);
+  }
+  
+  return loadImage(src).then((img) => {
+    if (applyFilter) {
+      return filterBackgroundColor(img).then((filteredImg: HTMLImageElement) => {
+        imageCache.set(cacheKey, filteredImg);
+        return filteredImg;
+      });
+    }
+    return img;
+  });
+}
+
 // Sprite Test Panel
 function SpriteTestPanel({ onClose }: { onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -2397,7 +2485,11 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
           // Calculate destination size preserving aspect ratio of source sprite
           // Scale factor: 1.2 base (reduced from 1.5 for ~20% smaller)
           // Multi-tile buildings scale with their footprint
-          const scaleMultiplier = isMultiTile ? Math.max(buildingSize.width, buildingSize.height) : 1;
+          let scaleMultiplier = isMultiTile ? Math.max(buildingSize.width, buildingSize.height) : 1;
+          // Special scale adjustment for airport to match museum's visual scale
+          if (buildingType === 'airport') {
+            scaleMultiplier *= 0.75; // Scale down to match museum's 3x3 visual appearance
+          }
           const destWidth = w * 1.2 * scaleMultiplier;
           const aspectRatio = coords.sh / coords.sw;  // height/width ratio of source
           const destHeight = destWidth * aspectRatio;
@@ -2485,7 +2577,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         else if (buildingType === 'stadium') sizeMultiplier = 1.372;
         else if (buildingType === 'museum') sizeMultiplier = 0.6723; // 60% smaller than stadium (1.372 * 0.7 * 0.7)
         else if (buildingType === 'space_program') sizeMultiplier = 2.94;
-        else if (buildingType === 'university') sizeMultiplier = 2.8;
+        else if (buildingType === 'university') sizeMultiplier = 1.96; // 30% smaller (2.8 * 0.7)
         else if (buildingType === 'hospital') sizeMultiplier = 2.25;
         else if (buildingType === 'school') sizeMultiplier = 2.25;
         else if (buildingType === 'fire_station') sizeMultiplier = 1.006;
@@ -2501,7 +2593,11 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         const aspectRatio = img.width / img.height || 1;
         const imgWidth = imgHeight * aspectRatio;
         
-        const drawX = drawPosX + w / 2 - imgWidth / 2;
+        let drawX = drawPosX + w / 2 - imgWidth / 2;
+        // Left offset for university
+        if (buildingType === 'university') {
+          drawX -= w * 0.3; // Shift left by 30% of tile width
+        }
         const baseY = isMultiTile ? drawPosY : y;
         const footprintDepth = isMultiTile ? buildingSize.width + buildingSize.height - 2 : 0;
         const verticalLift = footprintDepth > 0 ? footprintDepth * h * 0.3 : 0;
@@ -2804,6 +2900,12 @@ export default function Game() {
   
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in input fields
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
       if (e.key === 'Escape') {
         if (state.activePanel !== 'none') {
           setActivePanel('none');
@@ -2812,6 +2914,9 @@ export default function Game() {
         } else if (state.selectedTool !== 'select') {
           setTool('select');
         }
+      } else if (e.key === 'b' || e.key === 'B') {
+        e.preventDefault();
+        setTool('bulldoze');
       }
     };
     
