@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { BuildingType, ZoneType } from '@/types/game';
 
 interface BuildingProps {
@@ -9,6 +10,66 @@ interface BuildingProps {
   powered?: boolean;
   onFire?: boolean;
 }
+
+// Mapping of building types to their PNG image paths
+const BUILDING_IMAGES: Partial<Record<BuildingType, string>> = {
+  // Residential buildings
+  house_small: '/assets/buildings/residential.png',
+  house_medium: '/assets/buildings/residential.png',
+  apartment_low: '/assets/buildings/residential.png',
+  apartment_high: '/assets/buildings/residential.png',
+  mansion: '/assets/buildings/residential.png',
+  // Industrial buildings
+  factory_small: '/assets/buildings/industrial.png',
+  factory_medium: '/assets/buildings/industrial.png',
+  factory_large: '/assets/buildings/industrial.png',
+  warehouse: '/assets/buildings/industrial.png',
+  // Service buildings
+  fire_station: '/assets/buildings/fire_station.png',
+  hospital: '/assets/buildings/hospital.png',
+  park: '/assets/buildings/park.png',
+  police_station: '/assets/buildings/police_station.png',
+  school: '/assets/buildings/school.png',
+};
+
+// Image-based building component
+const ImageBuilding: React.FC<{
+  src: string;
+  size?: number;
+  alt: string;
+}> = ({ src, size = 64, alt }) => {
+  // Calculate image dimensions - images are roughly square but need some height for the building
+  const imageSize = size * 2;
+  const height = getTileHeight(size);
+  
+  return (
+    <div 
+      style={{ 
+        position: 'relative',
+        width: size,
+        height: height + imageSize * 0.6,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+      }}
+    >
+      <Image
+        src={src}
+        alt={alt}
+        width={imageSize}
+        height={imageSize}
+        style={{
+          objectFit: 'contain',
+          position: 'absolute',
+          bottom: -height * 0.3,
+          left: '50%',
+          transform: 'translateX(-50%)',
+        }}
+        priority
+      />
+    </div>
+  );
+};
 
 // Isometric tile configuration
 // HEIGHT_RATIO controls the tile shape
@@ -835,6 +896,13 @@ export const BuildingRenderer: React.FC<{
   onFire?: boolean;
 }> = ({ buildingType, level = 1, powered = true, zone = 'none', highlight = false, size = TILE_WIDTH, onFire = false }) => {
   const renderBuilding = () => {
+    // Check if we have a PNG image for this building type
+    const imagePath = BUILDING_IMAGES[buildingType];
+    if (imagePath) {
+      return <ImageBuilding src={imagePath} size={size} alt={buildingType} />;
+    }
+    
+    // Fallback to SVG-based buildings for types without images
     switch (buildingType) {
       case 'empty':
       case 'grass':
@@ -845,16 +913,6 @@ export const BuildingRenderer: React.FC<{
         return <TreeTile size={size} />;
       case 'road':
         return <RoadTile size={size} />;
-      case 'house_small':
-        return <SmallHouse size={size} powered={powered} />;
-      case 'house_medium':
-        return <MediumHouse size={size} powered={powered} />;
-      case 'apartment_low':
-        return <ApartmentLow size={size} powered={powered} />;
-      case 'apartment_high':
-        return <ApartmentHigh size={size} level={level} powered={powered} />;
-      case 'mansion':
-        return <MediumHouse size={size} powered={powered} />;
       case 'shop_small':
         return <SmallShop size={size} powered={powered} />;
       case 'shop_medium':
@@ -865,29 +923,12 @@ export const BuildingRenderer: React.FC<{
         return <OfficeHigh size={size} level={level} powered={powered} />;
       case 'mall':
         return <Mall size={size} powered={powered} />;
-      case 'factory_small':
-        return <FactorySmall size={size} powered={powered} />;
-      case 'factory_medium':
-      case 'factory_large':
-        return <FactoryLarge size={size} level={level} powered={powered} />;
-      case 'warehouse':
-        return <Warehouse size={size} powered={powered} />;
       case 'power_plant':
         return <PowerPlant size={size} />;
       case 'water_tower':
         return <WaterTower size={size} />;
-      case 'police_station':
-        return <PoliceStation size={size} />;
-      case 'fire_station':
-        return <FireStation size={size} />;
-      case 'hospital':
-        return <Hospital size={size} />;
-      case 'school':
-        return <School size={size} />;
       case 'university':
         return <University size={size} />;
-      case 'park':
-        return <Park size={size} />;
       case 'stadium':
         return <Mall size={size} powered={powered} />; // Placeholder
       case 'airport':
