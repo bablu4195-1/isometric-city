@@ -248,7 +248,7 @@ function generateOceans(grid: Tile[][], size: number, seed: number): WaterBody[]
   const coastNoise = (x: number, y: number) => perlinNoise(x, y, seed + 2000, 3);
   
   // Check each edge independently
-  const edges: Array<{ side: 'north' | 'east' | 'south' | 'west'; tiles: { x: number; y: number }[] }> = [];
+  const edges: OceanEdgeSection[] = [];
   
   // Ocean parameters
   const baseDepth = Math.max(4, Math.floor(size * 0.12));
@@ -338,6 +338,10 @@ function generateOceans(grid: Tile[][], size: number, seed: number): WaterBody[]
       edges.push({ side: 'west', tiles });
     }
   }
+
+  if (edges.length > 0) {
+    sprinkleOceanIslands(grid, size, edges);
+  }
   
   // Create water body entries for oceans
   const usedOceanNames = new Set<string>();
@@ -364,6 +368,193 @@ function generateOceans(grid: Tile[][], size: number, seed: number): WaterBody[]
   }
   
   return waterBodies;
+}
+
+type OceanEdgeSection = {
+  side: 'north' | 'east' | 'south' | 'west';
+  tiles: { x: number; y: number }[];
+};
+
+const ISLAND_NEIGHBOR_OFFSETS: Array<[number, number]> = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+  [-1, -1],
+  [1, -1],
+  [-1, 1],
+  [1, 1],
+];
+
+function sprinkleOceanIslands(grid: Tile[][], size: number, edges: OceanEdgeSection[]): void {
+  const minSectionSize = Math.max(25, Math.floor(size * 0.5));
+  const buffer = size >= 50 ? 2 : 1;
+
+  for (const edge of edges) {
+    if (edge.tiles.length < minSectionSize) {
+      continue;
+    }
+
+    const initialWater = new Set(edge.tiles.map((tile) => coordKey(tile.x, tile.y)));
+    const remainingWater = new Set(initialWater);
+    const deepCandidates = edge.tiles.filter((tile) =>
+      isDeepOceanTile(tile.x, tile.y, size, initialWater, buffer)
+    );
+
+    if (deepCandidates.length === 0) {
+      continue;
+    }
+
+    const baseIslandCount = Math.floor(edge.tiles.length / 180);
+    const targetIslands = Math.min(4, baseIslandCount + (Math.random() < 0.5 ? 1 : 0));
+    if (targetIslands === 0) {
+      continue;
+    }
+
+    const maxTilesToConvert = Math.max(1, Math.floor(edge.tiles.length * 0.08));
+    const candidates = [...deepCandidates];
+    let convertedTiles = 0;
+    let createdIslands = 0;
+
+    while (candidates.length > 0 && createdIslands < targetIslands && convertedTiles < maxTilesToConvert) {
+      const pickIndex = Math.floor(Math.random() * candidates.length);
+      const center = candidates.splice(pickIndex, 1)[0];
+      const centerKey = coordKey(center.x, center.y);
+      if (!remainingWater.has(centerKey)) {
+        continue;
+      }
+
+      if (!isDeepOceanTile(center.x, center.y, size, initialWater, buffer)) {
+        continue;
+      }
+
+      const islandSize = 1 + Math.floor(Math.random() * 4); // 1-4 tiles
+      const gained = growIslandCluster(
+        center,
+        islandSize,
+        grid,
+        size,
+        remainingWater,
+        initialWater,
+        buffer
+      );
+
+      if (gained > 0) {
+        convertedTiles += gained;
+        createdIslands++;
+      }
+    }
+
+    if (convertedTiles > 0) {
+      edge.tiles = edge.tiles.filter((tile) => remainingWater.has(coordKey(tile.x, tile.y)));
+    }
+  }
+}
+
+function growIslandCluster(
+  start: { x: number; y: number },
+  targetSize: number,
+  grid: Tile[][],
+  size: number,
+  remainingWater: Set<string>,
+  initialWater: Set<string>,
+  baseBuffer: number
+): number {
+  const queue: { x: number; y: number }[] = [start];
+  const visited = new Set<string>();
+  const expansionBuffer = Math.max(1, baseBuffer - 1);
+  let converted = 0;
+
+  while (queue.length > 0 && converted < targetSize) {
+    const current = queue.shift()!;
+    const key = coordKey(current.x, current.y);
+    if (visited.has(key)) {
+      continue;
+    }
+    visited.add(key);
+
+    if (!remainingWater.has(key)) {
+      continue;
+    }
+
+    if (!isDeepOceanTile(current.x, current.y, size, initialWater, expansionBuffer)) {
+      continue;
+    }
+
+    transformTileToIsland(grid, current.x, current.y);
+    remainingWater.delete(key);
+    converted++;
+
+    const neighbors = shuffledNeighborOffsets();
+    for (const [dx, dy] of neighbors) {
+      if (converted >= targetSize) {
+        break;
+      }
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      if (nx < 0 || ny < 0 || nx >= size || ny >= size) {
+        continue;
+      }
+      const neighborKey = coordKey(nx, ny);
+      if (!initialWater.has(neighborKey) || !remainingWater.has(neighborKey) || visited.has(neighborKey)) {
+        continue;
+      }
+      queue.push({ x: nx, y: ny });
+    }
+  }
+
+  return converted;
+}
+
+function transformTileToIsland(grid: Tile[][], x: number, y: number): void {
+  const tile = grid[y][x];
+  tile.zone = 'none';
+  tile.pollution = 0;
+  tile.crime = 0;
+  tile.traffic = 0;
+  tile.hasSubway = false;
+  tile.landValue = Math.max(tile.landValue, 65);
+
+  const hasTrees = Math.random() < 0.6;
+  tile.building = createBuilding(hasTrees ? 'tree' : 'grass');
+}
+
+function isDeepOceanTile(
+  x: number,
+  y: number,
+  size: number,
+  initialWater: Set<string>,
+  buffer: number
+): boolean {
+  for (let dy = -buffer; dy <= buffer; dy++) {
+    for (let dx = -buffer; dx <= buffer; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) > buffer) {
+        continue;
+      }
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= size || ny >= size) {
+        return false;
+      }
+      if (!initialWater.has(coordKey(nx, ny))) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function coordKey(x: number, y: number): string {
+  return `${x},${y}`;
+}
+
+function shuffledNeighborOffsets(): Array<[number, number]> {
+  const offsets = [...ISLAND_NEIGHBOR_OFFSETS];
+  for (let i = offsets.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [offsets[i], offsets[j]] = [offsets[j], offsets[i]];
+  }
+  return offsets;
 }
 
 // Generate adjacent cities (sometimes, not always)
