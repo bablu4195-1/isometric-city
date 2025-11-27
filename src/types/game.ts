@@ -199,6 +199,35 @@ export interface HistoryPoint {
   happiness: number;
 }
 
+export type NeighborDirection = 'north' | 'east' | 'south' | 'west';
+
+export type TradeSpecialty = 'manufacturing' | 'agriculture' | 'tech' | 'tourism' | 'logistics';
+
+export interface NeighborCity {
+  id: string;
+  name: string;
+  direction: NeighborDirection;
+  population: number;
+  specialty: TradeSpecialty;
+  connectCost: number;
+  incomeBonus: number;
+  demandBoost: Partial<Record<ZoneType, number>>;
+  connected: boolean;
+  description: string;
+}
+
+export type WaterBodyType = 'lake' | 'ocean';
+
+export interface WaterBody {
+  id: string;
+  name: string;
+  type: WaterBodyType;
+  centroid: { x: number; y: number };
+  labelAnchor: { x: number; y: number };
+  touchesDirections: NeighborDirection[];
+  size: number;
+}
+
 export interface GameState {
   grid: Tile[][];
   gridSize: number;
@@ -217,6 +246,8 @@ export interface GameState {
   achievements: Achievement[];
   advisorMessages: AdvisorMessage[];
   history: HistoryPoint[];
+  neighborCities: NeighborCity[];
+  waterBodies: WaterBody[];
   activePanel: 'none' | 'budget' | 'statistics' | 'advisors' | 'achievements' | 'settings';
   disastersEnabled: boolean;
 }

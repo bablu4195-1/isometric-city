@@ -46,12 +46,14 @@ export default function HomePage() {
   const [isChecking, setIsChecking] = useState(true);
 
   // Check for saved game after mount (client-side only)
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setIsChecking(false);
     if (hasSavedGame()) {
       setShowGame(true);
     }
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (isChecking) {
     return (

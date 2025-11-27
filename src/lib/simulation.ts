@@ -17,6 +17,11 @@ import {
   RESIDENTIAL_BUILDINGS,
   COMMERCIAL_BUILDINGS,
   INDUSTRIAL_BUILDINGS,
+  NeighborCity,
+  NeighborDirection,
+  TradeSpecialty,
+  WaterBody,
+  WaterBodyType,
 } from '@/types/game';
 
 // Perlin-like noise for terrain generation
@@ -65,6 +70,170 @@ function perlinNoise(x: number, y: number, seed: number, octaves: number = 4): n
   }
 
   return total / maxValue;
+}
+
+const CITY_NAME_POOL = [
+  'Alder Falls',
+  'Beacon Ridge',
+  'Copperton',
+  'Delta Junction',
+  'Eastridge',
+  'Foxford',
+  'Garnet Bay',
+  'Harborview',
+  'Ironcrest',
+  'Juniper Flats',
+  'Kingsward',
+  'Lakeshire',
+  'Maple Harbor',
+  'Northwind',
+  'Oakspire',
+  'Pinehurst',
+  'Quartz Crossing',
+  'Ravenbrook',
+  'Silver Spires',
+  'Timberfall',
+  'Umberfield',
+  'Valemont',
+  'Windward',
+  'Yorkhaven',
+  'Zephyr Point',
+  'Brightmarch',
+  'Cedar Coast',
+  'Driftwood',
+  'Evermere',
+  'Frostford',
+  'Goldreach',
+  'Horizon Gate',
+  'Ivory Point',
+  'Jetstream City',
+  'Kestrel Bay',
+  'Lumenfield',
+  'Mariner\'s Rest',
+  'New Faraday',
+  'Opal Mesa',
+  'Port Ember',
+  'Quarry Heights',
+  'Riverlight',
+  'Summersend',
+  'Tidewatch',
+  'Unity Port',
+  'Verdant Bluffs',
+  'Westbridge',
+  'Asterpoint',
+  'Bluehaven',
+  'Crystal Anchorage',
+];
+
+const LAKE_NAME_POOL = [
+  'Pine Lake',
+  'Crystal Lake',
+  'Mirror Lake',
+  'Silverpond',
+  'Starlake',
+  'Lotus Lake',
+  'Elmwater',
+  'Mallow Lake',
+  'Ivory Basin',
+  'Serenity Lake',
+  'Emerald Lake',
+  'Sunset Tarn',
+  'Tranquility Lake',
+  'Moonlit Pond',
+  'Juniper Lake',
+  'Granite Basin',
+  'Cobalt Lake',
+  'Whisper Lake',
+  'Meadowmere',
+  'Azure Basin',
+  'Fable Lake',
+  'Kestrel Lake',
+  'Willowmere',
+  'Foxglove Lake',
+  'Riverstone Lake',
+  'Twinpetal Lake',
+  'Spruce Lake',
+  'Northstar Lake',
+  'Prairie Lake',
+];
+
+const OCEAN_NAME_POOL = [
+  'Pacific Reach',
+  'Azure Ocean',
+  'Cerulean Expanse',
+  'Stormglass Sea',
+  'Opal Ocean',
+  'Mariner\'s Gulf',
+  'Golden Current',
+  'Sapphire Sound',
+  'Whalebone Sea',
+  'Tidebreaker Ocean',
+  'Empyrean Sea',
+  'Sunset Expanse',
+  'Tempest Ocean',
+  'Navigator\'s Sea',
+  'Driftglass Ocean',
+  'Celestial Sea',
+  'Pelican Gulf',
+  'Leviathan Reach',
+  'Harbor Sea',
+  'Charted Ocean',
+];
+
+const SPECIALTY_CONFIG: Record<
+  TradeSpecialty,
+  {
+    demandBoost: Partial<Record<ZoneType, number>>;
+    incomeRange: [number, number];
+    flavor: string;
+  }
+> = {
+  manufacturing: {
+    demandBoost: { industrial: 16 },
+    incomeRange: [650, 1150],
+    flavor: 'manufacturing hubs and fabrication yards',
+  },
+  agriculture: {
+    demandBoost: { residential: 6, commercial: 8 },
+    incomeRange: [450, 900],
+    flavor: 'fertile plains and regional food markets',
+  },
+  tech: {
+    demandBoost: { commercial: 14 },
+    incomeRange: [700, 1300],
+    flavor: 'research parks and tech campuses',
+  },
+  tourism: {
+    demandBoost: { commercial: 10, residential: 4 },
+    incomeRange: [500, 950],
+    flavor: 'coastal resorts and cultural districts',
+  },
+  logistics: {
+    demandBoost: { industrial: 10, commercial: 6 },
+    incomeRange: [600, 1050],
+    flavor: 'freight terminals and intermodal yards',
+  },
+};
+
+function randomBetween(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function pickUniqueName(pool: string[], used: Set<string>): string {
+  const available = pool.filter(name => !used.has(name));
+  const source = available.length > 0 ? available : pool;
+  const choice = source[Math.floor(Math.random() * source.length)];
+  used.add(choice);
+  return choice;
+}
+
+function shuffleArray<T>(input: T[]): T[] {
+  const arr = [...input];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 // Generate 2-3 large, round lakes
@@ -210,6 +379,59 @@ function generateLakes(grid: Tile[][], size: number, seed: number): void {
   }
 }
 
+function generateOceans(grid: Tile[][], size: number, seed: number): void {
+  const directions: NeighborDirection[] = ['north', 'east', 'south', 'west'];
+  const shuffled = shuffleArray(directions);
+  let oceanEdges = 0;
+  const roll = Math.random();
+  if (roll > 0.8) {
+    oceanEdges = 2;
+  } else if (roll > 0.45) {
+    oceanEdges = 1;
+  }
+  const selected = shuffled.slice(0, oceanEdges);
+
+  selected.forEach((direction, index) => {
+    const dirSeed = seed + 2000 + index * 131;
+    const minDepth = Math.max(3, Math.floor(size * 0.05));
+    const maxDepth = Math.max(minDepth + 2, Math.floor(size * 0.12));
+
+    for (let i = 0; i < size; i++) {
+      const noiseVal = perlinNoise(i * 0.18, 0, dirSeed);
+      const depth = Math.max(2, Math.floor(minDepth + noiseVal * (maxDepth - minDepth)));
+      const taper = Math.sin((i / size) * Math.PI);
+      const finalDepth = Math.max(2, Math.floor(depth * (0.45 + taper * 0.6)));
+
+      for (let d = 0; d < finalDepth; d++) {
+        let x = 0;
+        let y = 0;
+        switch (direction) {
+          case 'north':
+            x = i;
+            y = d;
+            break;
+          case 'south':
+            x = i;
+            y = size - 1 - d;
+            break;
+          case 'east':
+            x = size - 1 - d;
+            y = i;
+            break;
+          case 'west':
+            x = d;
+            y = i;
+            break;
+        }
+        if (x >= 0 && x < size && y >= 0 && y < size) {
+          grid[y][x].building = createBuilding('water');
+          grid[y][x].landValue = 60;
+        }
+      }
+    }
+  });
+}
+
 // Generate terrain - grass with scattered trees and lakes
 function generateTerrain(size: number): Tile[][] {
   const grid: Tile[][] = [];
@@ -226,6 +448,9 @@ function generateTerrain(size: number): Tile[][] {
   
   // Second pass: add lakes (small contiguous water regions)
   generateLakes(grid, size, seed);
+
+  // Optional oceans along edges
+  generateOceans(grid, size, seed);
   
   // Third pass: add scattered trees (avoiding water)
   for (let y = 0; y < size; y++) {
@@ -262,6 +487,167 @@ function isNearWater(grid: Tile[][], x: number, y: number, size: number): boolea
     }
   }
   return false;
+}
+
+function analyzeWaterBodies(grid: Tile[][], size: number): { waterBodies: WaterBody[]; oceanDirections: Set<NeighborDirection> } {
+  const visited = Array.from({ length: size }, () => Array(size).fill(false));
+  const waterBodies: WaterBody[] = [];
+  const oceanDirections = new Set<NeighborDirection>();
+  const usedLakeNames = new Set<string>();
+  const usedOceanNames = new Set<string>();
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (grid[y][x].building.type !== 'water' || visited[y][x]) continue;
+
+      const queue: { x: number; y: number }[] = [{ x, y }];
+      visited[y][x] = true;
+      let sumX = 0;
+      let sumY = 0;
+      let count = 0;
+      let touchesNorth = false;
+      let touchesSouth = false;
+      let touchesEast = false;
+      let touchesWest = false;
+
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        const cx = current.x;
+        const cy = current.y;
+        sumX += cx;
+        sumY += cy;
+        count++;
+
+        if (cy === 0) touchesNorth = true;
+        if (cy === size - 1) touchesSouth = true;
+        if (cx === 0) touchesWest = true;
+        if (cx === size - 1) touchesEast = true;
+
+        const neighbors = [
+          { nx: cx - 1, ny: cy },
+          { nx: cx + 1, ny: cy },
+          { nx: cx, ny: cy - 1 },
+          { nx: cx, ny: cy + 1 },
+        ];
+
+        for (const neighbor of neighbors) {
+          if (
+            neighbor.nx >= 0 &&
+            neighbor.nx < size &&
+            neighbor.ny >= 0 &&
+            neighbor.ny < size &&
+            !visited[neighbor.ny][neighbor.nx] &&
+            grid[neighbor.ny][neighbor.nx].building.type === 'water'
+          ) {
+            visited[neighbor.ny][neighbor.nx] = true;
+            queue.push({ x: neighbor.nx, y: neighbor.ny });
+          }
+        }
+      }
+
+      const touchesDirections: NeighborDirection[] = [];
+      if (touchesNorth) touchesDirections.push('north');
+      if (touchesEast) touchesDirections.push('east');
+      if (touchesSouth) touchesDirections.push('south');
+      if (touchesWest) touchesDirections.push('west');
+
+      const bodyType: WaterBodyType = touchesDirections.length > 0 ? 'ocean' : 'lake';
+      if (bodyType === 'ocean') {
+        touchesDirections.forEach(dir => oceanDirections.add(dir));
+      }
+
+      const nameSet = bodyType === 'ocean' ? usedOceanNames : usedLakeNames;
+      const namePool = bodyType === 'ocean' ? OCEAN_NAME_POOL : LAKE_NAME_POOL;
+      const name = pickUniqueName(namePool, nameSet);
+
+      const centroidX = sumX / count;
+      const centroidY = sumY / count;
+      const labelAnchor = bodyType === 'ocean'
+        ? { x: centroidX, y: Math.max(0, centroidY - 1.2) }
+        : { x: centroidX, y: centroidY };
+
+      waterBodies.push({
+        id: `water-${waterBodies.length}`,
+        name,
+        type: bodyType,
+        centroid: { x: centroidX, y: centroidY },
+        labelAnchor,
+        touchesDirections,
+        size: count,
+      });
+    }
+  }
+
+  return { waterBodies, oceanDirections };
+}
+
+function pickSpecialty(hasPort: boolean): TradeSpecialty {
+  const options: TradeSpecialty[] = hasPort
+    ? ['logistics', 'tourism', 'manufacturing', 'tech', 'agriculture']
+    : ['manufacturing', 'tech', 'agriculture', 'tourism'];
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+function generateNeighborCity(
+  direction: NeighborDirection,
+  oceanDirections: Set<NeighborDirection>,
+  usedNames: Set<string>
+): NeighborCity {
+  const name = pickUniqueName(CITY_NAME_POOL, usedNames);
+  const hasPort = oceanDirections.has(direction);
+  const specialty = pickSpecialty(hasPort);
+  const config = SPECIALTY_CONFIG[specialty];
+  const population = randomBetween(25000, 120000);
+  const incomeBonus = randomBetween(config.incomeRange[0], config.incomeRange[1]) + Math.floor(population / 450);
+  const connectCost = randomBetween(4500, 9000) + Math.floor(population / 30);
+  const demandBoost = { ...config.demandBoost };
+  const directionLabel = direction.charAt(0).toUpperCase() + direction.slice(1);
+  const approach = hasPort ? 'deepwater port' : 'trade corridor';
+  const description = `${directionLabel} of your city, ${name} offers ${config.flavor} connected through a ${approach}.`;
+
+  return {
+    id: `neighbor-${direction}-${name.toLowerCase().replace(/\s+/g, '-')}-${Math.floor(Math.random() * 1000)}`,
+    name,
+    direction,
+    population,
+    specialty,
+    connectCost,
+    incomeBonus,
+    demandBoost,
+    connected: false,
+    description,
+  };
+}
+
+function generateNeighborCities(oceanDirections: Set<NeighborDirection>): NeighborCity[] {
+  const usedNames = new Set<string>();
+  const directions: NeighborDirection[] = ['north', 'east', 'south', 'west'];
+  const neighbors: NeighborCity[] = [];
+
+  for (const direction of directions) {
+    const baseChance = oceanDirections.has(direction) ? 0.78 : 0.55;
+    if (Math.random() <= baseChance) {
+      neighbors.push(generateNeighborCity(direction, oceanDirections, usedNames));
+    }
+  }
+
+  if (neighbors.length === 0) {
+    const fallbackDirection = directions[Math.floor(Math.random() * directions.length)];
+    neighbors.push(generateNeighborCity(fallbackDirection, oceanDirections, usedNames));
+  }
+
+  return neighbors;
+}
+
+function deriveOceanDirectionsFromBodies(bodies: WaterBody[] | undefined): Set<NeighborDirection> {
+  const directions = new Set<NeighborDirection>();
+  if (!bodies) return directions;
+  bodies.forEach(body => {
+    if (body.type === 'ocean') {
+      body.touchesDirections.forEach(dir => directions.add(dir));
+    }
+  });
+  return directions;
 }
 
 function createTile(x: number, y: number, buildingType: BuildingType = 'grass'): Tile {
@@ -355,6 +741,8 @@ function createAchievements(): Achievement[] {
 
 export function createInitialGameState(size: number = 60, cityName: string = 'New City'): GameState {
   const grid = generateTerrain(size);
+  const { waterBodies, oceanDirections } = analyzeWaterBodies(grid, size);
+  const neighborCities = generateNeighborCities(oceanDirections);
 
   return {
     grid,
@@ -374,6 +762,8 @@ export function createInitialGameState(size: number = 60, cityName: string = 'Ne
     achievements: createAchievements(),
     advisorMessages: [],
     history: [],
+    neighborCities,
+    waterBodies,
     activePanel: 'none',
     disastersEnabled: true,
   };
@@ -973,6 +1363,28 @@ function checkAchievements(achievements: Achievement[], stats: Stats, grid: Tile
   return { achievements: newAchievements, newUnlocks };
 }
 
+export function ensureWorldMetadata(state: GameState): GameState {
+  let updatedState = state;
+  let waterBodies = state.waterBodies;
+  let oceanDirections: Set<NeighborDirection> | null = null;
+
+  if (!waterBodies || waterBodies.length === 0) {
+    const analysis = analyzeWaterBodies(state.grid, state.gridSize);
+    waterBodies = analysis.waterBodies;
+    oceanDirections = analysis.oceanDirections;
+    updatedState = { ...updatedState, waterBodies };
+  } else {
+    oceanDirections = deriveOceanDirectionsFromBodies(waterBodies);
+  }
+
+  if (!state.neighborCities || state.neighborCities.length === 0) {
+    const neighborCities = generateNeighborCities(oceanDirections ?? new Set<NeighborDirection>());
+    updatedState = { ...updatedState, neighborCities };
+  }
+
+  return updatedState;
+}
+
 // Main simulation tick
 export function simulateTick(state: GameState): GameState {
   const newGrid = state.grid.map(row => row.map(tile => ({ ...tile, building: { ...tile.building } })));
@@ -1053,6 +1465,26 @@ export function simulateTick(state: GameState): GameState {
   // Calculate stats
   const newStats = calculateStats(newGrid, size, newBudget, state.taxRate, services);
   newStats.money = state.stats.money;
+
+  const connectedNeighbors = (state.neighborCities || []).filter(city => city.connected);
+  if (connectedNeighbors.length > 0) {
+    const tradeIncome = connectedNeighbors.reduce((sum, city) => sum + city.incomeBonus, 0);
+    newStats.income += tradeIncome;
+    connectedNeighbors.forEach(city => {
+      if (city.demandBoost.residential) {
+        newStats.demand.residential += city.demandBoost.residential;
+      }
+      if (city.demandBoost.commercial) {
+        newStats.demand.commercial += city.demandBoost.commercial;
+      }
+      if (city.demandBoost.industrial) {
+        newStats.demand.industrial += city.demandBoost.industrial;
+      }
+    });
+    newStats.demand.residential = Math.max(-100, Math.min(100, newStats.demand.residential));
+    newStats.demand.commercial = Math.max(-100, Math.min(100, newStats.demand.commercial));
+    newStats.demand.industrial = Math.max(-100, Math.min(100, newStats.demand.industrial));
+  }
 
   // Update money on month change
   let newYear = state.year;

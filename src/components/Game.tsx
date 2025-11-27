@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { useGame } from '@/context/GameContext';
-import { Tool, TOOL_INFO, Tile, BuildingType } from '@/types/game';
+import { Tool, TOOL_INFO, Tile, BuildingType, NeighborCity, NeighborDirection } from '@/types/game';
 import { getBuildingSize } from '@/lib/simulation';
 import {
   PlayIcon,
@@ -318,6 +318,30 @@ function screenToGrid(screenX: number, screenY: number, offsetX: number, offsetY
   return { gridX: Math.floor(gridX), gridY: Math.floor(gridY) };
 }
 
+function getOutOfBoundsDirection(gridX: number, gridY: number, gridSize: number): NeighborDirection | null {
+  const beyondLeft = gridX < 0;
+  const beyondRight = gridX >= gridSize;
+  const beyondTop = gridY < 0;
+  const beyondBottom = gridY >= gridSize;
+
+  if (!beyondLeft && !beyondRight && !beyondTop && !beyondBottom) {
+    return null;
+  }
+
+  const horizontalDistance = beyondLeft ? Math.abs(gridX) : beyondRight ? gridX - (gridSize - 1) : 0;
+  const verticalDistance = beyondTop ? Math.abs(gridY) : beyondBottom ? gridY - (gridSize - 1) : 0;
+
+  if (Math.abs(horizontalDistance) > Math.abs(verticalDistance)) {
+    return beyondLeft ? 'west' : 'east';
+  }
+
+  if (Math.abs(verticalDistance) >= Math.abs(horizontalDistance)) {
+    return beyondTop ? 'north' : 'south';
+  }
+
+  return null;
+}
+
 const EVENT_ICON_MAP: Record<string, React.ReactNode> = {
   fire: <FireIcon size={16} />,
   chart_up: <ChartIcon size={16} />,
@@ -589,6 +613,78 @@ function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string
     </div>
   );
 }
+
+const TradeRoutesPanel = React.memo(function TradeRoutesPanel() {
+  const { state, connectNeighborCity } = useGame();
+  const [feedback, setFeedback] = useState<{ status: 'success' | 'error'; text: string } | null>(null);
+  const { neighborCities = [] } = state;
+  const connected = neighborCities.filter(city => city.connected);
+  const totalBonus = connected.reduce((sum, city) => sum + city.incomeBonus, 0);
+
+  useEffect(() => {
+    if (!feedback) return;
+    const timeout = setTimeout(() => setFeedback(null), 3000);
+    return () => clearTimeout(timeout);
+  }, [feedback]);
+
+  const attemptConnect = (direction: NeighborDirection, city: NeighborCity) => {
+    const result = connectNeighborCity(direction);
+    if (result.ok) {
+      setFeedback({ status: 'success', text: `Connected to ${city.name}` });
+    } else if (result.error === 'insufficient_funds') {
+      setFeedback({ status: 'error', text: 'Need more funds for that connection.' });
+    } else if (result.error === 'already_connected') {
+      setFeedback({ status: 'error', text: `${city.name} is already connected.` });
+    } else {
+      setFeedback({ status: 'error', text: 'No available trade partner there.' });
+    }
+  };
+
+  return (
+    <Card className="absolute top-6 right-8 w-72 shadow-lg bg-card/90 border-border/70 z-30">
+      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-1">Trade Network</div>
+      <div className="flex items-center justify-between text-sm mb-3">
+        <span>{connected.length}/{neighborCities.length} routes active</span>
+        <span className="font-mono text-emerald-400">+${totalBonus.toLocaleString()}/mo</span>
+      </div>
+      <div className="space-y-3 max-h-44 overflow-auto pr-1">
+        {neighborCities.length === 0 && (
+          <div className="text-xs text-muted-foreground">No nearby cities discovered yet.</div>
+        )}
+        {neighborCities.map(city => (
+          <div key={city.id} className="border border-border/60 rounded-md p-2 space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="font-semibold text-sm">{city.name}</div>
+              <Badge variant={city.connected ? 'default' : 'secondary'} className="uppercase text-[10px] tracking-widest">
+                {city.connected ? 'Linked' : city.direction.toUpperCase()}
+              </Badge>
+            </div>
+            <div className="text-xs text-muted-foreground">{city.description}</div>
+            <div className="flex items-center justify-between text-[11px] font-mono">
+              <span>+${city.incomeBonus.toLocaleString()}/mo</span>
+              {!city.connected ? (
+                <Button size="sm" className="h-7 text-[11px]" onClick={() => attemptConnect(city.direction, city)}>
+                  Connect (${city.connectCost.toLocaleString()})
+                </Button>
+              ) : (
+                <span className="text-emerald-400">Active</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      {feedback && (
+        <div
+          className={`mt-3 text-[11px] px-2 py-1 rounded ${
+            feedback.status === 'success' ? 'bg-emerald-600/30 text-emerald-200' : 'bg-red-600/30 text-red-200'
+          }`}
+        >
+          {feedback.text}
+        </div>
+      )}
+    </Card>
+  );
+});
 
 // Canvas-based Minimap - Memoized
 const MiniMap = React.memo(function MiniMap() {
@@ -1495,7 +1591,7 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
         <DialogHeader>
           <DialogTitle>Sprite Test View</DialogTitle>
           <DialogDescription>
-            All {currentSpritePack.spriteOrder.length} sprites from "{currentSpritePack.name}". Index shown in brackets.
+            All {currentSpritePack.spriteOrder.length} sprites from &ldquo;{currentSpritePack.name}&rdquo;. Index shown in brackets.
           </DialogDescription>
         </DialogHeader>
         
@@ -1509,7 +1605,7 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
         
         <div className="text-xs text-muted-foreground space-y-1">
           <p>Sprite sheet: {currentSpritePack.src} ({currentSpritePack.cols}x{currentSpritePack.rows} grid)</p>
-          <p>Edit offsets in <code className="bg-muted px-1 rounded">src/lib/renderConfig.ts</code> → each sprite pack's verticalOffsets</p>
+          <p>Edit offsets in <code className="bg-muted px-1 rounded">src/lib/renderConfig.ts</code> → each sprite pack&rsquo;s verticalOffsets</p>
         </div>
       </DialogContent>
     </Dialog>
@@ -1610,14 +1706,20 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+type EdgeConnectionIntent = {
+  direction: NeighborDirection;
+  city: NeighborCity;
+  pointer: { x: number; y: number };
+};
+
 // Canvas-based Isometric Grid - HIGH PERFORMANCE
 function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: { 
   overlayMode: OverlayMode; 
   selectedTile: { x: number; y: number } | null; 
   setSelectedTile: (tile: { x: number; y: number } | null) => void;
 }) {
-  const { state, placeAtTile, currentSpritePack } = useGame();
-  const { grid, gridSize, selectedTool, speed } = state;
+  const { state, placeAtTile, currentSpritePack, connectNeighborCity } = useGame();
+  const { grid, gridSize, selectedTool, speed, neighborCities, waterBodies } = state;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const carsCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1648,6 +1750,22 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
   const [dragStartTile, setDragStartTile] = useState<{ x: number; y: number } | null>(null);
   const [dragEndTile, setDragEndTile] = useState<{ x: number; y: number } | null>(null);
   const keysPressedRef = useRef<Set<string>>(new Set());
+  const [edgeConnectionIntent, setEdgeConnectionIntent] = useState<EdgeConnectionIntent | null>(null);
+  const [edgeConnectionMessage, setEdgeConnectionMessage] = useState<{ status: 'success' | 'error'; text: string } | null>(null);
+  const edgePromptCoords = useMemo(() => {
+    if (!edgeConnectionIntent) return null;
+    const width = containerRef.current?.clientWidth ?? canvasSize.width;
+    const height = containerRef.current?.clientHeight ?? canvasSize.height;
+    const paddingX = 130;
+    const paddingY = 130;
+    const x = width
+      ? Math.min(Math.max(edgeConnectionIntent.pointer.x, paddingX), width - paddingX)
+      : edgeConnectionIntent.pointer.x;
+    const y = height
+      ? Math.min(Math.max(edgeConnectionIntent.pointer.y, paddingY), height - paddingY)
+      : edgeConnectionIntent.pointer.y;
+    return { x, y };
+  }, [edgeConnectionIntent, canvasSize]);
 
   // Only zoning tools show the grid/rectangle selection visualization
   const showsDragGrid = ['zone_residential', 'zone_commercial', 'zone_industrial', 'zone_dezone'].includes(selectedTool);
@@ -1952,9 +2070,10 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
 
     const updatedVehicles: EmergencyVehicle[] = [];
     
-    for (const vehicle of emergencyVehiclesRef.current) {
-      // Update flash timer for lights
-      vehicle.flashTimer += delta * 8;
+      for (const vehicle of emergencyVehiclesRef.current) {
+        // Update flash timer for lights
+        // eslint-disable-next-line react-hooks/immutability
+        vehicle.flashTimer += delta * 8;
       
       if (vehicle.state === 'responding') {
         // At the scene - spend some time responding
@@ -2071,6 +2190,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     for (const car of carsRef.current) {
       let alive = true;
       
+      // eslint-disable-next-line react-hooks/immutability
       car.age += delta;
       if (car.age > car.maxAge) {
         continue;
@@ -2464,6 +2584,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
   }, []);
   
   // Main render function
+  /* eslint-disable react-hooks/immutability, react-hooks/exhaustive-deps */
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !imagesLoaded) return;
@@ -2695,8 +2816,40 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       ctx.fill();
     });
     
+    if (waterBodies && waterBodies.length > 0) {
+      waterBodies.forEach((body) => {
+        const anchor = body.labelAnchor || body.centroid;
+        const { screenX, screenY } = gridToScreen(anchor.x, anchor.y, 0, 0);
+        const labelX = screenX + TILE_WIDTH / 2;
+        const labelY = screenY + TILE_HEIGHT / 2;
+        if (
+          labelX < viewLeft - 120 ||
+          labelX > viewRight + 120 ||
+          labelY < viewTop - 120 ||
+          labelY > viewBottom + 120
+        ) {
+          return;
+        }
+
+        const fontSize = Math.min(26, Math.max(12, 12 + body.size * 0.03));
+        const verticalShift = body.type === 'ocean' ? TILE_HEIGHT * 0.3 : TILE_HEIGHT * 0.15;
+
+        ctx.save();
+        ctx.font = `${fontSize}px 'Space Grotesk', 'Inter', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+        ctx.lineWidth = 0.8;
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.strokeText(body.name, labelX, labelY - verticalShift);
+        ctx.fillText(body.name, labelX, labelY - verticalShift);
+        ctx.restore();
+      });
+    }
+    
     ctx.restore();
-  }, [grid, gridSize, offset, zoom, hoveredTile, selectedTile, overlayMode, imagesLoaded, canvasSize, dragStartTile, dragEndTile, state.services, currentSpritePack]);
+  }, [grid, gridSize, offset, zoom, hoveredTile, selectedTile, overlayMode, imagesLoaded, canvasSize, dragStartTile, dragEndTile, state.services, currentSpritePack, waterBodies]);
+  /* eslint-enable react-hooks/immutability, react-hooks/exhaustive-deps */
   
   // Animate decorative car traffic AND emergency vehicles on top of the base canvas
   useEffect(() => {
@@ -3760,11 +3913,16 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     
     const rect = containerRef.current?.getBoundingClientRect();
     if (rect) {
-      const mouseX = (e.clientX - rect.left) / zoom;
-      const mouseY = (e.clientY - rect.top) / zoom;
+      const relativeX = e.clientX - rect.left;
+      const relativeY = e.clientY - rect.top;
+      const mouseX = relativeX / zoom;
+      const mouseY = relativeY / zoom;
       const { gridX, gridY } = screenToGrid(mouseX, mouseY, offset.x / zoom, offset.y / zoom);
       
       if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
+        if (edgeConnectionIntent) {
+          setEdgeConnectionIntent(null);
+        }
         setHoveredTile({ x: gridX, y: gridY });
         
         // Update drag rectangle end point for zoning tools
@@ -3782,9 +3940,31 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
         }
       } else {
         setHoveredTile(null);
+        const direction = getOutOfBoundsDirection(gridX, gridY, gridSize);
+        if (
+          direction &&
+          isDragging &&
+          supportsDragPlace &&
+          selectedTool === 'road'
+        ) {
+          const availableCity = (neighborCities || []).find(
+            city => city.direction === direction && !city.connected
+          );
+          if (availableCity) {
+            setEdgeConnectionIntent({
+              direction,
+              city: availableCity,
+              pointer: { x: relativeX, y: relativeY },
+            });
+          } else {
+            setEdgeConnectionIntent(null);
+          }
+        } else if (!isDragging) {
+          setEdgeConnectionIntent(null);
+        }
       }
     }
-  }, [isPanning, isDragging, dragStart, offset, gridSize, zoom, showsDragGrid, supportsDragPlace, dragStartTile, lastPlacedTile, placeAtTile]);
+  }, [isPanning, isDragging, dragStart, offset, gridSize, zoom, showsDragGrid, supportsDragPlace, dragStartTile, lastPlacedTile, placeAtTile, edgeConnectionIntent, neighborCities, selectedTool]);
   
   const handleMouseUp = useCallback(() => {
     // Fill the drag rectangle when mouse is released (only for zoning tools)
@@ -3809,12 +3989,41 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     setDragStartTile(null);
     setDragEndTile(null);
   }, [isDragging, dragStartTile, dragEndTile, showsDragGrid, placeAtTile]);
+
+  const handleConfirmCityConnection = useCallback(() => {
+    if (!edgeConnectionIntent) return;
+    const result = connectNeighborCity(edgeConnectionIntent.direction);
+    if (result.ok) {
+      setEdgeConnectionIntent(null);
+      setEdgeConnectionMessage({ status: 'success', text: `Connected to ${edgeConnectionIntent.city.name}` });
+    } else {
+      let text = 'Unable to connect.';
+      if (result.error === 'insufficient_funds') {
+        text = 'Not enough money to complete this connection.';
+      } else if (result.error === 'already_connected') {
+        text = `${edgeConnectionIntent.city.name} is already connected.`;
+      } else if (result.error === 'not_available') {
+        text = 'No trade partner in that direction.';
+      }
+      setEdgeConnectionMessage({ status: 'error', text });
+    }
+  }, [edgeConnectionIntent, connectNeighborCity]);
+
+  const handleDismissEdgePrompt = useCallback(() => {
+    setEdgeConnectionIntent(null);
+  }, []);
   
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.05 : 0.05;
     setZoom(z => Math.max(0.3, Math.min(2, z + delta)));
   }, []);
+
+  useEffect(() => {
+    if (!edgeConnectionMessage) return;
+    const timeout = setTimeout(() => setEdgeConnectionMessage(null), 4000);
+    return () => clearTimeout(timeout);
+  }, [edgeConnectionMessage]);
   
   return (
     <div
@@ -3867,7 +4076,39 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
           )}
         </div>
       )}
-      
+      {edgeConnectionIntent && edgePromptCoords && (
+        <div
+          className="absolute pointer-events-none z-40"
+          style={{ left: `${edgePromptCoords.x}px`, top: `${edgePromptCoords.y}px`, transform: 'translate(-50%, -110%)' }}
+        >
+          <Card className="pointer-events-auto bg-card/95 border border-border/70 shadow-xl w-64">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-1">External Trade</div>
+            <div className="text-sm font-semibold mb-1">Connect to {edgeConnectionIntent.city.name}</div>
+            <p className="text-xs text-muted-foreground leading-snug mb-3">{edgeConnectionIntent.city.description}</p>
+            <div className="text-xs space-y-1 font-mono mb-3">
+              <div>Cost: ${edgeConnectionIntent.city.connectCost.toLocaleString()}</div>
+              <div>Bonus: +${edgeConnectionIntent.city.incomeBonus.toLocaleString()}/mo</div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" className="flex-1" onClick={handleConfirmCityConnection}>
+                Connect
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleDismissEdgePrompt}>
+                Not now
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+      {edgeConnectionMessage && (
+        <div
+          className={`absolute top-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-md shadow-lg text-sm text-white ${
+            edgeConnectionMessage.status === 'success' ? 'bg-emerald-600/80' : 'bg-red-600/80'
+          }`}
+        >
+          {edgeConnectionMessage.text}
+        </div>
+      )}
     </div>
   );
 }
@@ -3990,6 +4231,7 @@ export default function Game() {
   }, []); // Only run once on mount
   
   // Auto-set overlay when selecting utility tools (but not on initial page load)
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -4029,6 +4271,7 @@ export default function Game() {
       setOverlayMode('education');
     }
   }, [state.selectedTool]);
+  /* eslint-enable react-hooks/set-state-in-effect */
   
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -4069,6 +4312,7 @@ export default function Game() {
           <div className="flex-1 relative overflow-visible">
             <CanvasIsometricGrid overlayMode={overlayMode} selectedTile={selectedTile} setSelectedTile={setSelectedTile} />
             <OverlayModeToggle overlayMode={overlayMode} setOverlayMode={setOverlayMode} />
+            <TradeRoutesPanel />
             <MiniMap />
           </div>
         </div>

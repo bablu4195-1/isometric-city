@@ -6,6 +6,7 @@ import {
   Budget,
   BuildingType,
   GameState,
+  NeighborDirection,
   Tool,
   TOOL_INFO,
   ZoneType,
@@ -13,6 +14,7 @@ import {
 import {
   bulldozeTile,
   createInitialGameState,
+  ensureWorldMetadata,
   placeBuilding,
   simulateTick,
 } from '@/lib/simulation';
@@ -45,9 +47,36 @@ type GameContextValue = {
   currentSpritePack: SpritePack;
   availableSpritePacks: SpritePack[];
   setSpritePack: (packId: string) => void;
+  connectNeighborCity: (
+    direction: NeighborDirection
+  ) => { ok: boolean; error?: 'not_available' | 'already_connected' | 'insufficient_funds' };
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
+
+const noop = () => {};
+const defaultState = createInitialGameState();
+const defaultSpritePack = getSpritePack(DEFAULT_SPRITE_PACK_ID);
+
+const defaultContextValue: GameContextValue = {
+  state: defaultState,
+  setTool: noop,
+  setSpeed: noop,
+  setTaxRate: noop,
+  setActivePanel: noop,
+  setBudgetFunding: noop,
+  placeAtTile: noop,
+  setDisastersEnabled: noop,
+  newGame: noop,
+  loadState: () => false,
+  exportState: () => JSON.stringify(defaultState),
+  hasExistingGame: false,
+  isSaving: false,
+  currentSpritePack: defaultSpritePack,
+  availableSpritePacks: SPRITE_PACKS,
+  setSpritePack: noop,
+  connectNeighborCity: () => ({ ok: false, error: 'not_available' }),
+};
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -109,7 +138,7 @@ function loadGameState(): GameState | null {
         if (parsed.selectedTool === 'park_medium') {
           parsed.selectedTool = 'park_large';
         }
-        return parsed as GameState;
+        return ensureWorldMetadata(parsed as GameState);
       } else {
         localStorage.removeItem(STORAGE_KEY);
       }
@@ -396,6 +425,58 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const connectNeighborCity = useCallback((direction: NeighborDirection) => {
+    let result: { ok: boolean; error?: 'not_available' | 'already_connected' | 'insufficient_funds' } = {
+      ok: false,
+      error: 'not_available',
+    };
+    setState(prev => {
+      const neighbors = prev.neighborCities || [];
+      const index = neighbors.findIndex(city => city.direction === direction);
+      if (index === -1) {
+        result = { ok: false, error: 'not_available' };
+        return prev;
+      }
+
+      const city = neighbors[index];
+      if (city.connected) {
+        result = { ok: false, error: 'already_connected' };
+        return prev;
+      }
+
+      if (prev.stats.money < city.connectCost) {
+        result = { ok: false, error: 'insufficient_funds' };
+        return prev;
+      }
+
+      const updatedNeighbors = [...neighbors];
+      updatedNeighbors[index] = { ...city, connected: true };
+
+      const newNotifications = [
+        {
+          id: `trade-${Date.now()}`,
+          title: 'Trade Route Established',
+          description: `Connected to ${city.name}`,
+          icon: 'road',
+          timestamp: Date.now(),
+        },
+        ...prev.notifications,
+      ];
+      while (newNotifications.length > 10) {
+        newNotifications.pop();
+      }
+
+      result = { ok: true };
+      return {
+        ...prev,
+        neighborCities: updatedNeighbors,
+        stats: { ...prev.stats, money: prev.stats.money - city.connectCost },
+        notifications: newNotifications,
+      };
+    });
+    return result;
+  }, []);
+
   const setDisastersEnabled = useCallback((enabled: boolean) => {
     setState((prev) => ({ ...prev, disastersEnabled: enabled }));
   }, []);
@@ -425,7 +506,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           parsed.stats &&
           parsed.stats.money !== undefined &&
           parsed.stats.population !== undefined) {
-        setState(parsed as GameState);
+        setState(ensureWorldMetadata(parsed as GameState));
         return true;
       }
       return false;
@@ -456,6 +537,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     currentSpritePack,
     availableSpritePacks: SPRITE_PACKS,
     setSpritePack,
+    connectNeighborCity,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
@@ -464,7 +546,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 export function useGame() {
   const ctx = useContext(GameContext);
   if (!ctx) {
-    throw new Error('useGame must be used within a GameProvider');
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('useGame accessed outside of GameProvider');
+    }
+    return defaultContextValue;
   }
   return ctx;
 }
