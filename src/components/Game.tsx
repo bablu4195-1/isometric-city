@@ -665,7 +665,17 @@ function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string
 }
 
 // Canvas-based Minimap - Memoized
-const MiniMap = React.memo(function MiniMap({ onNavigate }: { onNavigate?: (gridX: number, gridY: number) => void }) {
+const MiniMap = React.memo(function MiniMap({ 
+  onNavigate,
+  offset,
+  zoom,
+  canvasSize
+}: { 
+  onNavigate?: (gridX: number, gridY: number) => void;
+  offset: { x: number; y: number };
+  zoom: number;
+  canvasSize: { width: number; height: number };
+}) {
   const { state } = useGame();
   const { grid, gridSize } = state;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -708,7 +718,39 @@ const MiniMap = React.memo(function MiniMap({ onNavigate }: { onNavigate?: (grid
         ctx.fillRect(x * scale, y * scale, Math.ceil(scale), Math.ceil(scale));
       }
     }
-  }, [grid, gridSize]);
+    
+    // Draw viewport indicator
+    // Calculate viewport bounds in world coordinates
+    const dpr = window.devicePixelRatio || 1;
+    const viewWidth = canvasSize.width / (dpr * zoom);
+    const viewHeight = canvasSize.height / (dpr * zoom);
+    const viewLeft = -offset.x / zoom;
+    const viewTop = -offset.y / zoom;
+    const viewRight = viewLeft + viewWidth;
+    const viewBottom = viewTop + viewHeight;
+    
+    // Convert viewport corners to grid coordinates
+    const topLeft = screenToGrid(viewLeft, viewTop, 0, 0);
+    const topRight = screenToGrid(viewRight, viewTop, 0, 0);
+    const bottomLeft = screenToGrid(viewLeft, viewBottom, 0, 0);
+    const bottomRight = screenToGrid(viewRight, viewBottom, 0, 0);
+    
+    // Find bounding box in grid coordinates
+    const minGridX = Math.max(0, Math.min(topLeft.gridX, topRight.gridX, bottomLeft.gridX, bottomRight.gridX));
+    const maxGridX = Math.min(gridSize - 1, Math.max(topLeft.gridX, topRight.gridX, bottomLeft.gridX, bottomRight.gridX));
+    const minGridY = Math.max(0, Math.min(topLeft.gridY, topRight.gridY, bottomLeft.gridY, bottomRight.gridY));
+    const maxGridY = Math.min(gridSize - 1, Math.max(topLeft.gridY, topRight.gridY, bottomLeft.gridY, bottomRight.gridY));
+    
+    // Draw white rectangle on minimap
+    const viewportX = minGridX * scale;
+    const viewportY = minGridY * scale;
+    const viewportWidth = (maxGridX - minGridX + 1) * scale;
+    const viewportHeight = (maxGridY - minGridY + 1) * scale;
+    
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(viewportX, viewportY, viewportWidth, viewportHeight);
+  }, [grid, gridSize, offset, zoom, canvasSize]);
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!onNavigate) return;
@@ -1762,12 +1804,13 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 // Canvas-based Isometric Grid - HIGH PERFORMANCE
-function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, navigationTarget, onNavigationComplete }: {
+function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, navigationTarget, onNavigationComplete, onViewportChange }: {
   overlayMode: OverlayMode;
   selectedTile: { x: number; y: number } | null;
   setSelectedTile: (tile: { x: number; y: number } | null) => void;
   navigationTarget?: { x: number; y: number } | null;
   onNavigationComplete?: () => void;
+  onViewportChange?: (viewport: { offset: { x: number; y: number }; zoom: number; canvasSize: { width: number; height: number } }) => void;
 }) {
   const { state, placeAtTile, connectToCity, currentSpritePack } = useGame();
   const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies, hour } = state;
@@ -1841,6 +1884,13 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, navig
   useEffect(() => {
     worldStateRef.current.canvasSize = canvasSize;
   }, [canvasSize]);
+
+  // Notify parent of viewport changes
+  useEffect(() => {
+    if (onViewportChange) {
+      onViewportChange({ offset, zoom, canvasSize });
+    }
+  }, [offset, zoom, canvasSize, onViewportChange]);
 
   // Keyboard panning (WASD / arrow keys)
   useEffect(() => {
@@ -5531,6 +5581,11 @@ export default function Game() {
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<{ x: number; y: number } | null>(null);
+  const [viewportState, setViewportState] = useState<{ offset: { x: number; y: number }; zoom: number; canvasSize: { width: number; height: number } }>({
+    offset: { x: 620, y: 160 },
+    zoom: 1,
+    canvasSize: { width: 1200, height: 800 }
+  });
   const isInitialMount = useRef(true);
   
   // Cheat code system
@@ -5704,9 +5759,15 @@ export default function Game() {
               setSelectedTile={setSelectedTile}
               navigationTarget={navigationTarget}
               onNavigationComplete={() => setNavigationTarget(null)}
+              onViewportChange={setViewportState}
             />
             <OverlayModeToggle overlayMode={overlayMode} setOverlayMode={setOverlayMode} />
-            <MiniMap onNavigate={(x, y) => setNavigationTarget({ x, y })} />
+            <MiniMap 
+              onNavigate={(x, y) => setNavigationTarget({ x, y })} 
+              offset={viewportState.offset}
+              zoom={viewportState.zoom}
+              canvasSize={viewportState.canvasSize}
+            />
           </div>
         </div>
         
