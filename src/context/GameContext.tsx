@@ -45,6 +45,8 @@ type GameContextValue = {
   currentSpritePack: SpritePack;
   availableSpritePacks: SpritePack[];
   setSpritePack: (packId: string) => void;
+  // Trade system
+  connectToCity: (cityId: string) => void;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -108,6 +110,13 @@ function loadGameState(): GameState | null {
         // Migrate selectedTool if it's park_medium
         if (parsed.selectedTool === 'park_medium') {
           parsed.selectedTool = 'park_large';
+        }
+        // Migrate: add adjacentCities and waterBodies if missing
+        if (!parsed.adjacentCities) {
+          parsed.adjacentCities = [];
+        }
+        if (!parsed.waterBodies) {
+          parsed.waterBodies = [];
         }
         return parsed as GameState;
       } else {
@@ -438,6 +447,29 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return JSON.stringify(state);
   }, [state]);
 
+  const connectToCity = useCallback((cityId: string) => {
+    setState((prev) => {
+      const city = prev.adjacentCities.find(c => c.id === cityId);
+      const updatedCities = prev.adjacentCities.map((c) =>
+        c.id === cityId ? { ...c, connected: true } : c
+      );
+      return {
+        ...prev,
+        adjacentCities: updatedCities,
+        notifications: [
+          {
+            id: `connection-${Date.now()}`,
+            title: 'City Connected!',
+            description: `Connected to ${city?.name || 'city'}`,
+            icon: 'road',
+            timestamp: Date.now(),
+          },
+          ...prev.notifications.slice(0, 9),
+        ],
+      };
+    });
+  }, []);
+
   const value: GameContextValue = {
     state,
     setTool,
@@ -456,6 +488,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     currentSpritePack,
     availableSpritePacks: SPRITE_PACKS,
     setSpritePack,
+    // Trade system
+    connectToCity,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
