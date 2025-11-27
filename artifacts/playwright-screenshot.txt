@@ -1,0 +1,3 @@
+Navigating to http://localhost:3000
+Waiting for timeout 8000...
+Capturing screenshot into artifacts/hills.png

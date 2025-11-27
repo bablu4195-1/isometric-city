@@ -1,0 +1,14 @@
+
+> isometric-city@0.1.0 lint
+> eslint .
+
+
+/workspace/eslint.config.mjs
+  3:1  warning  Assign array to a variable before exporting as module default  import/no-anonymous-default-export
+
+/workspace/src/components/Game.tsx
+  1631:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  6339:6   warning  React Hook useCallback has an unnecessary dependency: 'supportsDragPlace'. Either exclude it or remove the dependency array                                                                                                                                                              react-hooks/exhaustive-deps
+
+✖ 3 problems (0 errors, 3 warnings)
+

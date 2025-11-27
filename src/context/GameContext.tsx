@@ -134,8 +134,16 @@ function loadGameState(): GameState | null {
         if (parsed.grid) {
           for (let y = 0; y < parsed.grid.length; y++) {
             for (let x = 0; x < parsed.grid[y].length; x++) {
-              if (parsed.grid[y][x]?.building?.type === 'park_medium') {
-                parsed.grid[y][x].building.type = 'park_large';
+              const tile = parsed.grid[y][x];
+              if (!tile) continue;
+              if (tile.building?.type === 'park_medium') {
+                tile.building.type = 'park_large';
+              }
+              if (!tile.terrain) {
+                tile.terrain = tile.building?.type === 'water' ? 'water' : 'plain';
+              }
+              if (typeof tile.elevation !== 'number') {
+                tile.elevation = 0;
               }
             }
           }

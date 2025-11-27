@@ -1002,6 +1002,7 @@ const MiniMap = React.memo(function MiniMap({ onNavigate, viewport }: {
         if (tile.building.type === 'water') color = '#0ea5e9';
         else if (tile.building.type === 'road') color = '#6b7280';
         else if (tile.building.type === 'tree') color = '#166534';
+        else if (tile.terrain === 'hill' && tile.building.type === 'grass') color = '#94a3b8';
         else if (tile.zone === 'residential' && tile.building.type !== 'grass') color = '#22c55e';
         else if (tile.zone === 'residential') color = '#14532d';
         else if (tile.zone === 'commercial' && tile.building.type !== 'grass') color = '#38bdf8';
@@ -4600,6 +4601,79 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       ctx.lineCap = 'butt';
     }
     
+    function drawMountainPeaks(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile) {
+      const w = TILE_WIDTH;
+      const h = TILE_HEIGHT;
+      const baseY = y + h * 0.75;
+      const intensity = Math.min(1, Math.max(0, tile.elevation ?? 0));
+      const peakHeight = h * (0.24 + intensity * 0.35);
+      const peaks = [
+        { offset: -w * 0.12, height: peakHeight * 0.85 },
+        { offset: w * 0.05, height: peakHeight },
+      ];
+      
+      peaks.forEach((peak, idx) => {
+        const topX = x + w / 2 + peak.offset;
+        const topY = baseY - peak.height;
+        const baseLeftX = topX - w * 0.22;
+        const baseRightX = topX + w * 0.22;
+        const baseBottom = y + h * 0.92;
+        
+        // Shadow side
+        ctx.fillStyle = idx === 0 ? '#4b5563' : '#475569';
+        ctx.beginPath();
+        ctx.moveTo(topX, topY);
+        ctx.lineTo(baseLeftX, baseBottom);
+        ctx.lineTo(topX, baseBottom);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Highlight side
+        ctx.fillStyle = idx === 0 ? '#cbd5f5' : '#d1d5db';
+        ctx.beginPath();
+        ctx.moveTo(topX, topY);
+        ctx.lineTo(topX, baseBottom);
+        ctx.lineTo(baseRightX, baseBottom);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.strokeStyle = 'rgba(17, 24, 39, 0.4)';
+        ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        ctx.moveTo(topX, topY);
+        ctx.lineTo(topX, baseBottom);
+        ctx.stroke();
+      });
+    }
+    
+    function drawHillFlag(ctx: CanvasRenderingContext2D, x: number, y: number) {
+      const poleX = x + TILE_WIDTH * 0.78;
+      const poleBaseY = y + TILE_HEIGHT * 0.5;
+      const poleHeight = TILE_HEIGHT * 0.45;
+      
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(poleX, poleBaseY);
+      ctx.lineTo(poleX, poleBaseY - poleHeight);
+      ctx.stroke();
+      
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.moveTo(poleX, poleBaseY - poleHeight);
+      ctx.lineTo(poleX + TILE_WIDTH * 0.18, poleBaseY - poleHeight + TILE_HEIGHT * 0.08);
+      ctx.lineTo(poleX, poleBaseY - poleHeight + TILE_HEIGHT * 0.16);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(poleX + TILE_WIDTH * 0.12, poleBaseY - poleHeight + TILE_HEIGHT * 0.1);
+      ctx.lineTo(poleX + TILE_WIDTH * 0.02, poleBaseY - poleHeight + TILE_HEIGHT * 0.14);
+      ctx.stroke();
+    }
+    
     // Draw isometric tile base
     function drawIsometricTile(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile, highlight: boolean, currentZoom: number, skipGreyBase: boolean = false, skipGreenBase: boolean = false) {
       const w = TILE_WIDTH;
@@ -4610,6 +4684,14 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       let leftColor = '#3d6634';
       let rightColor = '#5a8f4f';
       let strokeColor = '#2d4a26';
+      const isHillTerrain = tile.terrain === 'hill';
+      const hillBaseTile = isHillTerrain && tile.building.type === 'grass';
+      if (hillBaseTile) {
+        topColor = '#5f6a7a';
+        leftColor = '#4b5563';
+        rightColor = '#7d8898';
+        strokeColor = '#1f2937';
+      }
 
       // These get grey bases: baseball_stadium, community_center, swimming_pool, office_building_small
       const allParkTypes = ['park', 'park_large', 'tennis', 'basketball_courts', 'playground_small',
@@ -4656,7 +4738,11 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         leftColor = '#4b5563';
         rightColor = '#9ca3af';
         strokeColor = '#374151';
-      } else if (tile.zone === 'residential') {
+      }
+      
+      const allowZoneTint = !(hillBaseTile);
+      
+      if (tile.zone === 'residential' && allowZoneTint) {
         if (tile.building.type !== 'grass' && tile.building.type !== 'empty') {
           topColor = '#3d7c3f';
           leftColor = '#2d6634';
@@ -4667,7 +4753,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
           rightColor = '#3d6a3d';
         }
         strokeColor = '#22c55e';
-      } else if (tile.zone === 'commercial') {
+      } else if (tile.zone === 'commercial' && allowZoneTint) {
         if (tile.building.type !== 'grass' && tile.building.type !== 'empty') {
           topColor = '#3a5c7c';
           leftColor = '#2a4c6c';
@@ -4678,7 +4764,7 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
           rightColor = '#3a5a7a';
         }
         strokeColor = '#3b82f6';
-      } else if (tile.zone === 'industrial') {
+      } else if (tile.zone === 'industrial' && allowZoneTint) {
         if (tile.building.type !== 'grass' && tile.building.type !== 'empty') {
           topColor = '#7c5c3a';
           leftColor = '#6c4c2a';
@@ -4710,6 +4796,10 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
           ctx.strokeStyle = strokeColor;
           ctx.lineWidth = 0.5;
           ctx.stroke();
+        }
+        
+        if (hillBaseTile) {
+          drawMountainPeaks(ctx, x, y, tile);
         }
         
         // Draw zone border with dashed line (hide when zoomed out, only on grass/empty tiles - not on roads or buildings)
@@ -4754,18 +4844,27 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       let leftColor = '#3d6634';
       let rightColor = '#5a8f4f';
       let strokeColor = '#2d4a26';
+      const isHillTerrain = tile.terrain === 'hill';
+      const hillBaseTile = isHillTerrain && tile.building.type === 'grass';
+      if (hillBaseTile) {
+        topColor = '#5f6a7a';
+        leftColor = '#4b5563';
+        rightColor = '#7d8898';
+        strokeColor = '#1f2937';
+      }
+      const allowZoneTint = !hillBaseTile;
       
-      if (tile.zone === 'residential') {
+      if (tile.zone === 'residential' && allowZoneTint) {
         topColor = '#2d5a2d';
         leftColor = '#1d4a1d';
         rightColor = '#3d6a3d';
         strokeColor = '#22c55e';
-      } else if (tile.zone === 'commercial') {
+      } else if (tile.zone === 'commercial' && allowZoneTint) {
         topColor = '#2a4a6a';
         leftColor = '#1a3a5a';
         rightColor = '#3a5a7a';
         strokeColor = '#3b82f6';
-      } else if (tile.zone === 'industrial') {
+      } else if (tile.zone === 'industrial' && allowZoneTint) {
         topColor = '#6a4a2a';
         leftColor = '#5a3a1a';
         rightColor = '#7a5a3a';
@@ -4787,6 +4886,10 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = 0.5;
         ctx.stroke();
+      }
+      
+      if (hillBaseTile) {
+        drawMountainPeaks(ctx, x, y, tile);
       }
       
       // Draw zone border with dashed line (hide when zoomed out, only on grass/empty tiles)
@@ -5395,6 +5498,17 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         ctx.ellipse(fireX, fireY + 8, 5, 8, 0, 0, Math.PI * 2);
         ctx.fill();
       }
+      
+      const isFootprintTile = tile.building.type === 'empty' && isPartOfMultiTileBuilding(tile.x, tile.y);
+      const isStructureTile =
+        tile.building.type !== 'grass' &&
+        tile.building.type !== 'empty' &&
+        tile.building.type !== 'water' &&
+        tile.building.type !== 'road' &&
+        tile.building.type !== 'tree';
+      if (tile.terrain === 'hill' && (isStructureTile || isFootprintTile)) {
+        drawHillFlag(ctx, x, y);
+      }
     }
     
     // Draw tiles in isometric order (back to front)
@@ -5466,7 +5580,11 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
                                       (tile.building.type === 'empty' && isPartOfParkBuilding(x, y));
         
         // Draw base tile for all tiles (including water), but skip gray bases for buildings and green bases for grass/empty adjacent to water or parks
-        drawIsometricTile(ctx, screenX, screenY, tile, !!(isHovered || isSelected || isInDragRect), zoom, true, needsGreenBaseOverWater || needsGreenBaseForPark);
+        const renderTile: Tile = {
+          ...tile,
+          building: { ...tile.building },
+        };
+        drawIsometricTile(ctx, screenX, screenY, renderTile, !!(isHovered || isSelected || isInDragRect), zoom, true, needsGreenBaseOverWater || needsGreenBaseForPark);
         
         if (needsGreyBase) {
           baseTileQueue.push({ screenX, screenY, tile, depth: x + y });

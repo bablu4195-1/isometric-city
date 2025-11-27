@@ -210,8 +210,11 @@ function generateLakes(grid: Tile[][], size: number, seed: number): WaterBody[] 
     
     // Apply lake tiles to grid
     for (const tile of lakeTiles) {
-      grid[tile.y][tile.x].building = createBuilding('water');
-      grid[tile.y][tile.x].landValue = 60; // Water increases nearby land value
+      const lakeTile = grid[tile.y][tile.x];
+      lakeTile.building = createBuilding('water');
+      lakeTile.terrain = 'water';
+      lakeTile.elevation = 0;
+      lakeTile.landValue = 60; // Water increases nearby land value
     }
     
     // Calculate center for labeling
@@ -297,8 +300,11 @@ function generateOceans(grid: Tile[][], size: number, seed: number): WaterBody[]
         const y = isHorizontal ? (inwardDirection === 1 ? d : size - 1 - d) : i;
         
         if (x >= 0 && x < size && y >= 0 && y < size && grid[y][x].building.type !== 'water') {
-          grid[y][x].building = createBuilding('water');
-          grid[y][x].landValue = 60;
+          const oceanTile = grid[y][x];
+          oceanTile.building = createBuilding('water');
+          oceanTile.terrain = 'water';
+          oceanTile.elevation = 0;
+          oceanTile.landValue = 60;
           tiles.push({ x, y });
         }
       }
@@ -366,6 +372,80 @@ function generateOceans(grid: Tile[][], size: number, seed: number): WaterBody[]
   return waterBodies;
 }
 
+// Generate hill metadata so empty terrain can render mountains and influence gameplay
+function addHillyTerrain(grid: Tile[][], size: number, seed: number): void {
+  const heightMap: number[][] = Array.from({ length: size }, () => Array(size).fill(0));
+  const hillMask: boolean[][] = Array.from({ length: size }, () => Array(size).fill(false));
+  
+  // Build a blended noise heightmap for gentle slopes with occasional peaks
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const coarse = perlinNoise(x * 0.035, y * 0.035, seed + 2400, 4);
+      const detail = perlinNoise(x * 0.11, y * 0.11, seed + 2600, 2);
+      const ridges = perlinNoise(x * 0.018, y * 0.018, seed + 2800, 3);
+      heightMap[y][x] = coarse * 0.6 + detail * 0.3 + ridges * 0.1;
+    }
+  }
+  
+  // Seed hills using the highest elevations, avoiding shorelines
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const tile = grid[y][x];
+      if (tile.building.type === 'water') continue;
+      const nearWaterPenalty = isNearWater(grid, x, y, size) ? 0.08 : 0;
+      const threshold = 0.7 + nearWaterPenalty;
+      if (heightMap[y][x] > threshold) {
+        hillMask[y][x] = true;
+      }
+    }
+  }
+  
+  // Expand hills to neighboring high ground so features feel organic
+  const neighborOffsets = [
+    [-1, 0], [1, 0], [0, -1], [0, 1],
+    [-1, -1], [-1, 1], [1, -1], [1, 1],
+  ];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const tile = grid[y][x];
+      if (tile.building.type === 'water' || hillMask[y][x]) continue;
+      const nearWaterPenalty = isNearWater(grid, x, y, size) ? 0.08 : 0;
+      const threshold = 0.64 + nearWaterPenalty;
+      if (heightMap[y][x] <= threshold) continue;
+      let adjacentHills = 0;
+      for (const [dx, dy] of neighborOffsets) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
+        if (hillMask[ny][nx]) adjacentHills++;
+      }
+      if (adjacentHills >= 3) {
+        hillMask[y][x] = true;
+      }
+    }
+  }
+  
+  // Apply terrain metadata to tiles
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const tile = grid[y][x];
+      if (tile.building.type === 'water') {
+        tile.terrain = 'water';
+        tile.elevation = 0;
+        continue;
+      }
+      if (hillMask[y][x]) {
+        tile.terrain = 'hill';
+        tile.elevation = heightMap[y][x];
+        tile.landValue = Math.max(20, tile.landValue - 12);
+      } else {
+        tile.terrain = 'plain';
+        tile.elevation = heightMap[y][x] * 0.5;
+      }
+    }
+  }
+}
+
 // Generate adjacent cities (sometimes, not always)
 function generateAdjacentCities(): AdjacentCity[] {
   const cities: AdjacentCity[] = [];
@@ -422,10 +502,14 @@ function generateTerrain(size: number): { grid: Tile[][]; waterBodies: WaterBody
   // Combine all water bodies
   const waterBodies = [...lakeBodies, ...oceanBodies];
   
-  // Fourth pass: add scattered trees (avoiding water)
+  // Fourth pass: add hilly terrain metadata
+  addHillyTerrain(grid, size, seed);
+  
+  // Fifth pass: add scattered trees (avoid water & steep hills)
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      if (grid[y][x].building.type === 'water') continue; // Don't place trees on water
+      const tile = grid[y][x];
+      if (tile.building.type === 'water' || tile.terrain === 'hill') continue; // Don't place trees on water or hilltops
       
       const treeNoise = perlinNoise(x * 2, y * 2, seed + 500, 2);
       const isTree = treeNoise > 0.72 && Math.random() > 0.65;
@@ -435,7 +519,7 @@ function generateTerrain(size: number): { grid: Tile[][]; waterBodies: WaterBody
       const isTreeNearWater = nearWater && Math.random() > 0.7;
 
       if (isTree || isTreeNearWater) {
-        grid[y][x].building = createBuilding('tree');
+        tile.building = createBuilding('tree');
       }
     }
   }
@@ -537,12 +621,20 @@ export function getWaterAdjacency(
   return { hasWater, shouldFlip };
 }
 
-function createTile(x: number, y: number, buildingType: BuildingType = 'grass'): Tile {
+function createTile(
+  x: number,
+  y: number,
+  buildingType: BuildingType = 'grass',
+  terrain: 'plain' | 'hill' | 'water' = 'plain',
+  elevation: number = 0
+): Tile {
   return {
     x,
     y,
     zone: 'none',
     building: createBuilding(buildingType),
+    terrain,
+    elevation,
     landValue: 50,
     pollution: 0,
     crime: 0,
