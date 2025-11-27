@@ -52,6 +52,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCheatCodes } from '@/hooks/useCheatCodes';
 import { VinnieDialog } from '@/components/VinnieDialog';
+import { isMobile, isTablet } from 'react-device-detect';
 
 // Isometric tile dimensions
 const TILE_WIDTH = 64;
@@ -398,9 +399,23 @@ const ADVISOR_ICON_MAP: Record<string, React.ReactNode> = {
 };
 
 // Memoized Sidebar Component
-const Sidebar = React.memo(function Sidebar() {
+const Sidebar = React.memo(function Sidebar({ isOpen, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const { state, setTool, setActivePanel } = useGame();
   const { selectedTool, stats, activePanel } = state;
+  
+  const handleToolSelect = (tool: Tool) => {
+    setTool(tool);
+    if (isMobile && onClose) {
+      onClose();
+    }
+  };
+  
+  const handlePanelToggle = (panel: typeof activePanel) => {
+    setActivePanel(activePanel === panel ? 'none' : panel);
+    if (isMobile && onClose) {
+      onClose();
+    }
+  };
   
   const toolCategories = useMemo(() => ({
     'TOOLS': ['select', 'bulldoze', 'road', 'subway'] as Tool[],
@@ -411,11 +426,16 @@ const Sidebar = React.memo(function Sidebar() {
     'SPECIAL': ['stadium', 'museum', 'airport', 'space_program', 'city_hall', 'amusement_park'] as Tool[],
   }), []);
   
-  return (
-    <div className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col h-full">
+  const sidebarContent = (
+    <div className={`${isMobile ? 'w-full' : 'w-56'} bg-sidebar ${isMobile ? '' : 'border-r'} border-sidebar-border flex flex-col h-full`}>
       <div className="px-4 py-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-sidebar-foreground font-bold tracking-tight">ISOCITY</span>
+          {isMobile && onClose && (
+            <Button variant="ghost" size="icon-sm" onClick={onClose}>
+              <CloseIcon size={16} />
+            </Button>
+          )}
         </div>
       </div>
       
@@ -435,7 +455,7 @@ const Sidebar = React.memo(function Sidebar() {
                 return (
                   <Button
                     key={tool}
-                    onClick={() => setTool(tool)}
+                    onClick={() => handleToolSelect(tool)}
                     disabled={!canAfford && info.cost > 0}
                     variant={isSelected ? 'default' : 'ghost'}
                     className={`w-full justify-start gap-3 px-3 py-2 h-auto text-sm ${
@@ -466,7 +486,7 @@ const Sidebar = React.memo(function Sidebar() {
           ].map(({ panel, icon, label }) => (
             <Button
               key={panel}
-              onClick={() => setActivePanel(activePanel === panel ? 'none' : panel)}
+              onClick={() => handlePanelToggle(panel)}
               variant={activePanel === panel ? 'default' : 'ghost'}
               size="icon-sm"
               className="w-full"
@@ -479,6 +499,20 @@ const Sidebar = React.memo(function Sidebar() {
       </div>
     </div>
   );
+  
+  if (isMobile) {
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose?.()}>
+        <DialogContent className="max-w-[90vw] h-[85vh] p-0 flex flex-col">
+          <div className="flex-1 overflow-hidden">
+            {sidebarContent}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+  
+  return sidebarContent;
 });
 
 // Sun/Moon icon for time of day
@@ -512,25 +546,34 @@ const TimeOfDayIcon = ({ hour }: { hour: number }) => {
 };
 
 // Memoized TopBar Component
-const TopBar = React.memo(function TopBar() {
+const TopBar = React.memo(function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const { state, setSpeed, setTaxRate, isSaving } = useGame();
   const { stats, year, month, hour, speed, taxRate, cityName } = state;
   
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
   return (
-    <div className="h-14 bg-card border-b border-border flex items-center justify-between px-4">
-      <div className="flex items-center gap-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-foreground font-semibold text-sm">{cityName}</h1>
-            {isSaving && (
-              <span className="text-muted-foreground text-xs italic animate-pulse">Saving...</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 text-muted-foreground text-xs font-mono tabular-nums">
-            <span>{monthNames[month - 1]} {year}</span>
-            <TimeOfDayIcon hour={hour} />
+    <div className={`${isMobile ? 'h-auto min-h-14' : 'h-14'} bg-card border-b border-border flex ${isMobile ? 'flex-col' : 'items-center justify-between'} px-2 sm:px-4 py-2 gap-2`}>
+      <div className="flex items-center justify-between gap-2 sm:gap-6 flex-1">
+        <div className="flex items-center gap-2">
+          {isMobile && onMenuClick && (
+            <Button variant="ghost" size="icon-sm" onClick={onMenuClick} className="h-8 w-8">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </Button>
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-foreground font-semibold text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">{cityName}</h1>
+              {isSaving && (
+                <span className="text-muted-foreground text-xs italic animate-pulse">Saving...</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground text-xs font-mono tabular-nums">
+              <span>{monthNames[month - 1]} {year}</span>
+              <TimeOfDayIcon hour={hour} />
+            </div>
           </div>
         </div>
         
@@ -541,60 +584,88 @@ const TopBar = React.memo(function TopBar() {
               onClick={() => setSpeed(s as 0 | 1 | 2 | 3)}
               variant={speed === s ? 'default' : 'ghost'}
               size="icon-sm"
-              className="h-7 w-7"
+              className={`${isMobile ? 'h-8 w-8' : 'h-7 w-7'}`}
               title={s === 0 ? 'Pause' : s === 1 ? 'Normal' : s === 2 ? 'Fast' : 'Very Fast'}
             >
-              {s === 0 ? <PauseIcon size={14} /> : 
-               s === 1 ? <PlayIcon size={14} /> : 
-               s === 2 ? <FastForwardIcon size={14} /> :
+              {s === 0 ? <PauseIcon size={isMobile ? 16 : 14} /> : 
+               s === 1 ? <PlayIcon size={isMobile ? 16 : 14} /> : 
+               s === 2 ? <FastForwardIcon size={isMobile ? 16 : 14} /> :
                <div className="flex items-center -space-x-1">
-                 <PlayIcon size={10} />
-                 <PlayIcon size={10} />
-                 <PlayIcon size={10} />
+                 <PlayIcon size={isMobile ? 12 : 10} />
+                 <PlayIcon size={isMobile ? 12 : 10} />
+                 <PlayIcon size={isMobile ? 12 : 10} />
                </div>}
             </Button>
           ))}
         </div>
       </div>
       
-      <div className="flex items-center gap-8">
-        <StatBadge value={stats.population.toLocaleString()} label="Population" />
-        <StatBadge value={stats.jobs.toLocaleString()} label="Jobs" />
-        <StatBadge 
-          value={`$${stats.money.toLocaleString()}`} 
-          label="Funds"
-          variant={stats.money < 0 ? 'destructive' : stats.money < 1000 ? 'warning' : 'success'}
-        />
-        <Separator orientation="vertical" className="h-8" />
-        <StatBadge 
-          value={`$${(stats.income - stats.expenses).toLocaleString()}`} 
-          label="Monthly"
-          variant={stats.income - stats.expenses >= 0 ? 'success' : 'destructive'}
-        />
-      </div>
+      {!isMobile && (
+        <>
+          <div className="flex items-center gap-8">
+            <StatBadge value={stats.population.toLocaleString()} label="Population" />
+            <StatBadge value={stats.jobs.toLocaleString()} label="Jobs" />
+            <StatBadge 
+              value={`$${stats.money.toLocaleString()}`} 
+              label="Funds"
+              variant={stats.money < 0 ? 'destructive' : stats.money < 1000 ? 'warning' : 'success'}
+            />
+            <Separator orientation="vertical" className="h-8" />
+            <StatBadge 
+              value={`$${(stats.income - stats.expenses).toLocaleString()}`} 
+              label="Monthly"
+              variant={stats.income - stats.expenses >= 0 ? 'success' : 'destructive'}
+            />
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <DemandIndicator label="R" demand={stats.demand.residential} color="text-green-500" />
+              <DemandIndicator label="C" demand={stats.demand.commercial} color="text-blue-500" />
+              <DemandIndicator label="I" demand={stats.demand.industrial} color="text-amber-500" />
+            </div>
+            
+            <Separator orientation="vertical" className="h-8" />
+            
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-xs">Tax</span>
+              <Slider
+                value={[taxRate]}
+                onValueChange={(value) => setTaxRate(value[0])}
+                min={0}
+                max={20}
+                step={1}
+                className="w-16"
+              />
+              <span className="text-foreground text-xs font-mono tabular-nums w-8">{taxRate}%</span>
+            </div>
+          </div>
+        </>
+      )}
       
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <DemandIndicator label="R" demand={stats.demand.residential} color="text-green-500" />
-          <DemandIndicator label="C" demand={stats.demand.commercial} color="text-blue-500" />
-          <DemandIndicator label="I" demand={stats.demand.industrial} color="text-amber-500" />
+      {isMobile && (
+        <div className="flex items-center justify-between gap-2 w-full">
+          <div className="flex items-center gap-2 flex-1 overflow-x-auto">
+            <StatBadge value={stats.population.toLocaleString()} label="Pop" />
+            <StatBadge value={stats.jobs.toLocaleString()} label="Jobs" />
+            <StatBadge 
+              value={`$${stats.money.toLocaleString()}`} 
+              label="Funds"
+              variant={stats.money < 0 ? 'destructive' : stats.money < 1000 ? 'warning' : 'success'}
+            />
+            <StatBadge 
+              value={`$${(stats.income - stats.expenses).toLocaleString()}`} 
+              label="Monthly"
+              variant={stats.income - stats.expenses >= 0 ? 'success' : 'destructive'}
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <DemandIndicator label="R" demand={stats.demand.residential} color="text-green-500" />
+            <DemandIndicator label="C" demand={stats.demand.commercial} color="text-blue-500" />
+            <DemandIndicator label="I" demand={stats.demand.industrial} color="text-amber-500" />
+          </div>
         </div>
-        
-        <Separator orientation="vertical" className="h-8" />
-        
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-xs">Tax</span>
-          <Slider
-            value={[taxRate]}
-            onValueChange={(value) => setTaxRate(value[0])}
-            min={0}
-            max={20}
-            step={1}
-            className="w-16"
-          />
-          <span className="text-foreground text-xs font-mono tabular-nums w-8">{taxRate}%</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 });
@@ -643,12 +714,12 @@ const StatsPanel = React.memo(function StatsPanel() {
   const { stats } = state;
   
   return (
-    <div className="h-8 bg-secondary/50 border-b border-border flex items-center justify-center gap-8 text-xs">
-      <MiniStat icon={<HappyIcon size={12} />} label="Happiness" value={stats.happiness} />
-      <MiniStat icon={<HealthIcon size={12} />} label="Health" value={stats.health} />
-      <MiniStat icon={<EducationIcon size={12} />} label="Education" value={stats.education} />
-      <MiniStat icon={<SafetyIcon size={12} />} label="Safety" value={stats.safety} />
-      <MiniStat icon={<EnvironmentIcon size={12} />} label="Environment" value={stats.environment} />
+    <div className={`${isMobile ? 'h-auto min-h-8 py-1' : 'h-8'} bg-secondary/50 border-b border-border flex items-center ${isMobile ? 'justify-start overflow-x-auto px-2 gap-4' : 'justify-center gap-8'} text-xs`}>
+      <MiniStat icon={<HappyIcon size={isMobile ? 10 : 12} />} label={isMobile ? "Happy" : "Happiness"} value={stats.happiness} />
+      <MiniStat icon={<HealthIcon size={isMobile ? 10 : 12} />} label={isMobile ? "Health" : "Health"} value={stats.health} />
+      <MiniStat icon={<EducationIcon size={isMobile ? 10 : 12} />} label={isMobile ? "Edu" : "Education"} value={stats.education} />
+      <MiniStat icon={<SafetyIcon size={isMobile ? 10 : 12} />} label={isMobile ? "Safety" : "Safety"} value={stats.safety} />
+      <MiniStat icon={<EnvironmentIcon size={isMobile ? 10 : 12} />} label={isMobile ? "Env" : "Environment"} value={stats.environment} />
     </div>
   );
 });
@@ -711,7 +782,7 @@ const MiniMap = React.memo(function MiniMap() {
   }, [grid, gridSize]);
   
   return (
-    <Card className="absolute bottom-6 right-8 p-3 shadow-lg bg-card/90 border-border/70">
+    <Card className={`absolute ${isMobile ? 'bottom-2 right-2' : 'bottom-6 right-8'} p-2 sm:p-3 shadow-lg bg-card/90 border-border/70 ${isMobile ? 'scale-75 origin-bottom-right' : ''}`}>
       <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground font-semibold mb-2">
         Minimap
       </div>
@@ -756,11 +827,11 @@ function TileInfoPanel({
   const { x, y } = tile;
   
   return (
-    <Card className="absolute top-4 right-4 w-72">
+    <Card className={`absolute ${isMobile ? 'top-2 right-2 left-2' : 'top-4 right-4'} ${isMobile ? 'w-auto max-w-[calc(100vw-1rem)]' : 'w-72'}`}>
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="text-sm">Tile ({x}, {y})</CardTitle>
-        <Button variant="ghost" size="icon-sm" onClick={onClose}>
-          <CloseIcon size={14} />
+        <CardTitle className={`${isMobile ? 'text-xs' : 'text-sm'}`}>Tile ({x}, {y})</CardTitle>
+        <Button variant="ghost" size="icon-sm" onClick={onClose} className={isMobile ? 'h-7 w-7' : ''}>
+          <CloseIcon size={isMobile ? 12 : 14} />
         </Button>
       </CardHeader>
       
@@ -5384,89 +5455,89 @@ const OverlayModeToggle = React.memo(function OverlayModeToggle({
   setOverlayMode: (mode: OverlayMode) => void;
 }) {
   return (
-    <Card className="absolute bottom-4 left-4 p-2 shadow-lg bg-card/90 border-border/70 z-50">
+    <Card className={`absolute ${isMobile ? 'bottom-2 left-2' : 'bottom-4 left-4'} p-2 shadow-lg bg-card/90 border-border/70 z-50 ${isMobile ? 'scale-90 origin-bottom-left' : ''}`}>
       <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground font-semibold mb-2">
         View Overlay
       </div>
-      <div className="flex gap-1">
+      <div className="flex gap-1 flex-wrap">
         <Button
           variant={overlayMode === 'none' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => setOverlayMode('none')}
-          className="h-8 px-3"
+          className={`${isMobile ? 'h-7 px-2' : 'h-8 px-3'}`}
           title="No Overlay"
         >
-          <CloseIcon size={14} />
+          <CloseIcon size={isMobile ? 12 : 14} />
         </Button>
         
         <Button
           variant={overlayMode === 'power' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => setOverlayMode('power')}
-          className={`h-8 px-3 ${overlayMode === 'power' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+          className={`${isMobile ? 'h-7 px-2' : 'h-8 px-3'} ${overlayMode === 'power' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
           title="Power Grid"
         >
-          <PowerIcon size={14} />
+          <PowerIcon size={isMobile ? 12 : 14} />
         </Button>
         
         <Button
           variant={overlayMode === 'water' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => setOverlayMode('water')}
-          className={`h-8 px-3 ${overlayMode === 'water' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
+          className={`${isMobile ? 'h-7 px-2' : 'h-8 px-3'} ${overlayMode === 'water' ? 'bg-blue-500 hover:bg-blue-600' : ''}`}
           title="Water System"
         >
-          <WaterIcon size={14} />
+          <WaterIcon size={isMobile ? 12 : 14} />
         </Button>
         
         <Button
           variant={overlayMode === 'fire' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => setOverlayMode('fire')}
-          className={`h-8 px-3 ${overlayMode === 'fire' ? 'bg-red-500 hover:bg-red-600' : ''}`}
+          className={`${isMobile ? 'h-7 px-2' : 'h-8 px-3'} ${overlayMode === 'fire' ? 'bg-red-500 hover:bg-red-600' : ''}`}
           title="Fire Coverage"
         >
-          <FireIcon size={14} />
+          <FireIcon size={isMobile ? 12 : 14} />
         </Button>
         
         <Button
           variant={overlayMode === 'police' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => setOverlayMode('police')}
-          className={`h-8 px-3 ${overlayMode === 'police' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+          className={`${isMobile ? 'h-7 px-2' : 'h-8 px-3'} ${overlayMode === 'police' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
           title="Police Coverage"
         >
-          <SafetyIcon size={14} />
+          <SafetyIcon size={isMobile ? 12 : 14} />
         </Button>
         
         <Button
           variant={overlayMode === 'health' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => setOverlayMode('health')}
-          className={`h-8 px-3 ${overlayMode === 'health' ? 'bg-green-500 hover:bg-green-600' : ''}`}
+          className={`${isMobile ? 'h-7 px-2' : 'h-8 px-3'} ${overlayMode === 'health' ? 'bg-green-500 hover:bg-green-600' : ''}`}
           title="Health Coverage"
         >
-          <HealthIcon size={14} />
+          <HealthIcon size={isMobile ? 12 : 14} />
         </Button>
         
         <Button
           variant={overlayMode === 'education' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => setOverlayMode('education')}
-          className={`h-8 px-3 ${overlayMode === 'education' ? 'bg-purple-500 hover:bg-purple-600' : ''}`}
+          className={`${isMobile ? 'h-7 px-2' : 'h-8 px-3'} ${overlayMode === 'education' ? 'bg-purple-500 hover:bg-purple-600' : ''}`}
           title="Education Coverage"
         >
-          <EducationIcon size={14} />
+          <EducationIcon size={isMobile ? 12 : 14} />
         </Button>
         
         <Button
           variant={overlayMode === 'subway' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => setOverlayMode('subway')}
-          className={`h-8 px-3 ${overlayMode === 'subway' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}`}
+          className={`${isMobile ? 'h-7 px-2' : 'h-8 px-3'} ${overlayMode === 'subway' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}`}
           title="Subway Coverage"
         >
-          <SubwayIcon size={14} />
+          <SubwayIcon size={isMobile ? 12 : 14} />
         </Button>
       </div>
     </Card>
@@ -5477,6 +5548,7 @@ export default function Game() {
   const { state, setTool, setActivePanel, addMoney, addNotification } = useGame();
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const isInitialMount = useRef(true);
   
   // Cheat code system
@@ -5638,10 +5710,13 @@ export default function Game() {
   return (
     <TooltipProvider>
       <div className="w-full h-full min-h-[720px] overflow-hidden bg-background flex">
-        <Sidebar />
+        {!isMobile && <Sidebar />}
+        {isMobile && (
+          <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        )}
         
         <div className="flex-1 flex flex-col">
-          <TopBar />
+          <TopBar onMenuClick={isMobile ? () => setSidebarOpen(true) : undefined} />
           <StatsPanel />
           <div className="flex-1 relative overflow-visible">
             <CanvasIsometricGrid overlayMode={overlayMode} selectedTile={selectedTile} setSelectedTile={setSelectedTile} />

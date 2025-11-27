@@ -19,6 +19,12 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: 'ISOCITY — Metropolis Builder',
   description: 'A luxurious isometric city builder with Art Deco elegance. Zone districts, manage resources, and build your gleaming metropolis.',
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 5,
+    userScalable: true,
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
