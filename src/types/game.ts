@@ -185,8 +185,8 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   animal_pens_farm: { name: 'Animal Pens', cost: 400, description: 'Petting zoo / farm animals', size: 1 },
   cabin_house: { name: 'Cabin House', cost: 300, description: 'Rustic cabin retreat', size: 1 },
   campground: { name: 'Campground', cost: 250, description: 'Outdoor camping area', size: 1 },
-  marina_docks_small: { name: 'Small Marina', cost: 600, description: 'Boat docks and marina', size: 1 },
-  pier_large: { name: 'Large Pier', cost: 1200, description: 'Waterfront pier (2x2)', size: 2 },
+  marina_docks_small: { name: 'Small Marina', cost: 600, description: 'Boat docks (must be placed next to water)', size: 1 },
+  pier_large: { name: 'Large Pier', cost: 1200, description: 'Waterfront pier (2x2, must be placed next to water)', size: 2 },
   roller_coaster_small: { name: 'Roller Coaster', cost: 3000, description: 'Thrill ride (2x2)', size: 2 },
   community_garden: { name: 'Community Garden', cost: 200, description: 'Shared gardening space', size: 1 },
   pond_park: { name: 'Pond Park', cost: 350, description: 'Park with scenic pond', size: 1 },
@@ -207,6 +207,7 @@ export interface Building {
   age: number;
   constructionProgress: number; // 0-100, building is under construction until 100
   abandoned: boolean; // Building is abandoned due to low demand, produces nothing
+  flipped?: boolean; // Horizontally mirror the sprite (used for waterfront buildings to face water)
 }
 
 export interface Tile {

@@ -4,7 +4,7 @@ import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useGame } from '@/context/GameContext';
 import { Tool, TOOL_INFO, Tile, BuildingType, AdjacentCity } from '@/types/game';
-import { getBuildingSize } from '@/lib/simulation';
+import { getBuildingSize, requiresWaterAdjacency, getWaterAdjacency } from '@/lib/simulation';
 import { useMobile } from '@/hooks/useMobile';
 import { MobileToolbar } from '@/components/mobile/MobileToolbar';
 import { MobileTopBar } from '@/components/mobile/MobileTopBar';
@@ -5328,13 +5328,38 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
               
               drawY = drawPosY + h - destHeight + verticalPush;
               
-              // Draw the sprite with correct aspect ratio (normal buildings)
-              ctx.drawImage(
-                filteredSpriteSheet,
-                coords.sx, coords.sy, coords.sw, coords.sh,  // Source: exact tile from sprite sheet
-                Math.round(drawX), Math.round(drawY),        // Destination position
-                Math.round(destWidth), Math.round(destHeight) // Destination size (preserving aspect ratio)
-              );
+              // Check if building should be horizontally flipped (used for waterfront buildings like marina/pier)
+              // Some buildings are mirrored by default and the flip flag inverts that
+              const defaultMirroredBuildings = ['pier_large'];
+              const isDefaultMirrored = defaultMirroredBuildings.includes(buildingType);
+              const isFlipped = isDefaultMirrored ? !tile.building.flipped : tile.building.flipped === true;
+              
+              if (isFlipped) {
+                // Apply horizontal flip around the center of the sprite
+                ctx.save();
+                const centerX = Math.round(drawX + destWidth / 2);
+                ctx.translate(centerX, 0);
+                ctx.scale(-1, 1);
+                ctx.translate(-centerX, 0);
+                
+                // Draw the flipped sprite
+                ctx.drawImage(
+                  filteredSpriteSheet,
+                  coords.sx, coords.sy, coords.sw, coords.sh,
+                  Math.round(drawX), Math.round(drawY),
+                  Math.round(destWidth), Math.round(destHeight)
+                );
+                
+                ctx.restore();
+              } else {
+                // Draw the sprite with correct aspect ratio (normal buildings)
+                ctx.drawImage(
+                  filteredSpriteSheet,
+                  coords.sx, coords.sy, coords.sw, coords.sh,  // Source: exact tile from sprite sheet
+                  Math.round(drawX), Math.round(drawY),        // Destination position
+                  Math.round(destWidth), Math.round(destHeight) // Destination size (preserving aspect ratio)
+                );
+              }
             }
           }
         }
@@ -6448,23 +6473,44 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         );
       })()}
       
-      {hoveredTile && selectedTool !== 'select' && TOOL_INFO[selectedTool] && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-card/90 border border-border px-4 py-2 rounded-md text-sm">
-          {isDragging && dragStartTile && dragEndTile && showsDragGrid ? (
-            <>
-              {TOOL_INFO[selectedTool].name} - {Math.abs(dragEndTile.x - dragStartTile.x) + 1}x{Math.abs(dragEndTile.y - dragStartTile.y) + 1} area
-              {TOOL_INFO[selectedTool].cost > 0 && ` - $${TOOL_INFO[selectedTool].cost * (Math.abs(dragEndTile.x - dragStartTile.x) + 1) * (Math.abs(dragEndTile.y - dragStartTile.y) + 1)}`}
-            </>
-          ) : (
-            <>
-              {TOOL_INFO[selectedTool].name} at ({hoveredTile.x}, {hoveredTile.y})
-              {TOOL_INFO[selectedTool].cost > 0 && ` - $${TOOL_INFO[selectedTool].cost}`}
-              {showsDragGrid && ' - Drag to zone area'}
-              {supportsDragPlace && !showsDragGrid && ' - Drag to place'}
-            </>
-          )}
-        </div>
-      )}
+      {hoveredTile && selectedTool !== 'select' && TOOL_INFO[selectedTool] && (() => {
+        // Check if this is a waterfront building tool and if placement is valid
+        const buildingType = (selectedTool as string) as BuildingType;
+        const isWaterfrontTool = requiresWaterAdjacency(buildingType);
+        let isWaterfrontPlacementInvalid = false;
+        
+        if (isWaterfrontTool && hoveredTile) {
+          const size = getBuildingSize(buildingType);
+          const waterCheck = getWaterAdjacency(grid, hoveredTile.x, hoveredTile.y, size.width, size.height, gridSize);
+          isWaterfrontPlacementInvalid = !waterCheck.hasWater;
+        }
+        
+        return (
+          <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-md text-sm ${
+            isWaterfrontPlacementInvalid 
+              ? 'bg-destructive/90 border border-destructive-foreground/30 text-destructive-foreground' 
+              : 'bg-card/90 border border-border'
+          }`}>
+            {isDragging && dragStartTile && dragEndTile && showsDragGrid ? (
+              <>
+                {TOOL_INFO[selectedTool].name} - {Math.abs(dragEndTile.x - dragStartTile.x) + 1}x{Math.abs(dragEndTile.y - dragStartTile.y) + 1} area
+                {TOOL_INFO[selectedTool].cost > 0 && ` - $${TOOL_INFO[selectedTool].cost * (Math.abs(dragEndTile.x - dragStartTile.x) + 1) * (Math.abs(dragEndTile.y - dragStartTile.y) + 1)}`}
+              </>
+            ) : isWaterfrontPlacementInvalid ? (
+              <>
+                ⚠️ {TOOL_INFO[selectedTool].name} must be placed next to water
+              </>
+            ) : (
+              <>
+                {TOOL_INFO[selectedTool].name} at ({hoveredTile.x}, {hoveredTile.y})
+                {TOOL_INFO[selectedTool].cost > 0 && ` - $${TOOL_INFO[selectedTool].cost}`}
+                {showsDragGrid && ' - Drag to zone area'}
+                {supportsDragPlace && !showsDragGrid && ' - Drag to place'}
+              </>
+            )}
+          </div>
+        );
+      })()}
       
     </div>
   );

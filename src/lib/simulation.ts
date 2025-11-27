@@ -459,6 +459,84 @@ function isNearWater(grid: Tile[][], x: number, y: number, size: number): boolea
   return false;
 }
 
+// Building types that require water adjacency
+const WATERFRONT_BUILDINGS: BuildingType[] = ['marina_docks_small', 'pier_large'];
+
+// Check if a building type requires water adjacency
+export function requiresWaterAdjacency(buildingType: BuildingType): boolean {
+  return WATERFRONT_BUILDINGS.includes(buildingType);
+}
+
+// Check if a building footprint is adjacent to water (for multi-tile buildings, any edge touching water counts)
+// Returns whether water is found and if the sprite should be flipped to face it
+// In isometric view, sprites can only be normal or horizontally mirrored
+export function getWaterAdjacency(
+  grid: Tile[][],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  gridSize: number
+): { hasWater: boolean; shouldFlip: boolean } {
+  // In isometric view (looking from SE toward NW):
+  // - The default sprite faces toward the "front" (south-east in world coords)
+  // - To face the opposite direction, we flip horizontally
+  
+  // Check all four edges and track which sides have water
+  let waterOnSouthOrEast = false; // "Front" sides - no flip needed
+  let waterOnNorthOrWest = false; // "Back" sides - flip needed
+  
+  // Check south edge (y + height) - front-right in isometric view
+  for (let dx = 0; dx < width; dx++) {
+    const checkX = x + dx;
+    const checkY = y + height;
+    if (checkY < gridSize && grid[checkY]?.[checkX]?.building.type === 'water') {
+      waterOnSouthOrEast = true;
+      break;
+    }
+  }
+  
+  // Check east edge (x + width) - front-left in isometric view
+  if (!waterOnSouthOrEast) {
+    for (let dy = 0; dy < height; dy++) {
+      const checkX = x + width;
+      const checkY = y + dy;
+      if (checkX < gridSize && grid[checkY]?.[checkX]?.building.type === 'water') {
+        waterOnSouthOrEast = true;
+        break;
+      }
+    }
+  }
+  
+  // Check north edge (y - 1) - back-left in isometric view
+  for (let dx = 0; dx < width; dx++) {
+    const checkX = x + dx;
+    const checkY = y - 1;
+    if (checkY >= 0 && grid[checkY]?.[checkX]?.building.type === 'water') {
+      waterOnNorthOrWest = true;
+      break;
+    }
+  }
+  
+  // Check west edge (x - 1) - back-right in isometric view
+  if (!waterOnNorthOrWest) {
+    for (let dy = 0; dy < height; dy++) {
+      const checkX = x - 1;
+      const checkY = y + dy;
+      if (checkX >= 0 && grid[checkY]?.[checkX]?.building.type === 'water') {
+        waterOnNorthOrWest = true;
+        break;
+      }
+    }
+  }
+  
+  const hasWater = waterOnSouthOrEast || waterOnNorthOrWest;
+  // Only flip if water is on the back sides and NOT on the front sides
+  const shouldFlip = hasWater && waterOnNorthOrWest && !waterOnSouthOrEast;
+  
+  return { hasWater, shouldFlip };
+}
+
 function createTile(x: number, y: number, buildingType: BuildingType = 'grass'): Tile {
   return {
     x,
@@ -1926,12 +2004,26 @@ export function placeBuilding(
   } else if (buildingType) {
     const size = getBuildingSize(buildingType);
     
+    // Check water adjacency requirement for waterfront buildings (marina, pier)
+    let shouldFlip = false;
+    if (requiresWaterAdjacency(buildingType)) {
+      const waterCheck = getWaterAdjacency(newGrid, x, y, size.width, size.height, state.gridSize);
+      if (!waterCheck.hasWater) {
+        return state; // Waterfront buildings must be placed next to water
+      }
+      shouldFlip = waterCheck.shouldFlip;
+    }
+    
     if (size.width > 1 || size.height > 1) {
       // Multi-tile building - check if we can place it
       if (!canPlaceMultiTileBuilding(newGrid, x, y, size.width, size.height, state.gridSize)) {
         return state; // Can't place here
       }
       applyBuildingFootprint(newGrid, x, y, buildingType, 'none', 1);
+      // Set flip for waterfront buildings to face the water
+      if (shouldFlip) {
+        newGrid[y][x].building.flipped = true;
+      }
     } else {
       // Single tile building - check if tile is available
       // Can't place on water, existing buildings, or 'empty' tiles (part of multi-tile buildings)
@@ -1943,6 +2035,10 @@ export function placeBuilding(
       }
       newGrid[y][x].building = createBuilding(buildingType);
       newGrid[y][x].zone = 'none';
+      // Set flip for waterfront buildings to face the water
+      if (shouldFlip) {
+        newGrid[y][x].building.flipped = true;
+      }
     }
   }
 

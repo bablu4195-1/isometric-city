@@ -263,7 +263,7 @@ const SPRITE_PACK_RED: SpritePack = {
     cabin_house: -0.2,
     campground: -0.15,
     marina_docks_small: -0.15,
-    pier_large: -0.85,
+    pier_large: -0.35,  // moved down 0.5 tiles from -0.85
     roller_coaster_small: -0.35,  // shifted down 0.5
     community_garden: -0.15,
     pond_park: -0.15,
@@ -502,7 +502,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     cabin_house: -0.2,
     campground: -0.15,
     marina_docks_small: -0.15,
-    pier_large: -0.85,
+    pier_large: -0.35,  // moved down 0.5 tiles from -0.85
     roller_coaster_small: -0.35,  // shifted down 0.5
     community_garden: -0.15,
     pond_park: -0.15,
