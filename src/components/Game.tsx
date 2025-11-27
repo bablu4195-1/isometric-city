@@ -5598,6 +5598,35 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       let rightColor = '#5a8f4f';
       let strokeColor = '#2d4a26';
 
+      // Apply grey terrain color based on height (hills)
+      // Height ranges from 0-8, map to grey colors (darker = higher altitude)
+      if (tile.height > 0 && tile.building.type !== 'water') {
+        // Calculate grey intensity: 0 height = no grey, 8 height = very dark grey
+        // Base grass color components
+        const grassR = 74; // #4a
+        const grassG = 124; // #7c
+        const grassB = 63; // #3f
+        
+        // Grey intensity increases with height (0-8 maps to 0-1)
+        const greyIntensity = Math.min(1, tile.height / 8);
+        // Mix grass color with grey: higher = more grey
+        // At max height (8), use dark grey (#4a4a4a), at 0 use grass color
+        const greyR = 74; // #4a
+        const greyG = 74; // #4a
+        const greyB = 74; // #4a
+        
+        const r = Math.floor(grassR * (1 - greyIntensity) + greyR * greyIntensity);
+        const g = Math.floor(grassG * (1 - greyIntensity) + greyG * greyIntensity);
+        const b = Math.floor(grassB * (1 - greyIntensity) + greyB * greyIntensity);
+        
+        topColor = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        // Darken left and right faces for 3D effect
+        const darkenFactor = 0.85;
+        leftColor = `#${Math.floor(r * darkenFactor).toString(16).padStart(2, '0')}${Math.floor(g * darkenFactor).toString(16).padStart(2, '0')}${Math.floor(b * darkenFactor).toString(16).padStart(2, '0')}`;
+        rightColor = `#${Math.min(255, Math.floor(r * 1.1)).toString(16).padStart(2, '0')}${Math.min(255, Math.floor(g * 1.1)).toString(16).padStart(2, '0')}${Math.min(255, Math.floor(b * 1.1)).toString(16).padStart(2, '0')}`;
+        strokeColor = `#${Math.floor(r * 0.7).toString(16).padStart(2, '0')}${Math.floor(g * 0.7).toString(16).padStart(2, '0')}${Math.floor(b * 0.7).toString(16).padStart(2, '0')}`;
+      }
+
       // These get grey bases: baseball_stadium, community_center, swimming_pool, office_building_small
       const allParkTypes = ['park', 'park_large', 'tennis', 'basketball_courts', 'playground_small',
         'playground_large', 'baseball_field_small', 'soccer_field_small', 'football_field',

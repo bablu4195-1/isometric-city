@@ -399,7 +399,49 @@ function generateAdjacentCities(): AdjacentCity[] {
   return cities;
 }
 
-// Generate terrain - grass with scattered trees, lakes, and oceans
+// Generate hills on the terrain
+function generateHills(grid: Tile[][], size: number, seed: number): void {
+  const numHills = Math.floor(Math.random() * 4); // 0-3 hills
+  const minDistFromEdge = Math.max(8, Math.floor(size * 0.1));
+  
+  for (let i = 0; i < numHills; i++) {
+    // Random hill center position (away from edges)
+    const centerX = minDistFromEdge + Math.floor(Math.random() * (size - 2 * minDistFromEdge));
+    const centerY = minDistFromEdge + Math.floor(Math.random() * (size - 2 * minDistFromEdge));
+    
+    // Random hill size (10-15 tiles diameter)
+    const radius = 5 + Math.floor(Math.random() * 6); // 5-10 radius = 10-20 diameter
+    const actualRadius = Math.min(radius, 7.5); // Cap at 7.5 radius = 15 diameter max
+    
+    // Random hill height (3-8 tiles)
+    const maxHeight = 3 + Math.floor(Math.random() * 6); // 3-8
+    
+    // Generate hill using radial falloff
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance <= actualRadius) {
+          // Don't place hills on water
+          if (grid[y][x].building.type === 'water') continue;
+          
+          // Calculate height based on distance from center (smooth falloff)
+          // Use cosine falloff for smooth hills
+          const normalizedDistance = distance / actualRadius;
+          const heightFactor = Math.max(0, Math.cos(normalizedDistance * Math.PI / 2));
+          const height = Math.floor(maxHeight * heightFactor);
+          
+          // Set height (don't override if already higher from another hill)
+          grid[y][x].height = Math.max(grid[y][x].height, height);
+        }
+      }
+    }
+  }
+}
+
+// Generate terrain - grass with scattered trees, lakes, oceans, and hills
 function generateTerrain(size: number): { grid: Tile[][]; waterBodies: WaterBody[] } {
   const grid: Tile[][] = [];
   const seed = Math.random() * 1000;
@@ -422,7 +464,10 @@ function generateTerrain(size: number): { grid: Tile[][]; waterBodies: WaterBody
   // Combine all water bodies
   const waterBodies = [...lakeBodies, ...oceanBodies];
   
-  // Fourth pass: add scattered trees (avoiding water)
+  // Fourth pass: add hills (before trees so trees can be placed on hills)
+  generateHills(grid, size, seed);
+  
+  // Fifth pass: add scattered trees (avoiding water)
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       if (grid[y][x].building.type === 'water') continue; // Don't place trees on water
@@ -548,6 +593,7 @@ function createTile(x: number, y: number, buildingType: BuildingType = 'grass'):
     crime: 0,
     traffic: 0,
     hasSubway: false,
+    height: 0, // Default to flat terrain
   };
 }
 
@@ -636,12 +682,14 @@ function createAchievements(): Achievement[] {
 }
 
 export function createInitialGameState(size: number = 60, cityName: string = 'New City'): GameState {
-  const { grid, waterBodies } = generateTerrain(size);
+  // Increase map size by 10%
+  const adjustedSize = Math.floor(size * 1.1);
+  const { grid, waterBodies } = generateTerrain(adjustedSize);
   const adjacentCities = generateAdjacentCities();
 
   return {
     grid,
-    gridSize: size,
+    gridSize: adjustedSize,
     cityName,
     year: 2024,
     month: 1,
@@ -1924,6 +1972,8 @@ function applyBuildingFootprint(
         cell.building = createBuilding('empty');
         cell.building.level = 0;
       }
+      // Flatten terrain when placing a building
+      cell.height = 0;
       cell.zone = zone;
       cell.pollution = dx === 0 && dy === 0 ? stats.pollution : 0;
     }
@@ -2035,6 +2085,8 @@ export function placeBuilding(
       }
       newGrid[y][x].building = createBuilding(buildingType);
       newGrid[y][x].zone = 'none';
+      // Flatten terrain when placing a building
+      newGrid[y][x].height = 0;
       // Set flip for waterfront buildings to face the water
       if (shouldFlip) {
         newGrid[y][x].building.flipped = true;

@@ -166,6 +166,10 @@ function loadGameState(): GameState | null {
               if (parsed.grid[y][x]?.building && parsed.grid[y][x].building.constructionProgress === undefined) {
                 parsed.grid[y][x].building.constructionProgress = 100; // Existing buildings are complete
               }
+              // Migrate height property for terrain (default to 0 for existing games)
+              if (parsed.grid[y][x] && parsed.grid[y][x].height === undefined) {
+                parsed.grid[y][x].height = 0; // Existing games start with flat terrain
+              }
               // Migrate abandoned property for existing buildings (they're not abandoned)
               if (parsed.grid[y][x]?.building && parsed.grid[y][x].building.abandoned === undefined) {
                 parsed.grid[y][x].building.abandoned = false;
