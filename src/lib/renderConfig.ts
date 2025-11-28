@@ -214,7 +214,8 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     apartment_high: 2.6, // Construction apartment_high shifted down 3.2 tiles from normal (-0.60 + 3.2 = 2.6)
     apartment_low: 0.3, // Construction apartment_low shifted down 1.3 tiles from normal (-1.0 + 1.3 = 0.3)
     mall: -0.2, // Construction mall shifted down 0.8 tiles from normal (-1.0 + 0.8 = -0.2)
-    office_high: 0.3, // Construction office_high shifted down 1.0 tiles from normal (-0.7 + 1.0 = 0.3)
+    office_high: 1.3, // Construction office_high shifted down 2.0 tiles from normal (-0.7 + 2.0 = 1.3)
+    office_low: 0.2, // Construction office_low shifted down 0.9 tiles from normal (-0.7 + 0.9 = 0.2)
   },
   constructionScales: {
     mall: 0.92, // Construction mall scaled down 8%
@@ -294,8 +295,8 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     community_center: -0.2,
     office_building_small: -0.3,
     swimming_pool: -0.20,  // shifted up slightly
-    skate_park: -0.15,
-    mini_golf_course: -0.85,
+    skate_park: -0.25,  // shifted up 0.1 tiles
+    mini_golf_course: -0.55,  // shifted down 0.3 tiles total
     bleachers_field: -0.2,
     go_kart_track: -0.35,  // shifted down 0.5
     amphitheater: -0.85,
