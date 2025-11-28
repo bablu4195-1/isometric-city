@@ -148,6 +148,12 @@ import {
   screenToGrid,
 } from '@/components/game/utils';
 import {
+  analyzeRoadConfiguration,
+  shouldHaveTrafficLight,
+  getTrafficLightState,
+  getIntersectionId,
+} from '@/components/game/roadNetwork';
+import {
   drawGreenBaseTile,
   drawGreyBaseTile,
   drawBeach,
@@ -5694,6 +5700,9 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
+    // Get current state for rendering
+    const { grid, gridSize, tick: currentTick } = state;
+    
     const dpr = window.devicePixelRatio || 1;
     
     // Disable image smoothing for crisp pixel art
@@ -5817,22 +5826,30 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       return false;
     }
     
-    // Draw road with proper adjacency, markings, and sidewalks
+    // Draw road with proper adjacency, markings, sidewalks, merged lanes, and traffic lights
     function drawRoad(ctx: CanvasRenderingContext2D, x: number, y: number, gridX: number, gridY: number) {
       const w = TILE_WIDTH;
       const h = TILE_HEIGHT;
       const cx = x + w / 2;
       const cy = y + h / 2;
       
-      // Check adjacency (in isometric coordinates)
-      const north = hasRoad(gridX - 1, gridY);  // top-left edge
-      const east = hasRoad(gridX, gridY - 1);   // top-right edge
-      const south = hasRoad(gridX + 1, gridY);  // bottom-right edge
-      const west = hasRoad(gridX, gridY + 1);   // bottom-left edge
+      // Analyze road network configuration
+      const config = analyzeRoadConfiguration(grid, gridSize, gridX, gridY);
+      const { lanesPerDirection, hasDivider, isIntersection, adjacent } = config;
       
-      // Road width - aligned with gridlines
-      const roadW = w * 0.14;
-      const roadH = h * 0.14;
+      // Get tick for traffic light animation (use currentTick from closure)
+      const tick = currentTick;
+      
+      // Check adjacency (in isometric coordinates)
+      const north = adjacent.north;  // top-left edge
+      const east = adjacent.east;   // top-right edge
+      const south = adjacent.south;  // bottom-right edge
+      const west = adjacent.west;   // bottom-left edge
+      
+      // Road width - scales with number of lanes
+      const baseRoadW = w * 0.14;
+      const roadW = baseRoadW * lanesPerDirection;
+      const roadH = h * 0.14 * lanesPerDirection;
       
       // Sidewalk configuration
       const sidewalkWidth = w * 0.08; // Width of the sidewalk strip
@@ -6154,51 +6171,232 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       ctx.closePath();
       ctx.fill();
       
-      // Draw road markings (yellow dashed lines) - aligned with gridlines
+      // ============================================
+      // DRAW CENTRAL DIVIDER (for multi-lane roads)
+      // ============================================
+      if (hasDivider && lanesPerDirection >= 2) {
+        const dividerWidth = w * 0.02;
+        const dividerColor = '#ffffff';
+        const plantColor = '#22c55e'; // Green for plants
+        const dividerSpacing = w * 0.15; // Spacing between divider segments
+        
+        // Draw divider along each road segment
+        const drawDividerSegment = (
+          startX: number, startY: number,
+          endX: number, endY: number,
+          dirDx: number, dirDy: number
+        ) => {
+          const perp = getPerp(dirDx, dirDy);
+          const halfDividerWidth = dividerWidth * 0.5;
+          
+          // Draw white divider base
+          ctx.fillStyle = dividerColor;
+          ctx.beginPath();
+          ctx.moveTo(startX + perp.nx * halfDividerWidth, startY + perp.ny * halfDividerWidth);
+          ctx.lineTo(endX + perp.nx * halfDividerWidth, endY + perp.ny * halfDividerWidth);
+          ctx.lineTo(endX - perp.nx * halfDividerWidth, endY - perp.ny * halfDividerWidth);
+          ctx.lineTo(startX - perp.nx * halfDividerWidth, startY - perp.ny * halfDividerWidth);
+          ctx.closePath();
+          ctx.fill();
+          
+          // Draw small plants/structures on divider (every few segments)
+          const segmentLength = Math.hypot(endX - startX, endY - startY);
+          const numPlants = Math.floor(segmentLength / dividerSpacing);
+          for (let i = 0; i < numPlants; i++) {
+            const t = (i + 0.5) / numPlants;
+            const plantX = startX + (endX - startX) * t;
+            const plantY = startY + (endY - startY) * t;
+            const plantSize = w * 0.015;
+            
+            // Draw small circular plant
+            ctx.fillStyle = plantColor;
+            ctx.beginPath();
+            ctx.arc(plantX, plantY, plantSize, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        };
+        
+        // Draw divider segments along each road direction
+        if (north) {
+          const stopX = cx + (northEdgeX - cx) * edgeStop;
+          const stopY = cy + (northEdgeY - cy) * edgeStop;
+          drawDividerSegment(cx, cy, stopX, stopY, northDx, northDy);
+        }
+        if (east) {
+          const stopX = cx + (eastEdgeX - cx) * edgeStop;
+          const stopY = cy + (eastEdgeY - cy) * edgeStop;
+          drawDividerSegment(cx, cy, stopX, stopY, eastDx, eastDy);
+        }
+        if (south) {
+          const stopX = cx + (southEdgeX - cx) * edgeStop;
+          const stopY = cy + (southEdgeY - cy) * edgeStop;
+          drawDividerSegment(cx, cy, stopX, stopY, southDx, southDy);
+        }
+        if (west) {
+          const stopX = cx + (westEdgeX - cx) * edgeStop;
+          const stopY = cy + (westEdgeY - cy) * edgeStop;
+          drawDividerSegment(cx, cy, stopX, stopY, westDx, westDy);
+        }
+      }
+      
+      // ============================================
+      // DRAW LANE MARKINGS
+      // ============================================
       ctx.strokeStyle = '#fbbf24';
-      ctx.lineWidth = 0.8;  // Thinner lines
-      ctx.setLineDash([1.5, 2]);  // Smaller, more frequent dots
+      ctx.lineWidth = 0.8;
+      ctx.setLineDash([1.5, 2]);
       ctx.lineCap = 'round';
       
-      // Extend past tile edge to overlap with adjacent tile's marking
-      // This ensures continuous yellow lines across tile boundaries
-      const markingOverlap = 4; // pixels past edge for overlap
-      const markingStartOffset = 2; // pixels from center
+      const markingOverlap = 4;
+      const markingStartOffset = 2;
       
-      // North marking (toward top-left)
-      if (north) {
+      // Draw lane markings for each direction
+      // For multi-lane roads, draw multiple parallel lines
+      const drawLaneMarkings = (
+        dirDx: number, dirDy: number,
+        edgeX: number, edgeY: number,
+        hasConnection: boolean
+      ) => {
+        if (!hasConnection) return;
+        
+        const perp = getPerp(dirDx, dirDy);
+        const laneSpacing = baseRoadW * 0.6; // Spacing between lanes
+        
+        // Draw center line (always)
         ctx.beginPath();
-        ctx.moveTo(cx + northDx * markingStartOffset, cy + northDy * markingStartOffset);
-        ctx.lineTo(northEdgeX + northDx * markingOverlap, northEdgeY + northDy * markingOverlap);
+        ctx.moveTo(cx + dirDx * markingStartOffset, cy + dirDy * markingStartOffset);
+        ctx.lineTo(edgeX + dirDx * markingOverlap, edgeY + dirDy * markingOverlap);
         ctx.stroke();
-      }
+        
+        // Draw additional lane lines for multi-lane roads
+        if (lanesPerDirection >= 2) {
+          for (let lane = 1; lane < lanesPerDirection; lane++) {
+            const offset = lane * laneSpacing;
+            ctx.beginPath();
+            ctx.moveTo(
+              cx + dirDx * markingStartOffset + perp.nx * offset,
+              cy + dirDy * markingStartOffset + perp.ny * offset
+            );
+            ctx.lineTo(
+              edgeX + dirDx * markingOverlap + perp.nx * offset,
+              edgeY + dirDy * markingOverlap + perp.ny * offset
+            );
+            ctx.stroke();
+          }
+        }
+      };
       
-      // East marking (toward top-right)
-      if (east) {
-        ctx.beginPath();
-        ctx.moveTo(cx + eastDx * markingStartOffset, cy + eastDy * markingStartOffset);
-        ctx.lineTo(eastEdgeX + eastDx * markingOverlap, eastEdgeY + eastDy * markingOverlap);
-        ctx.stroke();
-      }
-      
-      // South marking (toward bottom-right)
-      if (south) {
-        ctx.beginPath();
-        ctx.moveTo(cx + southDx * markingStartOffset, cy + southDy * markingStartOffset);
-        ctx.lineTo(southEdgeX + southDx * markingOverlap, southEdgeY + southDy * markingOverlap);
-        ctx.stroke();
-      }
-      
-      // West marking (toward bottom-left)
-      if (west) {
-        ctx.beginPath();
-        ctx.moveTo(cx + westDx * markingStartOffset, cy + westDy * markingStartOffset);
-        ctx.lineTo(westEdgeX + westDx * markingOverlap, westEdgeY + westDy * markingOverlap);
-        ctx.stroke();
-      }
+      drawLaneMarkings(northDx, northDy, northEdgeX, northEdgeY, north);
+      drawLaneMarkings(eastDx, eastDy, eastEdgeX, eastEdgeY, east);
+      drawLaneMarkings(southDx, southDy, southEdgeX, southEdgeY, south);
+      drawLaneMarkings(westDx, westDy, westEdgeX, westEdgeY, west);
       
       ctx.setLineDash([]);
       ctx.lineCap = 'butt';
+      
+      // ============================================
+      // DRAW TRAFFIC LIGHTS (at intersections)
+      // ============================================
+      if (isIntersection && shouldHaveTrafficLight(grid, gridSize, gridX, gridY)) {
+        const intersectionId = getIntersectionId(gridX, gridY);
+        const lightState = getTrafficLightState(tick, intersectionId);
+        
+        // Traffic light size
+        const lightSize = w * 0.08;
+        const lightSpacing = lightSize * 1.2;
+        const poleHeight = h * 0.15;
+        
+        // Draw traffic lights at each connected direction
+        const drawTrafficLight = (
+          dirDx: number, dirDy: number,
+          perp: { nx: number; ny: number },
+          hasConnection: boolean,
+          lightState: 'red' | 'yellow' | 'green'
+        ) => {
+          if (!hasConnection) return;
+          
+          // Position light slightly away from center, toward the direction
+          const lightX = cx + dirDx * (w * 0.15);
+          const lightY = cy + dirDy * (h * 0.15);
+          
+          // Draw pole
+          ctx.strokeStyle = '#374151';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(lightX, lightY);
+          ctx.lineTo(lightX + dirDx * poleHeight, lightY + dirDy * poleHeight);
+          ctx.stroke();
+          
+          // Light position (at end of pole)
+          const poleEndX = lightX + dirDx * poleHeight;
+          const poleEndY = lightY + dirDy * poleHeight;
+          
+          // Draw light housing (small rectangle)
+          ctx.fillStyle = '#1f2937';
+          ctx.fillRect(
+            poleEndX - lightSize * 0.5,
+            poleEndY - lightSize * 0.5,
+            lightSize,
+            lightSize * 1.5
+          );
+          
+          // Draw lights (red, yellow, green)
+          const lights = [
+            { color: '#ef4444', y: -lightSpacing * 0.5 },
+            { color: '#fbbf24', y: 0 },
+            { color: '#22c55e', y: lightSpacing * 0.5 },
+          ];
+          
+          lights.forEach((light, index) => {
+            const isActive = 
+              (index === 0 && lightState === 'red') ||
+              (index === 1 && lightState === 'yellow') ||
+              (index === 2 && lightState === 'green');
+            
+            ctx.fillStyle = isActive ? light.color : '#4b5563';
+            ctx.beginPath();
+            ctx.arc(
+              poleEndX,
+              poleEndY + light.y,
+              lightSize * 0.25,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+            
+            // Glow effect for active light
+            if (isActive) {
+              ctx.shadowColor = light.color;
+              ctx.shadowBlur = 4;
+              ctx.beginPath();
+              ctx.arc(
+                poleEndX,
+                poleEndY + light.y,
+                lightSize * 0.25,
+                0,
+                Math.PI * 2
+              );
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+          });
+        };
+        
+        const northPerp = getPerp(northDx, northDy);
+        const eastPerp = getPerp(eastDx, eastDy);
+        const southPerp = getPerp(southDx, southDy);
+        const westPerp = getPerp(westDx, westDy);
+        
+        // Draw traffic lights for each direction
+        // Alternate light states for perpendicular directions
+        const primaryState = lightState;
+        const secondaryState = lightState === 'red' ? 'green' : 'red';
+        
+        drawTrafficLight(northDx, northDy, northPerp, north, primaryState);
+        drawTrafficLight(southDx, southDy, southPerp, south, primaryState);
+        drawTrafficLight(eastDx, eastDy, eastPerp, east, secondaryState);
+        drawTrafficLight(westDx, westDy, westPerp, west, secondaryState);
+      }
     }
     
     // Draw isometric tile base
