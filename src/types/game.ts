@@ -305,6 +305,16 @@ export interface WaterBody {
   centerY: number;
 }
 
+export type WeatherType = 'clear' | 'rain' | 'snow' | 'storm' | 'heat';
+export type Season = 'spring' | 'summer' | 'fall' | 'winter';
+
+export interface Weather {
+  type: WeatherType;
+  intensity: number; // 0-1, affects visual intensity and economic impact
+  duration: number; // Remaining ticks for this weather
+  cloudCoverage: number; // 0-1, for cloud rendering
+}
+
 export interface GameState {
   grid: Tile[][];
   gridSize: number;
@@ -328,6 +338,7 @@ export interface GameState {
   disastersEnabled: boolean;
   adjacentCities: AdjacentCity[];
   waterBodies: WaterBody[];
+  weather: Weather;
 }
 
 // Building evolution paths based on zone and level
