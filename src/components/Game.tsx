@@ -5117,6 +5117,102 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
   }, [findSmogFactories, isMobile]);
 
   // Draw smog particles
+  // Draw weather effects (clouds, rain, snow, lightning, heat)
+  const drawWeather = useCallback((ctx: CanvasRenderingContext2D, weather: typeof state.weather, tick: number, width: number, height: number) => {
+    if (!weather) return;
+    
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    
+    // Draw clouds (semi-transparent overlay)
+    if (weather.cloudCover > 0) {
+      const cloudAlpha = weather.cloudCover * 0.4;
+      
+      // Create cloud pattern using noise-like function
+      const cloudPattern = ctx.createRadialGradient(0, 0, 0, 0, 0, 200);
+      cloudPattern.addColorStop(0, `rgba(120, 120, 120, ${cloudAlpha})`);
+      cloudPattern.addColorStop(0.5, `rgba(100, 100, 100, ${cloudAlpha * 0.7})`);
+      cloudPattern.addColorStop(1, `rgba(80, 80, 80, 0)`);
+      
+      // Draw multiple cloud blobs
+      for (let i = 0; i < 8; i++) {
+        const x = (width * (i * 0.3 + 0.1)) % width;
+        const y = (height * (i * 0.2 + 0.15)) % height;
+        ctx.fillStyle = cloudPattern;
+        ctx.beginPath();
+        ctx.arc(x, y, 150 + i * 20, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    
+    // Draw lightning flash (full screen white flash)
+    if (weather.lightningTimer > 0) {
+      const flashIntensity = Math.min(1, weather.lightningTimer / 5);
+      ctx.fillStyle = `rgba(255, 255, 255, ${flashIntensity * 0.6})`;
+      ctx.fillRect(0, 0, width, height);
+    }
+    
+    // Draw rain particles
+    if (weather.type === 'rain' || weather.type === 'storm') {
+      const rainIntensity = weather.intensity;
+      const numDrops = Math.floor(rainIntensity * 200);
+      
+      ctx.strokeStyle = `rgba(150, 200, 255, ${0.6 * rainIntensity})`;
+      ctx.lineWidth = 1;
+      
+      // Use tick for animation
+      const rainOffset = (tick % 100) * 2;
+      
+      for (let i = 0; i < numDrops; i++) {
+        const seed = i * 137.5; // Pseudo-random seed
+        const x = (seed * 7919) % width;
+        const y = ((seed * 7919 + rainOffset) % (height + 50)) - 50;
+        const length = 8 + (seed % 5);
+        
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 2, y + length);
+        ctx.stroke();
+      }
+    }
+    
+    // Draw snow particles
+    if (weather.type === 'snow') {
+      const snowIntensity = weather.intensity;
+      const numFlakes = Math.floor(snowIntensity * 150);
+      
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.8 * snowIntensity})`;
+      
+      // Use tick for animation
+      const snowOffset = (tick % 200) * 0.5;
+      
+      for (let i = 0; i < numFlakes; i++) {
+        const seed = i * 197.3;
+        const x = (seed * 7919) % width;
+        const y = ((seed * 7919 + snowOffset) % (height + 100)) - 100;
+        const size = 2 + (seed % 3);
+        
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    
+    // Heat wave effect (subtle distortion/glow)
+    if (weather.type === 'heat') {
+      const heatIntensity = weather.intensity;
+      // Create a subtle heat shimmer effect
+      const gradient = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, Math.max(width, height));
+      gradient.addColorStop(0, `rgba(255, 200, 100, ${heatIntensity * 0.1})`);
+      gradient.addColorStop(0.5, `rgba(255, 180, 80, ${heatIntensity * 0.05})`);
+      gradient.addColorStop(1, 'rgba(255, 200, 100, 0)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+    }
+    
+    ctx.restore();
+  }, []);
+  
   const drawSmog = useCallback((ctx: CanvasRenderingContext2D) => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
     const canvas = ctx.canvas;
@@ -7133,11 +7229,14 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       drawHelicopters(ctx); // Draw helicopters (below planes, above ground)
       drawAirplanes(ctx); // Draw airplanes above everything
       drawFireworks(ctx); // Draw fireworks above everything (nighttime only)
+      
+      // Draw weather effects on top of everything
+      drawWeather(ctx, state.weather, state.tick, canvasSize.width, canvasSize.height);
     };
     
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, updateAirplanes, drawAirplanes, updateHelicopters, drawHelicopters, updateBoats, drawBoats, drawIncidentIndicators, updateFireworks, drawFireworks, updateSmog, drawSmog, hour, isMobile]);
+  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, updateAirplanes, drawAirplanes, updateHelicopters, drawHelicopters, updateBoats, drawBoats, drawIncidentIndicators, updateFireworks, drawFireworks, updateSmog, drawSmog, drawWeather, hour, isMobile, state.weather, state.tick]);
   
   // Day/Night cycle lighting rendering - optimized for performance
   useEffect(() => {

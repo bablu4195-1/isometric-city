@@ -151,6 +151,15 @@ function loadGameState(): GameState | null {
         if (!parsed.waterBodies) {
           parsed.waterBodies = [];
         }
+        // Ensure weather exists for backward compatibility
+        if (!parsed.weather) {
+          parsed.weather = {
+            type: 'clear',
+            intensity: 0,
+            cloudCover: 0,
+            lightningTimer: 0,
+          };
+        }
         // Ensure hour exists for day/night cycle
         if (parsed.hour === undefined) {
           parsed.hour = 12; // Default to noon
