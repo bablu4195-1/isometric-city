@@ -322,7 +322,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     skate_park: -0.25,  // shifted up 0.1 tiles
     mini_golf_course: -0.55,  // shifted down 0.3 tiles total
     bleachers_field: -0.3,  // shifted up 0.1 tiles
-    go_kart_track: -0.35,  // shifted down 0.5
+    go_kart_track: -0.40,  // shifted down 0.15 tiles from -0.55
     amphitheater: -0.45,  // shifted up 0.1 tiles
     greenhouse_garden: -0.55,  // shifted down 0.3
     animal_pens_farm: -0.25,  // shifted up 0.1 tiles
@@ -330,7 +330,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     campground: -0.15,
     marina_docks_small: 0.05,  // 2x2 building, shifted down 0.6 tiles
     pier_large: -0.15,  // 1x1 building now
-    roller_coaster_small: -0.35,  // shifted down 0.5
+    roller_coaster_small: -0.50,  // shifted up 0.15 tiles from -0.35
     community_garden: -0.15,
     pond_park: -0.15,
     park_gate: -0.15,

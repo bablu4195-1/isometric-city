@@ -4161,10 +4161,14 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               let sourceY = useParksBuilding.row * tileHeight;
               let sourceH = tileHeight;
               
-              // Special handling for marina_docks_small (2x2) - shift source down to avoid capturing
+              // Special handling for buildings that have content bleeding from row above - shift source down to avoid capturing
               // content from the sprite above it in the sprite sheet
               if (buildingType === 'marina_docks_small') {
                 sourceY += tileHeight * 0.15; // Shift down 15% to avoid row above
+              } else if (buildingType === 'amphitheater') {
+                sourceY += tileHeight * 0.1; // Shift down 10% to avoid row above clipping
+              } else if (buildingType === 'go_kart_track') {
+                sourceY += tileHeight * 0.1; // Shift down 10% to avoid row above clipping
               }
               
               coords = {
