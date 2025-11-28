@@ -18,6 +18,7 @@ import {
   KEY_PAN_SPEED,
   Car,
   CarDirection,
+  Train,
   Airplane,
   Helicopter,
   EmergencyVehicle,
@@ -132,6 +133,15 @@ import {
   ROAD_CONFIG,
   TRAFFIC_LIGHT_TIMING,
 } from '@/components/game/trafficSystem';
+import {
+  drawRail,
+  getAdjacentRails,
+  hasRailTrack,
+  getRailDirectionOptions,
+  pickNextTrainDirection,
+  findRailTiles,
+  TRAIN_COLORS,
+} from '@/components/game/railSystem';
 import { CrimeType, getCrimeName, getCrimeDescription, getFireDescriptionForTile, getFireNameForTile } from '@/components/game/incidentData';
 
 // Props interface for CanvasIsometricGrid
@@ -174,6 +184,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const carsRef = useRef<Car[]>([]);
   const carIdRef = useRef(0);
   const carSpawnTimerRef = useRef(0);
+  // Train system refs
+  const trainsRef = useRef<Train[]>([]);
+  const trainIdRef = useRef(0);
+  const trainSpawnTimerRef = useRef(0);
   const emergencyVehiclesRef = useRef<EmergencyVehicle[]>([]);
   const emergencyVehicleIdRef = useRef(0);
   const emergencyDispatchTimerRef = useRef(0);
@@ -1489,7 +1503,211 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     ctx.restore();
   }, []);
 
+  // Update trains - spawn, move, and manage lifecycle
+  const updateTrains = useCallback((delta: number) => {
+    const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed } = worldStateRef.current;
+    
+    if (!currentGrid || currentGridSize <= 0 || currentSpeed === 0) {
+      return;
+    }
+    
+    const speedMultiplier = currentSpeed === 1 ? 1 : currentSpeed === 2 ? 2 : 3;
+    
+    // Find rail tiles for spawning
+    const railTiles = findRailTiles(currentGrid, currentGridSize);
+    
+    // Spawn trains if we have rail and not too many trains
+    const maxTrains = Math.min(20, Math.floor(railTiles.length / 10));
+    trainSpawnTimerRef.current -= delta;
+    
+    if (trainsRef.current.length < maxTrains && trainSpawnTimerRef.current <= 0 && railTiles.length > 0) {
+      trainSpawnTimerRef.current = 2 + Math.random() * 3; // Spawn every 2-5 seconds
+      
+      // Find a rail tile with at least one connection to spawn from
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const spawnTile = railTiles[Math.floor(Math.random() * railTiles.length)];
+        const options = getRailDirectionOptions(currentGrid, currentGridSize, spawnTile.x, spawnTile.y);
+        
+        if (options.length > 0) {
+          const direction = options[Math.floor(Math.random() * options.length)];
+          
+          trainsRef.current.push({
+            id: trainIdRef.current++,
+            tileX: spawnTile.x,
+            tileY: spawnTile.y,
+            direction,
+            progress: 0,
+            speed: 0.25 + Math.random() * 0.15, // Slower than cars
+            age: 0,
+            maxAge: 60 + Math.random() * 120, // Trains last longer
+            color: TRAIN_COLORS[Math.floor(Math.random() * TRAIN_COLORS.length)],
+            length: 1 + Math.floor(Math.random() * 3), // 1-3 cars
+          });
+          break;
+        }
+      }
+    }
+    
+    // Update existing trains
+    const updatedTrains: Train[] = [];
+    const DIRECTION_META_TRAIN: Record<CarDirection, { step: { x: number; y: number } }> = {
+      north: { step: { x: -1, y: 0 } },
+      east: { step: { x: 0, y: -1 } },
+      south: { step: { x: 1, y: 0 } },
+      west: { step: { x: 0, y: 1 } },
+    };
+    
+    for (const train of trainsRef.current) {
+      // Check if train is still on rail
+      if (!hasRailTrack(currentGrid, currentGridSize, train.tileX, train.tileY)) {
+        continue; // Remove train if no longer on rail
+      }
+      
+      train.age += delta;
+      if (train.age > train.maxAge) {
+        continue; // Remove old trains
+      }
+      
+      // Move train
+      train.progress += train.speed * delta * speedMultiplier;
+      
+      // Handle tile transitions
+      while (train.progress >= 1) {
+        train.progress -= 1;
+        
+        const meta = DIRECTION_META_TRAIN[train.direction];
+        const newTileX = train.tileX + meta.step.x;
+        const newTileY = train.tileY + meta.step.y;
+        
+        // Check if can move to new tile
+        if (!hasRailTrack(currentGrid, currentGridSize, newTileX, newTileY)) {
+          // Can't move forward - try to find another direction
+          const options = getRailDirectionOptions(currentGrid, currentGridSize, train.tileX, train.tileY);
+          const OPPOSITE: Record<CarDirection, CarDirection> = {
+            north: 'south', south: 'north', east: 'west', west: 'east'
+          };
+          const filtered = options.filter(d => d !== OPPOSITE[train.direction]);
+          
+          if (filtered.length > 0) {
+            train.direction = filtered[Math.floor(Math.random() * filtered.length)];
+            train.progress = 0;
+          } else if (options.length > 0) {
+            train.direction = options[Math.floor(Math.random() * options.length)];
+            train.progress = 0;
+          } else {
+            // Dead end - remove train
+            continue;
+          }
+          break;
+        }
+        
+        train.tileX = newTileX;
+        train.tileY = newTileY;
+        
+        // Pick next direction
+        const nextDir = pickNextTrainDirection(train.direction, currentGrid, currentGridSize, train.tileX, train.tileY);
+        if (nextDir) {
+          train.direction = nextDir;
+        }
+      }
+      
+      updatedTrains.push(train);
+    }
+    
+    trainsRef.current = updatedTrains;
+  }, []);
 
+  // Draw trains on rail tracks
+  const drawTrains = useCallback((ctx: CanvasRenderingContext2D) => {
+    const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    const canvas = ctx.canvas;
+    const dpr = window.devicePixelRatio || 1;
+    
+    if (!currentGrid || currentGridSize <= 0 || trainsRef.current.length === 0) {
+      return;
+    }
+    
+    ctx.save();
+    ctx.scale(dpr * currentZoom, dpr * currentZoom);
+    ctx.translate(currentOffset.x / currentZoom, currentOffset.y / currentZoom);
+    
+    const w = TILE_WIDTH;
+    const h = TILE_HEIGHT;
+    
+    // Direction vectors for train movement
+    const dirVectors: Record<CarDirection, { dx: number; dy: number; angle: number }> = {
+      north: { dx: -w / 2, dy: -h / 2, angle: -Math.PI * 0.75 },
+      east: { dx: w / 2, dy: -h / 2, angle: -Math.PI * 0.25 },
+      south: { dx: w / 2, dy: h / 2, angle: Math.PI * 0.25 },
+      west: { dx: -w / 2, dy: h / 2, angle: Math.PI * 0.75 },
+    };
+    
+    for (const train of trainsRef.current) {
+      // Calculate screen position
+      const tileScreenX = (train.tileX - train.tileY) * (w / 2);
+      const tileScreenY = (train.tileX + train.tileY) * (h / 2);
+      
+      const cx = tileScreenX + w / 2;
+      const cy = tileScreenY + h / 2;
+      
+      const dir = dirVectors[train.direction];
+      const trainX = cx + dir.dx * train.progress;
+      const trainY = cy + dir.dy * train.progress;
+      
+      ctx.save();
+      ctx.translate(trainX, trainY);
+      ctx.rotate(dir.angle);
+      
+      // Draw train body (locomotive)
+      const scale = 0.65;
+      const bodyLength = 18 * scale;
+      const bodyWidth = 9 * scale;
+      
+      // Main body
+      ctx.fillStyle = train.color;
+      ctx.beginPath();
+      ctx.roundRect(-bodyLength / 2, -bodyWidth / 2, bodyLength, bodyWidth, 2);
+      ctx.fill();
+      
+      // Darker outline
+      ctx.strokeStyle = '#1f2937';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      
+      // Cab section (darker)
+      ctx.fillStyle = '#1f2937';
+      ctx.fillRect(-bodyLength / 2 + 2, -bodyWidth / 2 + 1.5, 5 * scale, bodyWidth - 3);
+      
+      // Windows
+      ctx.fillStyle = 'rgba(135, 206, 250, 0.9)';
+      ctx.fillRect(-bodyLength / 2 + 2.5, -bodyWidth / 2 + 2, 3 * scale, 2 * scale);
+      ctx.fillRect(-bodyLength / 2 + 2.5, bodyWidth / 2 - 4, 3 * scale, 2 * scale);
+      
+      // Front light
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath();
+      ctx.arc(bodyLength / 2 - 2, 0, 1.5 * scale, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Red rear light
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(-bodyLength / 2 + 1.5, 0, 1 * scale, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Wheels (dark rectangles at the bottom)
+      ctx.fillStyle = '#374151';
+      const wheelY = bodyWidth / 2;
+      ctx.fillRect(-bodyLength / 2 + 3, wheelY - 1, 3 * scale, 2);
+      ctx.fillRect(bodyLength / 2 - 6, wheelY - 1, 3 * scale, 2);
+      ctx.fillRect(-bodyLength / 2 + 3, -wheelY - 1, 3 * scale, 2);
+      ctx.fillRect(bodyLength / 2 - 6, -wheelY - 1, 3 * scale, 2);
+      
+      ctx.restore();
+    }
+    
+    ctx.restore();
+  }, []);
 
   // Progressive image loading - load sprites in background, render immediately
   // Subscribe to image load notifications to trigger re-renders as assets become available
@@ -2330,6 +2548,12 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       }
     }
     
+    // Draw rail tile with two tracks
+    function drawRailTile(ctx: CanvasRenderingContext2D, x: number, y: number, gridX: number, gridY: number, currentZoom: number) {
+      // Use the rail drawing function from railSystem
+      drawRail(ctx, x, y, gridX, gridY, grid, gridSize, currentZoom);
+    }
+    
     // Draw isometric tile base
     function drawIsometricTile(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile, highlight: boolean, currentZoom: number, skipGreyBase: boolean = false, skipGreenBase: boolean = false) {
       const w = TILE_WIDTH;
@@ -2362,6 +2586,11 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         leftColor = '#3a3a3a';
         rightColor = '#5a5a5a';
         strokeColor = '#333';
+      } else if (tile.building.type === 'rail') {
+        topColor = '#6b7280'; // Ballast gray
+        leftColor = '#4b5563';
+        rightColor = '#9ca3af';
+        strokeColor = '#374151';
       } else if (isPark) {
         topColor = '#4a7c3f';
         leftColor = '#3d6634';
@@ -2472,6 +2701,12 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       // Handle roads separately with adjacency
       if (buildingType === 'road') {
         drawRoad(ctx, x, y, tile.x, tile.y, zoom);
+        return;
+      }
+      
+      // Handle rail tracks separately with adjacency
+      if (buildingType === 'rail') {
+        drawRailTile(ctx, x, y, tile.x, tile.y, zoom);
         return;
       }
       
@@ -3485,6 +3720,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       
       if (delta > 0) {
         updateCars(delta);
+        updateTrains(delta); // Update trains on rail tracks
         spawnCrimeIncidents(delta); // Spawn new crime incidents
         updateCrimeIncidents(delta); // Update/decay crime incidents
         updateEmergencyVehicles(delta); // Update emergency vehicles!
@@ -3505,6 +3741,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       } else {
         drawCars(ctx);
+        drawTrains(ctx); // Draw trains on rail tracks
         drawPedestrians(ctx); // Draw pedestrians (zoom-gated)
         drawBoats(ctx); // Draw boats on water
         drawSmog(ctx); // Draw factory smog (above ground, below aircraft)
@@ -3518,7 +3755,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, updateAirplanes, drawAirplanes, updateHelicopters, drawHelicopters, updateBoats, drawBoats, drawIncidentIndicators, updateFireworks, drawFireworks, updateSmog, drawSmog, visualHour, isMobile]);
+  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, updateTrains, drawTrains, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, updateAirplanes, drawAirplanes, updateHelicopters, drawHelicopters, updateBoats, drawBoats, drawIncidentIndicators, updateFireworks, drawFireworks, updateSmog, drawSmog, visualHour, isMobile]);
   
   // Day/Night cycle lighting rendering - optimized for performance
   useEffect(() => {

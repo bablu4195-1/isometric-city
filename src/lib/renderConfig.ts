@@ -491,6 +491,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     tree: 'tree',
     water: 'water',
     subway_station: 'subway_station',
+    rail_station: 'subway_station', // Use subway sprite for rail station (temporary)
     city_hall: 'city_hall',
     amusement_park: 'amusement_park',
   },
