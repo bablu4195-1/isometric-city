@@ -203,7 +203,7 @@ const toolCategories = {
 type OverlayMode = 'none' | 'power' | 'water' | 'fire' | 'police' | 'health' | 'education' | 'subway';
 
 interface MobileToolbarProps {
-  onOpenPanel: (panel: 'budget' | 'statistics' | 'advisors' | 'achievements' | 'settings') => void;
+  onOpenPanel: (panel: 'budget' | 'statistics' | 'advisors' | 'settings') => void;
   overlayMode?: OverlayMode;
   setOverlayMode?: (mode: OverlayMode) => void;
 }
@@ -344,7 +344,7 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
               <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
                 City Management
               </div>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -368,14 +368,6 @@ export function MobileToolbar({ onOpenPanel, overlayMode = 'none', setOverlayMod
                   onClick={() => { onOpenPanel('advisors'); setShowMenu(false); }}
                 >
                   Advisors
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-10 w-full text-xs"
-                  onClick={() => { onOpenPanel('achievements'); setShowMenu(false); }}
-                >
-                  Awards
                 </Button>
                 <Button
                   variant="ghost"

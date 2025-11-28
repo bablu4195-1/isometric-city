@@ -46,7 +46,6 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Switch } from '@/components/ui/switch';
@@ -744,61 +743,6 @@ function BudgetPanel() {
   );
 }
 
-// Achievements Panel
-function AchievementsPanel() {
-  const { state, setActivePanel } = useGame();
-  const { achievements } = state;
-  
-  const unlocked = achievements.filter(a => a.unlocked);
-  const locked = achievements.filter(a => !a.unlocked);
-  
-  return (
-    <Dialog open={true} onOpenChange={() => setActivePanel('none')}>
-      <DialogContent className="max-w-[500px] max-h-[600px]">
-        <DialogHeader>
-          <DialogTitle>Achievements ({unlocked.length}/{achievements.length})</DialogTitle>
-        </DialogHeader>
-        
-        <ScrollArea className="max-h-[450px] pr-4">
-          {unlocked.length > 0 && (
-            <div className="mb-6">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3">Unlocked</div>
-              <div className="grid grid-cols-2 gap-2">
-                {unlocked.map(a => (
-                  <Card key={a.id} className="p-3 border-l-2 border-l-primary">
-                    <div className="text-foreground text-sm font-medium">{a.name}</div>
-                    <div className="text-muted-foreground text-xs mt-1">{a.description}</div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          <div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3">Locked</div>
-            <div className="grid grid-cols-2 gap-2">
-              {locked.map(a => (
-                <Card key={a.id} className="p-3 opacity-60">
-                  <div className="text-foreground text-sm font-medium">{a.name}</div>
-                  <div className="text-muted-foreground text-xs mt-1">{a.requirement}</div>
-                  {a.progress !== undefined && a.target && (
-                    <div className="mt-2">
-                      <Progress value={(a.progress / a.target) * 100} className="h-1" />
-                      <div className="text-[10px] text-muted-foreground mt-1">
-                        {a.progress.toLocaleString()} / {a.target.toLocaleString()}
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              ))}
-            </div>
-          </div>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // Statistics Panel
 function StatisticsPanel() {
   const { state, setActivePanel } = useGame();
@@ -1368,10 +1312,23 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
     ]);
   }, [currentSpritePack]);
   
+  const tabDefinitions = [
+    { id: 'main', label: 'Main', available: !!spriteSheets.main },
+    { id: 'construction', label: 'Construction', available: !!spriteSheets.construction },
+    { id: 'abandoned', label: 'Abandoned', available: !!spriteSheets.abandoned },
+    { id: 'dense', label: 'High Density', available: !!spriteSheets.dense },
+    { id: 'parks', label: 'Parks', available: !!spriteSheets.parks },
+    { id: 'parksConstruction', label: 'Parks Construction', available: !!spriteSheets.parksConstruction },
+  ];
+  const availableTabs = tabDefinitions.filter(tab => tab.available);
+  const normalizedActiveTab = availableTabs.some(tab => tab.id === activeTab)
+    ? activeTab
+    : (availableTabs[0]?.id ?? 'main');
+  
   // Draw sprite test grid
   useEffect(() => {
     const canvas = canvasRef.current;
-    const spriteSheet = spriteSheets[activeTab];
+    const spriteSheet = spriteSheets[normalizedActiveTab];
     if (!canvas || !spriteSheet) return;
     
     const ctx = canvas.getContext('2d', { 
@@ -1399,7 +1356,7 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
     let sheetCols = currentSpritePack.cols;
     let sheetRows = currentSpritePack.rows;
     
-    if (activeTab === 'main') {
+    if (normalizedActiveTab === 'main') {
       // Main sprite sheet - use spriteOrder
       currentSpritePack.spriteOrder.forEach((spriteKey, index) => {
         const buildingType = Object.entries(currentSpritePack.buildingToSprite).find(
@@ -1410,7 +1367,7 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
           itemsToRender.push({ label: spriteKey, coords, index });
         }
       });
-    } else if (activeTab === 'construction' && currentSpritePack.constructionSrc) {
+    } else if (normalizedActiveTab === 'construction' && currentSpritePack.constructionSrc) {
       // Construction sprite sheet - same layout as main
       currentSpritePack.spriteOrder.forEach((spriteKey, index) => {
         const buildingType = Object.entries(currentSpritePack.buildingToSprite).find(
@@ -1421,7 +1378,7 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
           itemsToRender.push({ label: `${spriteKey} (construction)`, coords, index });
         }
       });
-    } else if (activeTab === 'abandoned' && currentSpritePack.abandonedSrc) {
+    } else if (normalizedActiveTab === 'abandoned' && currentSpritePack.abandonedSrc) {
       // Abandoned sprite sheet - same layout as main
       currentSpritePack.spriteOrder.forEach((spriteKey, index) => {
         const buildingType = Object.entries(currentSpritePack.buildingToSprite).find(
@@ -1432,7 +1389,7 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
           itemsToRender.push({ label: `${spriteKey} (abandoned)`, coords, index });
         }
       });
-    } else if (activeTab === 'dense' && currentSpritePack.denseSrc && currentSpritePack.denseVariants) {
+    } else if (normalizedActiveTab === 'dense' && currentSpritePack.denseSrc && currentSpritePack.denseVariants) {
       // Dense sprite sheet - use denseVariants mapping
       sheetCols = currentSpritePack.cols;
       sheetRows = currentSpritePack.rows;
@@ -1449,7 +1406,7 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
           });
         });
       });
-    } else if (activeTab === 'parks' && currentSpritePack.parksSrc && currentSpritePack.parksBuildings) {
+    } else if (normalizedActiveTab === 'parks' && currentSpritePack.parksSrc && currentSpritePack.parksBuildings) {
       // Parks sprite sheet - use parksBuildings mapping
       sheetCols = currentSpritePack.parksCols || currentSpritePack.cols;
       sheetRows = currentSpritePack.parksRows || currentSpritePack.rows;
@@ -1464,7 +1421,7 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
           coords: { sx, sy, sw: tileWidth, sh: tileHeight },
         });
       });
-    } else if (activeTab === 'parksConstruction' && currentSpritePack.parksConstructionSrc && currentSpritePack.parksBuildings) {
+    } else if (normalizedActiveTab === 'parksConstruction' && currentSpritePack.parksConstructionSrc && currentSpritePack.parksBuildings) {
       // Parks construction sprite sheet - same layout as parks
       sheetCols = currentSpritePack.parksCols || currentSpritePack.cols;
       sheetRows = currentSpritePack.parksRows || currentSpritePack.rows;
@@ -1534,11 +1491,11 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
       const drawY = baseY + tileH / 2 - destHeight + destHeight * 0.15;
       
       // Draw sprite (using filtered version if available)
-      const sheetSrc = activeTab === 'main' ? currentSpritePack.src :
-                       activeTab === 'construction' ? currentSpritePack.constructionSrc :
-                       activeTab === 'abandoned' ? currentSpritePack.abandonedSrc :
-                       activeTab === 'dense' ? currentSpritePack.denseSrc :
-                       activeTab === 'parksConstruction' ? currentSpritePack.parksConstructionSrc :
+      const sheetSrc = normalizedActiveTab === 'main' ? currentSpritePack.src :
+                       normalizedActiveTab === 'construction' ? currentSpritePack.constructionSrc :
+                       normalizedActiveTab === 'abandoned' ? currentSpritePack.abandonedSrc :
+                       normalizedActiveTab === 'dense' ? currentSpritePack.denseSrc :
+                       normalizedActiveTab === 'parksConstruction' ? currentSpritePack.parksConstructionSrc :
                        currentSpritePack.parksSrc;
       const filteredSpriteSheet = sheetSrc ? (imageCache.get(`${sheetSrc}_filtered`) || spriteSheet) : spriteSheet;
       
@@ -1565,32 +1522,16 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
         ctx.fillText(`[${item.index}]`, baseX, baseY + tileH + 26 + labelLines.length * 10);
       }
     });
-  }, [spriteSheets, activeTab, currentSpritePack]);
+  }, [spriteSheets, normalizedActiveTab, currentSpritePack]);
   
-  const availableTabs = [
-    { id: 'main', label: 'Main', available: !!spriteSheets.main },
-    { id: 'construction', label: 'Construction', available: !!spriteSheets.construction },
-    { id: 'abandoned', label: 'Abandoned', available: !!spriteSheets.abandoned },
-    { id: 'dense', label: 'High Density', available: !!spriteSheets.dense },
-    { id: 'parks', label: 'Parks', available: !!spriteSheets.parks },
-    { id: 'parksConstruction', label: 'Parks Construction', available: !!spriteSheets.parksConstruction },
-  ].filter(tab => tab.available);
-  
-  // Set first available tab if current tab is not available
-  useEffect(() => {
-    if (availableTabs.length > 0 && !availableTabs.find(t => t.id === activeTab)) {
-      setActiveTab(availableTabs[0].id);
-    }
-  }, [availableTabs, activeTab]);
-  
-  const currentSheetInfo = activeTab === 'main' ? currentSpritePack.src :
-                          activeTab === 'construction' ? currentSpritePack.constructionSrc :
-                          activeTab === 'abandoned' ? currentSpritePack.abandonedSrc :
-                          activeTab === 'dense' ? currentSpritePack.denseSrc :
-                          activeTab === 'parksConstruction' ? currentSpritePack.parksConstructionSrc :
+  const currentSheetInfo = normalizedActiveTab === 'main' ? currentSpritePack.src :
+                          normalizedActiveTab === 'construction' ? currentSpritePack.constructionSrc :
+                          normalizedActiveTab === 'abandoned' ? currentSpritePack.abandonedSrc :
+                          normalizedActiveTab === 'dense' ? currentSpritePack.denseSrc :
+                          normalizedActiveTab === 'parksConstruction' ? currentSpritePack.parksConstructionSrc :
                           currentSpritePack.parksSrc;
   
-  const gridInfo = (activeTab === 'parks' || activeTab === 'parksConstruction') && currentSpritePack.parksCols && currentSpritePack.parksRows
+  const gridInfo = (normalizedActiveTab === 'parks' || normalizedActiveTab === 'parksConstruction') && currentSpritePack.parksCols && currentSpritePack.parksRows
     ? `${currentSpritePack.parksCols}x${currentSpritePack.parksRows}`
     : `${currentSpritePack.cols}x${currentSpritePack.rows}`;
   
@@ -1604,7 +1545,7 @@ function SpriteTestPanel({ onClose }: { onClose: () => void }) {
           </DialogDescription>
         </DialogHeader>
         
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={normalizedActiveTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${availableTabs.length}, 1fr)` }}>
             {availableTabs.map(tab => (
               <TabsTrigger key={tab.id} value={tab.id} className="text-xs">
@@ -7953,7 +7894,6 @@ export default function Game() {
           
           {/* Panels - render as fullscreen modals on mobile */}
           {state.activePanel === 'budget' && <BudgetPanel />}
-          {state.activePanel === 'achievements' && <AchievementsPanel />}
           {state.activePanel === 'statistics' && <StatisticsPanel />}
           {state.activePanel === 'advisors' && <AdvisorsPanel />}
           {state.activePanel === 'settings' && <SettingsPanel />}
@@ -7988,7 +7928,6 @@ export default function Game() {
         </div>
         
         {state.activePanel === 'budget' && <BudgetPanel />}
-        {state.activePanel === 'achievements' && <AchievementsPanel />}
         {state.activePanel === 'statistics' && <StatisticsPanel />}
         {state.activePanel === 'advisors' && <AdvisorsPanel />}
         {state.activePanel === 'settings' && <SettingsPanel />}

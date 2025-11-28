@@ -274,16 +274,6 @@ export interface Notification {
   timestamp: number;
 }
 
-export interface Achievement {
-  id: string;
-  name: string;
-  description: string;
-  requirement: string;
-  unlocked: boolean;
-  progress?: number;
-  target?: number;
-}
-
 export interface AdvisorMessage {
   name: string;
   icon: string;
@@ -332,10 +322,9 @@ export interface GameState {
   budget: Budget;
   services: ServiceCoverage;
   notifications: Notification[];
-  achievements: Achievement[];
   advisorMessages: AdvisorMessage[];
   history: HistoryPoint[];
-  activePanel: 'none' | 'budget' | 'statistics' | 'advisors' | 'achievements' | 'settings';
+  activePanel: 'none' | 'budget' | 'statistics' | 'advisors' | 'settings';
   disastersEnabled: boolean;
   adjacentCities: AdjacentCity[];
   waterBodies: WaterBody[];

@@ -9,7 +9,6 @@ import {
   Stats,
   Budget,
   ServiceCoverage,
-  Achievement,
   AdvisorMessage,
   HistoryPoint,
   Notification,
@@ -630,21 +629,6 @@ function createServiceCoverage(size: number): ServiceCoverage {
   };
 }
 
-function createAchievements(): Achievement[] {
-  return [
-    { id: 'first_zone', name: 'City Planner', description: 'Place your first zone', requirement: 'Zone 1 tile', unlocked: false },
-    { id: 'pop_100', name: 'Village', description: 'Reach 100 population', requirement: '100 population', unlocked: false, progress: 0, target: 100 },
-    { id: 'pop_1000', name: 'Town', description: 'Reach 1,000 population', requirement: '1,000 population', unlocked: false, progress: 0, target: 1000 },
-    { id: 'pop_10000', name: 'City', description: 'Reach 10,000 population', requirement: '10,000 population', unlocked: false, progress: 0, target: 10000 },
-    { id: 'pop_100000', name: 'Metropolis', description: 'Reach 100,000 population', requirement: '100,000 population', unlocked: false, progress: 0, target: 100000 },
-    { id: 'money_100k', name: 'Wealthy City', description: 'Accumulate $100,000', requirement: '$100,000 treasury', unlocked: false, progress: 0, target: 100000 },
-    { id: 'happy_90', name: 'Paradise', description: 'Achieve 90% happiness', requirement: '90% happiness', unlocked: false },
-    { id: 'services_all', name: 'Full Service', description: 'Build all service types', requirement: 'Build police, fire, hospital, school', unlocked: false },
-    { id: 'eco_city', name: 'Eco City', description: 'Reach 90% environment rating', requirement: '90% environment', unlocked: false },
-    { id: 'year_50', name: 'Half Century', description: 'Play for 50 years', requirement: 'Play 50 years', unlocked: false },
-  ];
-}
-
 export function createInitialGameState(size: number = 60, cityName: string = 'New City'): GameState {
   const { grid, waterBodies } = generateTerrain(size);
   const adjacentCities = generateAdjacentCities();
@@ -666,7 +650,6 @@ export function createInitialGameState(size: number = 60, cityName: string = 'Ne
     budget: createInitialBudget(),
     services: createServiceCoverage(size),
     notifications: [],
-    achievements: createAchievements(),
     advisorMessages: [],
     history: [],
     activePanel: 'none',
@@ -1448,77 +1431,6 @@ function generateAdvisorMessages(stats: Stats, services: ServiceCoverage, grid: 
   return messages;
 }
 
-// Check and update achievements
-function checkAchievements(achievements: Achievement[], stats: Stats, grid: Tile[][], year: number): { achievements: Achievement[]; newUnlocks: string[] } {
-  const newAchievements = [...achievements];
-  const newUnlocks: string[] = [];
-
-  for (const achievement of newAchievements) {
-    if (achievement.unlocked) continue;
-
-    let shouldUnlock = false;
-
-    switch (achievement.id) {
-      case 'first_zone':
-        for (const row of grid) {
-          for (const tile of row) {
-            if (tile.zone !== 'none') shouldUnlock = true;
-          }
-        }
-        break;
-      case 'pop_100':
-        achievement.progress = stats.population;
-        shouldUnlock = stats.population >= 100;
-        break;
-      case 'pop_1000':
-        achievement.progress = stats.population;
-        shouldUnlock = stats.population >= 1000;
-        break;
-      case 'pop_10000':
-        achievement.progress = stats.population;
-        shouldUnlock = stats.population >= 10000;
-        break;
-      case 'pop_100000':
-        achievement.progress = stats.population;
-        shouldUnlock = stats.population >= 100000;
-        break;
-      case 'money_100k':
-        achievement.progress = stats.money;
-        shouldUnlock = stats.money >= 100000;
-        break;
-      case 'happy_90':
-        shouldUnlock = stats.happiness >= 90;
-        break;
-      case 'eco_city':
-        shouldUnlock = stats.environment >= 90;
-        break;
-      case 'year_50':
-        shouldUnlock = year >= 2074;
-        break;
-      case 'services_all': {
-        let hasPolice = false, hasFire = false, hasHospital = false, hasSchool = false;
-        for (const row of grid) {
-          for (const tile of row) {
-            if (tile.building.type === 'police_station') hasPolice = true;
-            if (tile.building.type === 'fire_station') hasFire = true;
-            if (tile.building.type === 'hospital') hasHospital = true;
-            if (tile.building.type === 'school') hasSchool = true;
-          }
-        }
-        shouldUnlock = hasPolice && hasFire && hasHospital && hasSchool;
-        break;
-      }
-    }
-
-    if (shouldUnlock && !achievement.unlocked) {
-      achievement.unlocked = true;
-      newUnlocks.push(achievement.name);
-    }
-  }
-
-  return { achievements: newAchievements, newUnlocks };
-}
-
 // Main simulation tick
 export function simulateTick(state: GameState): GameState {
   // Optimized: shallow clone rows, deep clone tiles only when modified
@@ -1732,26 +1644,6 @@ export function simulateTick(state: GameState): GameState {
   // Generate advisor messages
   const advisorMessages = generateAdvisorMessages(newStats, services, newGrid);
 
-  // Check achievements
-  const { achievements, newUnlocks } = checkAchievements(state.achievements, newStats, newGrid, newYear);
-
-  // Create notifications for new achievements
-  const newNotifications = [...state.notifications];
-  for (const unlock of newUnlocks) {
-    newNotifications.unshift({
-      id: `achievement-${Date.now()}`,
-      title: 'Achievement Unlocked!',
-      description: unlock,
-      icon: 'trophy',
-      timestamp: Date.now(),
-    });
-  }
-
-  // Keep only recent notifications
-  while (newNotifications.length > 10) {
-    newNotifications.pop();
-  }
-
   // Update history quarterly
   const history = [...state.history];
   if (newMonth % 3 === 0 && newDay === 1 && newTick === 0) {
@@ -1781,8 +1673,7 @@ export function simulateTick(state: GameState): GameState {
     budget: newBudget,
     services,
     advisorMessages,
-    achievements,
-    notifications: newNotifications,
+    notifications: state.notifications,
     history,
   };
 }

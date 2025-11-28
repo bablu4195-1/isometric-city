@@ -6,7 +6,6 @@ import { Tool, TOOL_INFO } from '@/types/game';
 import {
   BudgetIcon,
   ChartIcon,
-  TrophyIcon,
   AdvisorIcon,
   SettingsIcon,
 } from '@/components/ui/Icons';
@@ -339,12 +338,11 @@ export const Sidebar = React.memo(function Sidebar() {
       </ScrollArea>
       
       <div className="border-t border-sidebar-border p-2">
-        <div className="grid grid-cols-5 gap-1">
+        <div className="grid grid-cols-4 gap-1">
           {[
             { panel: 'budget' as const, icon: <BudgetIcon size={16} />, label: 'Budget' },
             { panel: 'statistics' as const, icon: <ChartIcon size={16} />, label: 'Statistics' },
             { panel: 'advisors' as const, icon: <AdvisorIcon size={16} />, label: 'Advisors' },
-            { panel: 'achievements' as const, icon: <TrophyIcon size={16} />, label: 'Achievements' },
             { panel: 'settings' as const, icon: <SettingsIcon size={16} />, label: 'Settings' },
           ].map(({ panel, icon, label }) => (
             <Button
