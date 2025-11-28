@@ -2,6 +2,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from 'react';
+import { toast } from 'sonner';
 import {
   Budget,
   BuildingType,
@@ -272,6 +273,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const skipNextSaveRef = useRef(false);
   const hasLoadedRef = useRef(false);
   
+  // Tile placement tracking for new game prompt
+  const gameStartTimeRef = useRef<number | null>(null);
+  const tilePlacementCountRef = useRef<number>(0);
+  const toastShownRef = useRef<boolean>(false);
+  const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [gameStartKey, setGameStartKey] = useState(0); // Used to trigger effect on new game
+  
   // Sprite pack state
   const [currentSpritePack, setCurrentSpritePack] = useState<SpritePack>(() => getSpritePack(DEFAULT_SPRITE_PACK_ID));
   
@@ -289,8 +297,17 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       skipNextSaveRef.current = true; // Set skip flag BEFORE updating state
       setState(saved);
       setHasExistingGame(true);
+      // Don't track for loaded games
+      gameStartTimeRef.current = null;
+      tilePlacementCountRef.current = 0;
+      toastShownRef.current = false;
     } else {
       setHasExistingGame(false);
+      // Start tracking for new game
+      gameStartTimeRef.current = Date.now();
+      tilePlacementCountRef.current = 0;
+      toastShownRef.current = false;
+      setGameStartKey(prev => prev + 1); // Trigger effect to start checking
     }
     // Mark as loaded immediately - the skipNextSaveRef will handle skipping the first save
     hasLoadedRef.current = true;
@@ -401,6 +418,72 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     };
   }, [state.speed]);
 
+  // Check for new game prompt after 30 seconds
+  useEffect(() => {
+    // Clear any existing interval
+    if (checkIntervalRef.current) {
+      clearInterval(checkIntervalRef.current);
+      checkIntervalRef.current = null;
+    }
+
+    // Only track if we have a game start time (new game, not loaded)
+    if (!gameStartTimeRef.current || toastShownRef.current) {
+      return;
+    }
+
+    // Set up interval to check every second
+    checkIntervalRef.current = setInterval(() => {
+      if (!gameStartTimeRef.current || toastShownRef.current) {
+        if (checkIntervalRef.current) {
+          clearInterval(checkIntervalRef.current);
+          checkIntervalRef.current = null;
+        }
+        return;
+      }
+
+      const elapsed = Date.now() - gameStartTimeRef.current;
+      const thirtySeconds = 30 * 1000;
+
+      // After 30 seconds, check if less than 10 tiles placed
+      if (elapsed >= thirtySeconds) {
+        if (tilePlacementCountRef.current < 10 && !toastShownRef.current) {
+          toastShownRef.current = true;
+          
+          // Show toast with action button
+          toast('Try random city?', {
+            description: 'Load a pre-built city to get started',
+            action: {
+              label: 'Load',
+              onClick: async () => {
+                try {
+                  const { default: exampleState5 } = await import('@/resources/example_state_5.json');
+                  loadState(JSON.stringify(exampleState5));
+                } catch (error) {
+                  console.error('Failed to load example state 5:', error);
+                  toast.error('Failed to load example city');
+                }
+              },
+            },
+            duration: 10000, // Show for 10 seconds
+          });
+        }
+
+        // Clear interval after showing toast
+        if (checkIntervalRef.current) {
+          clearInterval(checkIntervalRef.current);
+          checkIntervalRef.current = null;
+        }
+      }
+    }, 1000); // Check every second
+
+    return () => {
+      if (checkIntervalRef.current) {
+        clearInterval(checkIntervalRef.current);
+        checkIntervalRef.current = null;
+      }
+    };
+  }, [loadState, gameStartKey]);
+
   const setTool = useCallback((tool: Tool) => {
     setState((prev) => ({ ...prev, selectedTool: tool, activePanel: 'none' }));
   }, []);
@@ -492,6 +575,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           ...nextState,
           stats: { ...nextState.stats, money: nextState.stats.money - cost },
         };
+      }
+
+      // Track tile placement for new game prompt (only count actual placements, not bulldoze)
+      if (tool !== 'bulldoze' && tool !== 'select') {
+        tilePlacementCountRef.current += 1;
       }
 
       return nextState;
@@ -609,6 +697,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     clearGameState(); // Clear saved state when starting fresh
     const fresh = createInitialGameState(size ?? 60, name || 'IsoCity');
     setState(fresh);
+    // Reset tracking for new game
+    gameStartTimeRef.current = Date.now();
+    tilePlacementCountRef.current = 0;
+    toastShownRef.current = false;
+    setGameStartKey(prev => prev + 1); // Trigger effect to start checking
   }, []);
 
   const loadState = useCallback((stateString: string): boolean => {
@@ -656,6 +749,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           }
         }
         setState(parsed as GameState);
+        // Reset tracking when loading a state (don't show prompt for loaded games)
+        gameStartTimeRef.current = null;
+        tilePlacementCountRef.current = 0;
+        toastShownRef.current = false;
         return true;
       }
       return false;
