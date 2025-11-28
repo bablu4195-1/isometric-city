@@ -211,6 +211,7 @@ function generateLakes(grid: Tile[][], size: number, seed: number): WaterBody[] 
     // Apply lake tiles to grid
     for (const tile of lakeTiles) {
       grid[tile.y][tile.x].building = createBuilding('water');
+      grid[tile.y][tile.x].elevation = 0;
       grid[tile.y][tile.x].landValue = 60; // Water increases nearby land value
     }
     
@@ -298,6 +299,7 @@ function generateOceans(grid: Tile[][], size: number, seed: number): WaterBody[]
         
         if (x >= 0 && x < size && y >= 0 && y < size && grid[y][x].building.type !== 'water') {
           grid[y][x].building = createBuilding('water');
+          grid[y][x].elevation = 0;
           grid[y][x].landValue = 60;
           tiles.push({ x, y });
         }
@@ -399,6 +401,39 @@ function generateAdjacentCities(): AdjacentCity[] {
   return cities;
 }
 
+function generateHills(grid: Tile[][], size: number, seed: number): void {
+  const hillCount = Math.floor(Math.random() * 4); // 0-3 hills
+  const maxHeight = 8;
+
+  if (hillCount === 0) return;
+
+  const random = (x: number, y: number, offset: number) => noise2D(x, y, seed + offset);
+
+  for (let i = 0; i < hillCount; i++) {
+    const radius = 5 + Math.floor(Math.random() * 3); // 5-7 radius => 10-15 diameter
+    const height = 3 + Math.floor(Math.random() * 6); // 3-8 height
+
+    const margin = radius + 2;
+    const cx = margin + Math.floor(random(i, 0, 5000 + i * 13) * (size - margin * 2));
+    const cy = margin + Math.floor(random(i, 1, 7000 + i * 17) * (size - margin * 2));
+
+    for (let y = Math.max(0, cy - radius - 1); y <= Math.min(size - 1, cy + radius + 1); y++) {
+      for (let x = Math.max(0, cx - radius - 1); x <= Math.min(size - 1, cx + radius + 1); x++) {
+        const dx = x - cx;
+        const dy = y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > radius) continue;
+
+        const blend = Math.max(0, 1 - dist / radius);
+        const noise = random(x, y, 9000 + i * 23) * 0.3 + 0.7; // subtle variation
+        const elevation = Math.round(Math.min(maxHeight, height * blend * noise));
+
+        grid[y][x].elevation = Math.max(grid[y][x].elevation, elevation);
+      }
+    }
+  }
+}
+
 // Generate terrain - grass with scattered trees, lakes, and oceans
 function generateTerrain(size: number): { grid: Tile[][]; waterBodies: WaterBody[] } {
   const grid: Tile[][] = [];
@@ -412,17 +447,20 @@ function generateTerrain(size: number): { grid: Tile[][]; waterBodies: WaterBody
     }
     grid.push(row);
   }
-  
-  // Second pass: add lakes (small contiguous water regions)
+
+  // Second pass: add hills before placing water
+  generateHills(grid, size, seed);
+
+  // Third pass: add lakes (small contiguous water regions)
   const lakeBodies = generateLakes(grid, size, seed);
-  
-  // Third pass: add oceans on edges (sometimes)
+
+  // Fourth pass: add oceans on edges (sometimes)
   const oceanBodies = generateOceans(grid, size, seed);
-  
+
   // Combine all water bodies
   const waterBodies = [...lakeBodies, ...oceanBodies];
-  
-  // Fourth pass: add scattered trees (avoiding water)
+
+  // Fifth pass: add scattered trees (avoiding water)
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       if (grid[y][x].building.type === 'water') continue; // Don't place trees on water
@@ -543,6 +581,7 @@ function createTile(x: number, y: number, buildingType: BuildingType = 'grass'):
     y,
     zone: 'none',
     building: createBuilding(buildingType),
+    elevation: 0,
     landValue: 50,
     pollution: 0,
     crime: 0,
@@ -635,7 +674,7 @@ function createAchievements(): Achievement[] {
   ];
 }
 
-export function createInitialGameState(size: number = 60, cityName: string = 'New City'): GameState {
+export function createInitialGameState(size: number = 66, cityName: string = 'New City'): GameState {
   const { grid, waterBodies } = generateTerrain(size);
   const adjacentCities = generateAdjacentCities();
 
@@ -1924,6 +1963,7 @@ function applyBuildingFootprint(
         cell.building = createBuilding('empty');
         cell.building.level = 0;
       }
+      cell.elevation = 0; // Flatten terrain under buildings
       cell.zone = zone;
       cell.pollution = dx === 0 && dy === 0 ? stats.pollution : 0;
     }
@@ -2035,6 +2075,7 @@ export function placeBuilding(
       }
       newGrid[y][x].building = createBuilding(buildingType);
       newGrid[y][x].zone = 'none';
+      newGrid[y][x].elevation = 0; // Flatten terrain under new structures
       // Set flip for waterfront buildings to face the water
       if (shouldFlip) {
         newGrid[y][x].building.flipped = true;

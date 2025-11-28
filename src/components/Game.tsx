@@ -5295,11 +5295,33 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
       ctx.lineCap = 'butt';
     }
     
+    function blendHexColors(colorA: string, colorB: string, t: number): string {
+      const clampT = Math.max(0, Math.min(1, t));
+      const parse = (color: string) => color.replace('#', '');
+      const a = parse(colorA);
+      const b = parse(colorB);
+
+      const aR = parseInt(a.substring(0, 2), 16);
+      const aG = parseInt(a.substring(2, 4), 16);
+      const aB = parseInt(a.substring(4, 6), 16);
+
+      const bR = parseInt(b.substring(0, 2), 16);
+      const bG = parseInt(b.substring(2, 4), 16);
+      const bB = parseInt(b.substring(4, 6), 16);
+
+      const r = Math.round(aR + (bR - aR) * clampT);
+      const g = Math.round(aG + (bG - aG) * clampT);
+      const bVal = Math.round(aB + (bB - aB) * clampT);
+
+      const toHex = (value: number) => value.toString(16).padStart(2, '0');
+      return `#${toHex(r)}${toHex(g)}${toHex(bVal)}`;
+    }
+
     // Draw isometric tile base
     function drawIsometricTile(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile, highlight: boolean, currentZoom: number, skipGreyBase: boolean = false, skipGreenBase: boolean = false) {
       const w = TILE_WIDTH;
       const h = TILE_HEIGHT;
-      
+
       // Determine tile colors (top face and shading)
       let topColor = '#4a7c3f'; // grass
       let leftColor = '#3d6634';
@@ -5385,7 +5407,16 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         }
         strokeColor = '#f59e0b';
       }
-      
+
+      const elevation = tile.elevation ?? 0;
+      if (elevation > 0 && tile.building.type !== 'water') {
+        const elevationFactor = Math.min(elevation / 8, 1);
+        topColor = blendHexColors(topColor, '#d1d5db', 0.35 + 0.4 * elevationFactor);
+        leftColor = blendHexColors(leftColor, '#9ca3af', 0.4 + 0.35 * elevationFactor);
+        rightColor = blendHexColors(rightColor, '#e5e7eb', 0.35 + 0.35 * elevationFactor);
+        strokeColor = blendHexColors(strokeColor, '#6b7280', 0.3 + 0.3 * elevationFactor);
+      }
+
       // Skip drawing green base for grass/empty tiles adjacent to water (will be drawn later over water)
       const shouldSkipDrawing = skipGreenBase && (tile.building.type === 'grass' || tile.building.type === 'empty');
       
@@ -5790,15 +5821,14 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMob
         const y = sum - x;
         if (y < 0 || y >= gridSize) continue;
         
-        const { screenX, screenY } = gridToScreen(x, y, 0, 0);
-        
+        const tile = grid[y][x];
+        const { screenX, screenY } = gridToScreen(x, y, 0, 0, tile.elevation ?? 0);
+
         // Viewport culling
         if (screenX + TILE_WIDTH < viewLeft || screenX > viewRight ||
             screenY + TILE_HEIGHT * 4 < viewTop || screenY > viewBottom) {
           continue;
         }
-        
-        const tile = grid[y][x];
         const isHovered = hoveredTile?.x === x && hoveredTile?.y === y;
         
         // Check if this tile is selected or part of a selected multi-tile building

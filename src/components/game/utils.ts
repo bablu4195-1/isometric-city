@@ -1,5 +1,5 @@
 import { Tile } from '@/types/game';
-import { CarDirection, TILE_WIDTH, TILE_HEIGHT } from './types';
+import { CarDirection, TILE_WIDTH, TILE_HEIGHT, ELEVATION_PIXEL_HEIGHT } from './types';
 import { OPPOSITE_DIRECTION } from './constants';
 
 // Get opposite direction
@@ -174,9 +174,15 @@ export function getDirectionToTile(fromX: number, fromY: number, toX: number, to
 }
 
 // Convert grid coordinates to screen coordinates (isometric)
-export function gridToScreen(x: number, y: number, offsetX: number, offsetY: number): { screenX: number; screenY: number } {
+export function gridToScreen(
+  x: number,
+  y: number,
+  offsetX: number,
+  offsetY: number,
+  elevation: number = 0
+): { screenX: number; screenY: number } {
   const screenX = (x - y) * (TILE_WIDTH / 2) + offsetX;
-  const screenY = (x + y) * (TILE_HEIGHT / 2) + offsetY;
+  const screenY = (x + y) * (TILE_HEIGHT / 2) + offsetY - elevation * ELEVATION_PIXEL_HEIGHT;
   return { screenX, screenY };
 }
 

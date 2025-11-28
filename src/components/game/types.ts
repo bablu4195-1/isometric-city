@@ -4,6 +4,7 @@
 export const TILE_WIDTH = 64;
 export const HEIGHT_RATIO = 0.60;
 export const TILE_HEIGHT = TILE_WIDTH * HEIGHT_RATIO;
+export const ELEVATION_PIXEL_HEIGHT = TILE_HEIGHT * 0.5;
 export const KEY_PAN_SPEED = 520; // Pixels per second for keyboard panning
 
 // Car/Vehicle types
