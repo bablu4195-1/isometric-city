@@ -119,6 +119,11 @@ import {
 } from '@/components/game/renderHelpers';
 import { drawAirplanes as drawAirplanesUtil, drawHelicopters as drawHelicoptersUtil } from '@/components/game/drawAircraft';
 import { drawPedestrians as drawPedestriansUtil } from '@/components/game/drawPedestrians';
+import { drawRoad } from '@/components/game/rendering/roadRenderer';
+import { isPartOfMultiTileBuilding, findBuildingOrigin, isPartOfParkBuilding } from '@/components/game/helpers/buildingHelpers';
+import { getMapBounds, clampOffset as clampOffsetHelper } from '@/components/game/helpers/viewportHelpers';
+import { spawnRandomCar as spawnRandomCarUtil, updateCars as updateCarsUtil, drawCars as drawCarsUtil } from '@/components/game/vehicleSystems/carsSystem';
+import { spawnPedestrian as spawnPedestrianUtil, updatePedestrians as updatePedestriansUtil, PedestriansSystemParams } from '@/components/game/vehicleSystems/pedestriansSystem';
 
 // Props interface for CanvasIsometricGrid
 export interface CanvasIsometricGridProps {
@@ -336,34 +341,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   }, []);
 
   const spawnRandomCar = useCallback(() => {
-    const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
-    if (!currentGrid || currentGridSize <= 0) return false;
-    
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const tileX = Math.floor(Math.random() * currentGridSize);
-      const tileY = Math.floor(Math.random() * currentGridSize);
-      if (!isRoadTile(currentGrid, currentGridSize, tileX, tileY)) continue;
-      
-      const options = getDirectionOptions(currentGrid, currentGridSize, tileX, tileY);
-      if (options.length === 0) continue;
-      
-      const direction = options[Math.floor(Math.random() * options.length)];
-      carsRef.current.push({
-        id: carIdRef.current++,
-        tileX,
-        tileY,
-        direction,
-        progress: Math.random() * 0.8,
-        speed: (0.35 + Math.random() * 0.35) * 0.7,
-        age: 0,
-        maxAge: 1800 + Math.random() * 2700,
-        color: CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)],
-        laneOffset: (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 3),
-      });
-      return true;
-    }
-    
-    return false;
+    return spawnRandomCarUtil(worldStateRef, carsRef, carIdRef);
   }, []);
 
   // Find residential buildings for pedestrian spawning (uses imported utility)
@@ -380,72 +358,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
 
   // Spawn a pedestrian from a residential building to a destination
   const spawnPedestrian = useCallback(() => {
-    const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
-    if (!currentGrid || currentGridSize <= 0) return false;
-    
-    const residentials = findResidentialBuildingsCallback();
-    if (residentials.length === 0) {
-      return false;
-    }
-    
-    const destinations = findPedestrianDestinationsCallback();
-    if (destinations.length === 0) {
-      return false;
-    }
-    
-    // Pick a random residential building as home
-    const home = residentials[Math.floor(Math.random() * residentials.length)];
-    
-    // Pick a random destination
-    const dest = destinations[Math.floor(Math.random() * destinations.length)];
-    
-    // Find path from home to destination via roads
-    const path = findPathOnRoads(currentGrid, currentGridSize, home.x, home.y, dest.x, dest.y);
-    if (!path || path.length === 0) {
-      return false;
-    }
-    
-    // Start at a random point along the path for better distribution
-    const startIndex = Math.floor(Math.random() * path.length);
-    const startTile = path[startIndex];
-    
-    // Determine initial direction based on next tile in path
-    let direction: CarDirection = 'south';
-    if (startIndex + 1 < path.length) {
-      const nextTile = path[startIndex + 1];
-      const dir = getDirectionToTile(startTile.x, startTile.y, nextTile.x, nextTile.y);
-      if (dir) direction = dir;
-    } else if (startIndex > 0) {
-      // At end of path, use previous tile to determine direction
-      const prevTile = path[startIndex - 1];
-      const dir = getDirectionToTile(prevTile.x, prevTile.y, startTile.x, startTile.y);
-      if (dir) direction = dir;
-    }
-    
-    pedestriansRef.current.push({
-      id: pedestrianIdRef.current++,
-      tileX: startTile.x,
-      tileY: startTile.y,
-      direction,
-      progress: Math.random(),
-      speed: 0.12 + Math.random() * 0.08, // Pedestrians are slower than cars
-      pathIndex: startIndex,
-      age: 0,
-      maxAge: 60 + Math.random() * 90, // 60-150 seconds lifespan
-      skinColor: PEDESTRIAN_SKIN_COLORS[Math.floor(Math.random() * PEDESTRIAN_SKIN_COLORS.length)],
-      shirtColor: PEDESTRIAN_SHIRT_COLORS[Math.floor(Math.random() * PEDESTRIAN_SHIRT_COLORS.length)],
-      walkOffset: Math.random() * Math.PI * 2,
-      sidewalkSide: Math.random() < 0.5 ? 'left' : 'right',
-      destType: dest.type,
-      homeX: home.x,
-      homeY: home.y,
-      destX: dest.x,
-      destY: dest.y,
-      returningHome: startIndex >= path.length - 1, // If starting at end, they're returning
-      path,
-    });
-    
-    return true;
+    return spawnPedestrianUtil(
+      worldStateRef,
+      pedestriansRef,
+      pedestrianIdRef,
+      findResidentialBuildingsCallback,
+      findPedestrianDestinationsCallback
+    );
   }, [findResidentialBuildingsCallback, findPedestrianDestinationsCallback]);
 
   // Find stations (uses imported utility)
@@ -869,373 +788,33 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   }, [updateEmergencyDispatch]);
 
   const updateCars = useCallback((delta: number) => {
-    const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed } = worldStateRef.current;
-    if (!currentGrid || currentGridSize <= 0) {
-      carsRef.current = [];
-      return;
-    }
-    
-    // Speed multiplier: 0 = paused, 1 = normal, 2 = fast (2x), 3 = very fast (4x)
-    const speedMultiplier = currentSpeed === 0 ? 0 : currentSpeed === 1 ? 1 : currentSpeed === 2 ? 2.5 : 4;
-    
-    // Reduce max cars on mobile for better performance
-    const baseMaxCars = 160;
-    const maxCars = Math.min(baseMaxCars, Math.max(16, Math.floor(currentGridSize * (2))));
-    carSpawnTimerRef.current -= delta;
-    if (carsRef.current.length < maxCars && carSpawnTimerRef.current <= 0) {
-      if (spawnRandomCar()) {
-        carSpawnTimerRef.current = 0.9 + Math.random() * 1.3;
-      } else {
-        carSpawnTimerRef.current = 0.5;
-      }
-    }
-    
-    const updatedCars: Car[] = [];
-    for (const car of [...carsRef.current]) {
-      let alive = true;
-      
-      car.age += delta;
-      if (car.age > car.maxAge) {
-        continue;
-      }
-      
-      if (!isRoadTile(currentGrid, currentGridSize, car.tileX, car.tileY)) {
-        continue;
-      }
-      
-      car.progress += car.speed * delta * speedMultiplier;
-      let guard = 0;
-      while (car.progress >= 1 && guard < 4) {
-        guard++;
-        const meta = DIRECTION_META[car.direction];
-        car.tileX += meta.step.x;
-        car.tileY += meta.step.y;
-        
-        if (!isRoadTile(currentGrid, currentGridSize, car.tileX, car.tileY)) {
-          alive = false;
-          break;
-        }
-        
-        car.progress -= 1;
-        const nextDirection = pickNextDirection(car.direction, currentGrid, currentGridSize, car.tileX, car.tileY);
-        if (!nextDirection) {
-          alive = false;
-          break;
-        }
-        car.direction = nextDirection;
-      }
-      
-      if (alive) {
-        updatedCars.push(car);
-      }
-    }
-    
-    carsRef.current = updatedCars;
-  }, [spawnRandomCar, isMobile]);
+    updateCarsUtil(delta, {
+      worldStateRef,
+      carsRef,
+      carIdRef,
+      carSpawnTimerRef,
+      isMobile,
+    });
+  }, [isMobile]);
 
   // Update pedestrians - only when zoomed in enough
   const updatePedestrians = useCallback((delta: number) => {
-    const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed, zoom: currentZoom } = worldStateRef.current;
-    
-    // Clear pedestrians if zoomed out (mobile requires higher zoom level)
-    const minZoomForPedestrians = isMobile ? 0.8 : PEDESTRIAN_MIN_ZOOM;
-    if (currentZoom < minZoomForPedestrians) {
-      pedestriansRef.current = [];
-      return;
-    }
-    
-    if (!currentGrid || currentGridSize <= 0) {
-      pedestriansRef.current = [];
-      return;
-    }
-    
-    // Speed multiplier
-    const speedMultiplier = currentSpeed === 0 ? 0 : currentSpeed === 1 ? 1 : currentSpeed === 2 ? 2.5 : 4;
-    
-    // Get cached road tile count (only recalculate when grid changes)
-    const currentGridVersion = gridVersionRef.current;
-    let roadTileCount: number;
-    if (cachedRoadTileCountRef.current.gridVersion === currentGridVersion) {
-      roadTileCount = cachedRoadTileCountRef.current.count;
-    } else {
-      // Recalculate and cache
-      roadTileCount = 0;
-      for (let y = 0; y < currentGridSize; y++) {
-        for (let x = 0; x < currentGridSize; x++) {
-          if (currentGrid[y][x].building.type === 'road') {
-            roadTileCount++;
-          }
-        }
-      }
-      cachedRoadTileCountRef.current = { count: roadTileCount, gridVersion: currentGridVersion };
-    }
-    
-    // Spawn pedestrians - scale with road network size, reduced on mobile
-    // Mobile: max 50 pedestrians, 0.8 per road tile
-    // Desktop: max 200+ pedestrians, 3 per road tile
-    const maxPedestrians = isMobile 
-      ? Math.min(50, Math.max(20, Math.floor(roadTileCount * 0.8)))
-      : Math.max(200, roadTileCount * 3);
-    pedestrianSpawnTimerRef.current -= delta;
-    if (pedestriansRef.current.length < maxPedestrians && pedestrianSpawnTimerRef.current <= 0) {
-      // Spawn fewer pedestrians at once on mobile
-      let spawnedCount = 0;
-      const spawnBatch = isMobile 
-        ? Math.min(8, Math.max(3, Math.floor(roadTileCount / 25)))
-        : Math.min(50, Math.max(20, Math.floor(roadTileCount / 10)));
-      for (let i = 0; i < spawnBatch; i++) {
-        if (spawnPedestrian()) {
-          spawnedCount++;
-        }
-      }
-      // Slower spawn rate on mobile
-      pedestrianSpawnTimerRef.current = spawnedCount > 0 ? (isMobile ? 0.15 : 0.02) : (isMobile ? 0.08 : 0.01);
-    }
-    
-    const updatedPedestrians: Pedestrian[] = [];
-    
-    for (const ped of [...pedestriansRef.current]) {
-      let alive = true;
-      
-      // Update age
-      ped.age += delta;
-      if (ped.age > ped.maxAge) {
-        continue;
-      }
-      
-      // Update walk animation
-      ped.walkOffset += delta * 8;
-      
-      // Check if still on valid road
-      if (!isRoadTile(currentGrid, currentGridSize, ped.tileX, ped.tileY)) {
-        continue;
-      }
-      
-      // Move pedestrian along path
-      ped.progress += ped.speed * delta * speedMultiplier;
-      
-      // Handle single-tile paths (already at destination)
-      if (ped.path.length === 1 && ped.progress >= 1) {
-        if (!ped.returningHome) {
-          ped.returningHome = true;
-          const returnPath = findPathOnRoads(currentGrid, currentGridSize, ped.destX, ped.destY, ped.homeX, ped.homeY);
-          if (returnPath && returnPath.length > 0) {
-            ped.path = returnPath;
-            ped.pathIndex = 0;
-            ped.progress = 0;
-            ped.tileX = returnPath[0].x;
-            ped.tileY = returnPath[0].y;
-            if (returnPath.length > 1) {
-              const nextTile = returnPath[1];
-              const dir = getDirectionToTile(returnPath[0].x, returnPath[0].y, nextTile.x, nextTile.y);
-              if (dir) ped.direction = dir;
-            }
-          } else {
-            continue; // Remove pedestrian
-          }
-        } else {
-          continue; // Arrived home, remove
-        }
-      }
-      
-      while (ped.progress >= 1 && ped.pathIndex < ped.path.length - 1) {
-        ped.pathIndex++;
-        ped.progress -= 1;
-        
-        const currentTile = ped.path[ped.pathIndex];
-        
-        // Bounds check
-        if (currentTile.x < 0 || currentTile.x >= currentGridSize ||
-            currentTile.y < 0 || currentTile.y >= currentGridSize) {
-          alive = false;
-          break;
-        }
-        
-        ped.tileX = currentTile.x;
-        ped.tileY = currentTile.y;
-        
-        // Check if reached end of path
-        if (ped.pathIndex >= ped.path.length - 1) {
-          if (!ped.returningHome) {
-            // Arrived at destination - start returning home
-            ped.returningHome = true;
-            const returnPath = findPathOnRoads(currentGrid, currentGridSize, ped.destX, ped.destY, ped.homeX, ped.homeY);
-            if (returnPath && returnPath.length > 0) {
-              ped.path = returnPath;
-              ped.pathIndex = 0;
-              ped.progress = 0;
-              // Update direction for return trip
-              if (returnPath.length > 1) {
-                const nextTile = returnPath[1];
-                const dir = getDirectionToTile(returnPath[0].x, returnPath[0].y, nextTile.x, nextTile.y);
-                if (dir) ped.direction = dir;
-              }
-            } else {
-              alive = false;
-            }
-          } else {
-            // Arrived back home - remove pedestrian
-            alive = false;
-          }
-          break;
-        }
-        
-        // Update direction for next segment
-        if (ped.pathIndex + 1 < ped.path.length) {
-          const nextTile = ped.path[ped.pathIndex + 1];
-          const dir = getDirectionToTile(ped.tileX, ped.tileY, nextTile.x, nextTile.y);
-          if (dir) ped.direction = dir;
-        }
-      }
-      
-      // Handle case where pedestrian is already at the last tile with progress >= 1
-      // (can happen when spawned at end of path, or if progress accumulates)
-      if (alive && ped.progress >= 1 && ped.pathIndex >= ped.path.length - 1) {
-        if (!ped.returningHome) {
-          // Arrived at destination - start returning home
-          ped.returningHome = true;
-          const returnPath = findPathOnRoads(currentGrid, currentGridSize, ped.destX, ped.destY, ped.homeX, ped.homeY);
-          if (returnPath && returnPath.length > 0) {
-            ped.path = returnPath;
-            ped.pathIndex = 0;
-            ped.progress = 0;
-            ped.tileX = returnPath[0].x;
-            ped.tileY = returnPath[0].y;
-            // Update direction for return trip
-            if (returnPath.length > 1) {
-              const nextTile = returnPath[1];
-              const dir = getDirectionToTile(returnPath[0].x, returnPath[0].y, nextTile.x, nextTile.y);
-              if (dir) ped.direction = dir;
-            }
-          } else {
-            alive = false;
-          }
-        } else {
-          // Arrived back home - remove pedestrian
-          alive = false;
-        }
-      }
-      
-      if (alive) {
-        updatedPedestrians.push(ped);
-      }
-    }
-    
-    pedestriansRef.current = updatedPedestrians;
-  }, [spawnPedestrian, isMobile]);
+    const params: PedestriansSystemParams = {
+      worldStateRef,
+      pedestriansRef,
+      pedestrianIdRef,
+      pedestrianSpawnTimerRef,
+      cachedRoadTileCountRef,
+      gridVersionRef,
+      isMobile,
+      findResidentialBuildings: findResidentialBuildingsCallback,
+      findPedestrianDestinations: findPedestrianDestinationsCallback,
+    };
+    updatePedestriansUtil(delta, params);
+  }, [findResidentialBuildingsCallback, findPedestrianDestinationsCallback, isMobile]);
 
   const drawCars = useCallback((ctx: CanvasRenderingContext2D) => {
-    const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
-    const canvas = ctx.canvas;
-    const dpr = window.devicePixelRatio || 1;
-    
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Early exit if no grid data
-    if (!currentGrid || currentGridSize <= 0 || carsRef.current.length === 0) {
-      return;
-    }
-    
-    ctx.save();
-    ctx.scale(dpr * currentZoom, dpr * currentZoom);
-    ctx.translate(currentOffset.x / currentZoom, currentOffset.y / currentZoom);
-    
-    const viewWidth = canvas.width / (dpr * currentZoom);
-    const viewHeight = canvas.height / (dpr * currentZoom);
-    const viewLeft = -currentOffset.x / currentZoom - TILE_WIDTH;
-    const viewTop = -currentOffset.y / currentZoom - TILE_HEIGHT * 2;
-    const viewRight = viewWidth - currentOffset.x / currentZoom + TILE_WIDTH;
-    const viewBottom = viewHeight - currentOffset.y / currentZoom + TILE_HEIGHT * 2;
-    
-    // Helper function to check if a car is behind a building
-    const isCarBehindBuilding = (carTileX: number, carTileY: number): boolean => {
-      // Only check tiles directly in front (higher depth means drawn later/on top)
-      const carDepth = carTileX + carTileY;
-      
-      // Check a small area - just tiles that could visually cover the car
-      for (let dy = 0; dy <= 1; dy++) {
-        for (let dx = 0; dx <= 1; dx++) {
-          if (dx === 0 && dy === 0) continue; // Skip the car's own tile
-          
-          const checkX = carTileX + dx;
-          const checkY = carTileY + dy;
-          
-          // Skip if out of bounds
-          if (checkX < 0 || checkY < 0 || checkX >= currentGridSize || checkY >= currentGridSize) {
-            continue;
-          }
-          
-          const tile = currentGrid[checkY]?.[checkX];
-          if (!tile) continue;
-          
-          const buildingType = tile.building.type;
-          
-          // Skip roads, grass, empty, water, and trees (these don't hide cars)
-          const skipTypes: BuildingType[] = ['road', 'grass', 'empty', 'water', 'tree'];
-          if (skipTypes.includes(buildingType)) {
-            continue;
-          }
-          
-          // Check if this building tile has higher depth (drawn after/on top)
-          const buildingDepth = checkX + checkY;
-          
-          // Only hide if building is strictly in front (higher depth)
-          if (buildingDepth > carDepth) {
-            return true;
-          }
-        }
-      }
-      
-      return false;
-    };
-    
-    carsRef.current.forEach(car => {
-      const { screenX, screenY } = gridToScreen(car.tileX, car.tileY, 0, 0);
-      const centerX = screenX + TILE_WIDTH / 2;
-      const centerY = screenY + TILE_HEIGHT / 2;
-      const meta = DIRECTION_META[car.direction];
-      const carX = centerX + meta.vec.dx * car.progress + meta.normal.nx * car.laneOffset;
-      const carY = centerY + meta.vec.dy * car.progress + meta.normal.ny * car.laneOffset;
-      
-      if (carX < viewLeft - 40 || carX > viewRight + 40 || carY < viewTop - 60 || carY > viewBottom + 60) {
-        return;
-      }
-      
-      // Check if car is behind a building - if so, skip drawing
-      if (isCarBehindBuilding(car.tileX, car.tileY)) {
-        return;
-      }
-      
-      ctx.save();
-      ctx.translate(carX, carY);
-      ctx.rotate(meta.angle);
-      
-      // Scale down by 30% (multiply by 0.7)
-      const scale = 0.7;
-      
-      ctx.fillStyle = car.color;
-      ctx.beginPath();
-      ctx.moveTo(-10 * scale, -5 * scale);
-      ctx.lineTo(10 * scale, -5 * scale);
-      ctx.lineTo(12 * scale, 0);
-      ctx.lineTo(10 * scale, 5 * scale);
-      ctx.lineTo(-10 * scale, 5 * scale);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Windshield
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.fillRect(-4 * scale, -2.8 * scale, 7 * scale, 5.6 * scale);
-      
-      // Rear
-      ctx.fillStyle = '#111827';
-      ctx.fillRect(-10 * scale, -4 * scale, 2.4 * scale, 8 * scale);
-      
-      ctx.restore();
-    });
-    
-    ctx.restore();
+    drawCarsUtil(ctx, worldStateRef, carsRef);
   }, []);
 
   // Draw pedestrians with simple SVG-style sprites (uses extracted utility)
@@ -3118,89 +2697,14 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   }, [currentSpritePack]);
   
   // Helper function to check if a tile is part of a multi-tile building footprint
-  const isPartOfMultiTileBuilding = useCallback((gridX: number, gridY: number): boolean => {
-    // Check all possible origin positions that could have a multi-tile building covering this tile
-    // For a 2x2 building, check up to 1 tile away in each direction
-    // For a 3x3 building, check up to 2 tiles away
-    // For a 4x4 building, check up to 3 tiles away
-    const maxSize = 4; // Maximum building size
-    
-    for (let dy = 0; dy < maxSize; dy++) {
-      for (let dx = 0; dx < maxSize; dx++) {
-        const originX = gridX - dx;
-        const originY = gridY - dy;
-        
-        if (originX >= 0 && originX < gridSize && originY >= 0 && originY < gridSize) {
-          const originTile = grid[originY][originX];
-          const buildingSize = getBuildingSize(originTile.building.type);
-          
-          // Check if this tile is within the footprint of the building at origin
-          if (buildingSize.width > 1 || buildingSize.height > 1) {
-            if (gridX >= originX && gridX < originX + buildingSize.width &&
-                gridY >= originY && gridY < originY + buildingSize.height) {
-              return true;
-            }
-          }
-        }
-      }
-    }
-    
-    return false;
+  const isPartOfMultiTileBuildingCallback = useCallback((gridX: number, gridY: number): boolean => {
+    return isPartOfMultiTileBuilding(gridX, gridY, grid, gridSize);
   }, [grid, gridSize]);
   
   // Helper function to find the origin of a multi-tile building that contains a given tile
   // Returns the origin coordinates and building type, or null if not part of a multi-tile building
-  const findBuildingOrigin = useCallback((gridX: number, gridY: number): { originX: number; originY: number; buildingType: BuildingType } | null => {
-    const maxSize = 4; // Maximum building size
-    
-    // First check if this tile itself has a multi-tile building
-    const tile = grid[gridY]?.[gridX];
-    if (!tile) return null;
-    
-    // If this tile has a real building (not empty), check if it's multi-tile
-    if (tile.building.type !== 'empty' && 
-        tile.building.type !== 'grass' && 
-        tile.building.type !== 'water' && 
-        tile.building.type !== 'road' && 
-        tile.building.type !== 'tree') {
-      const size = getBuildingSize(tile.building.type);
-      if (size.width > 1 || size.height > 1) {
-        return { originX: gridX, originY: gridY, buildingType: tile.building.type };
-      }
-      return null; // Single-tile building
-    }
-    
-    // If this is an 'empty' tile, search for the origin building
-    if (tile.building.type === 'empty') {
-      for (let dy = 0; dy < maxSize; dy++) {
-        for (let dx = 0; dx < maxSize; dx++) {
-          const originX = gridX - dx;
-          const originY = gridY - dy;
-          
-          if (originX >= 0 && originX < gridSize && originY >= 0 && originY < gridSize) {
-            const originTile = grid[originY][originX];
-            
-            if (originTile.building.type !== 'empty' && 
-                originTile.building.type !== 'grass' &&
-                originTile.building.type !== 'water' &&
-                originTile.building.type !== 'road' &&
-                originTile.building.type !== 'tree') {
-              const size = getBuildingSize(originTile.building.type);
-              
-              // Check if the clicked tile is within this building's footprint
-              if (size.width > 1 || size.height > 1) {
-                if (gridX >= originX && gridX < originX + size.width &&
-                    gridY >= originY && gridY < originY + size.height) {
-                  return { originX, originY, buildingType: originTile.building.type };
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    return null;
+  const findBuildingOriginCallback = useCallback((gridX: number, gridY: number): { originX: number; originY: number; buildingType: BuildingType } | null => {
+    return findBuildingOrigin(gridX, gridY, grid, gridSize);
   }, [grid, gridSize]);
   
 // PERF: Static Set for park building lookups (O(1) instead of O(n) array includes)
@@ -3212,29 +2716,8 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   
   // Helper function to check if a tile is part of a park building footprint
   // Note: buildings with grey bases (baseball_stadium, swimming_pool, community_center, office_building_small) are NOT included
-  const isPartOfParkBuilding = useCallback((gridX: number, gridY: number): boolean => {
-    const maxSize = 4; // Maximum building size
-
-    for (let dy = 0; dy < maxSize; dy++) {
-      for (let dx = 0; dx < maxSize; dx++) {
-        const originX = gridX - dx;
-        const originY = gridY - dy;
-
-        if (originX >= 0 && originX < gridSize && originY >= 0 && originY < gridSize) {
-          const originTile = grid[originY][originX];
-
-          // PERF: Use Set.has() instead of array.includes() for O(1) lookup
-          if (parkBuildingsSet.has(originTile.building.type)) {
-            const buildingSize = getBuildingSize(originTile.building.type);
-            if (gridX >= originX && gridX < originX + buildingSize.width &&
-                gridY >= originY && gridY < originY + buildingSize.height) {
-              return true;
-            }
-          }
-        }
-      }
-    }
-    return false;
+  const isPartOfParkBuildingCallback = useCallback((gridX: number, gridY: number): boolean => {
+    return isPartOfParkBuilding(gridX, gridY, grid, gridSize, parkBuildingsSet);
   }, [grid, gridSize, parkBuildingsSet]);
   
   // Update canvas size on resize with high-DPI support
@@ -3399,389 +2882,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       return false;
     }
     
-    // Draw road with proper adjacency, markings, and sidewalks
-    function drawRoad(ctx: CanvasRenderingContext2D, x: number, y: number, gridX: number, gridY: number) {
-      const w = TILE_WIDTH;
-      const h = TILE_HEIGHT;
-      const cx = x + w / 2;
-      const cy = y + h / 2;
-      
-      // Check adjacency (in isometric coordinates)
-      const north = hasRoad(gridX - 1, gridY);  // top-left edge
-      const east = hasRoad(gridX, gridY - 1);   // top-right edge
-      const south = hasRoad(gridX + 1, gridY);  // bottom-right edge
-      const west = hasRoad(gridX, gridY + 1);   // bottom-left edge
-      
-      // Road width - aligned with gridlines
-      const roadW = w * 0.14;
-      const roadH = h * 0.14;
-      
-      // Sidewalk configuration
-      const sidewalkWidth = w * 0.08; // Width of the sidewalk strip
-      const sidewalkColor = '#9ca3af'; // Light gray for sidewalk
-      const curbColor = '#6b7280'; // Darker gray for curb edge
-      
-      // Edge stop distance - extend roads almost to the edge for better connection
-      // Using 0.98 means roads extend to 98% of the way to the edge
-      const edgeStop = 0.98;
-      
-      // Calculate edge midpoints (where gridlines meet)
-      const northEdgeX = x + w * 0.25;
-      const northEdgeY = y + h * 0.25;
-      const eastEdgeX = x + w * 0.75;
-      const eastEdgeY = y + h * 0.25;
-      const southEdgeX = x + w * 0.75;
-      const southEdgeY = y + h * 0.75;
-      const westEdgeX = x + w * 0.25;
-      const westEdgeY = y + h * 0.75;
-      
-      // Calculate direction vectors for each edge (normalized)
-      // These align with the gridline directions
-      const northDx = (northEdgeX - cx) / Math.hypot(northEdgeX - cx, northEdgeY - cy);
-      const northDy = (northEdgeY - cy) / Math.hypot(northEdgeX - cx, northEdgeY - cy);
-      const eastDx = (eastEdgeX - cx) / Math.hypot(eastEdgeX - cx, eastEdgeY - cy);
-      const eastDy = (eastEdgeY - cy) / Math.hypot(eastEdgeX - cx, eastEdgeY - cy);
-      const southDx = (southEdgeX - cx) / Math.hypot(southEdgeX - cx, southEdgeY - cy);
-      const southDy = (southEdgeY - cy) / Math.hypot(southEdgeX - cx, southEdgeY - cy);
-      const westDx = (westEdgeX - cx) / Math.hypot(westEdgeX - cx, westEdgeY - cy);
-      const westDy = (westEdgeY - cy) / Math.hypot(westEdgeX - cx, westEdgeY - cy);
-      
-      // Perpendicular vectors for road width (rotated 90 degrees)
-      const getPerp = (dx: number, dy: number) => ({ nx: -dy, ny: dx });
-      
-      // ============================================
-      // DRAW SIDEWALKS FIRST (underneath the road)
-      // ============================================
-      // Sidewalks appear on edges where there's NO adjacent road
-      // They run along the outer perimeter of the tile edge
-      
-      // Diamond corner points
-      const topCorner = { x: x + w / 2, y: y };
-      const rightCorner = { x: x + w, y: y + h / 2 };
-      const bottomCorner = { x: x + w / 2, y: y + h };
-      const leftCorner = { x: x, y: y + h / 2 };
-      
-      // Draw sidewalk helper - draws a strip along an edge, optionally shortening at corners
-      const drawSidewalkEdge = (
-        startX: number, startY: number, 
-        endX: number, endY: number,
-        inwardDx: number, inwardDy: number,
-        shortenStart: boolean = false,
-        shortenEnd: boolean = false
-      ) => {
-        const swWidth = sidewalkWidth;
-        const shortenDist = swWidth * 0.707; // Distance to shorten at corners
-        
-        // Calculate edge direction vector
-        const edgeDx = endX - startX;
-        const edgeDy = endY - startY;
-        const edgeLen = Math.hypot(edgeDx, edgeDy);
-        const edgeDirX = edgeDx / edgeLen;
-        const edgeDirY = edgeDy / edgeLen;
-        
-        // Apply shortening if needed
-        let actualStartX = startX;
-        let actualStartY = startY;
-        let actualEndX = endX;
-        let actualEndY = endY;
-        
-        if (shortenStart && edgeLen > shortenDist * 2) {
-          actualStartX = startX + edgeDirX * shortenDist;
-          actualStartY = startY + edgeDirY * shortenDist;
-        }
-        if (shortenEnd && edgeLen > shortenDist * 2) {
-          actualEndX = endX - edgeDirX * shortenDist;
-          actualEndY = endY - edgeDirY * shortenDist;
-        }
-        
-        // Draw curb (darker line at outer edge)
-        ctx.strokeStyle = curbColor;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(actualStartX, actualStartY);
-        ctx.lineTo(actualEndX, actualEndY);
-        ctx.stroke();
-        
-        // Draw sidewalk fill
-        ctx.fillStyle = sidewalkColor;
-        ctx.beginPath();
-        ctx.moveTo(actualStartX, actualStartY);
-        ctx.lineTo(actualEndX, actualEndY);
-        ctx.lineTo(actualEndX + inwardDx * swWidth, actualEndY + inwardDy * swWidth);
-        ctx.lineTo(actualStartX + inwardDx * swWidth, actualStartY + inwardDy * swWidth);
-        ctx.closePath();
-        ctx.fill();
-      };
-      
-      // North edge sidewalk (top-left edge: leftCorner to topCorner)
-      // Inward direction points toward center-right and down
-      if (!north) {
-        const inwardDx = 0.707; // ~45 degrees inward
-        const inwardDy = 0.707;
-        // Shorten at topCorner if east edge also has sidewalk
-        const shortenAtTop = !east;
-        // Shorten at leftCorner if west edge also has sidewalk
-        const shortenAtLeft = !west;
-        drawSidewalkEdge(leftCorner.x, leftCorner.y, topCorner.x, topCorner.y, inwardDx, inwardDy, shortenAtLeft, shortenAtTop);
-      }
-      
-      // East edge sidewalk (top-right edge: topCorner to rightCorner)
-      // Inward direction points toward center-left and down
-      if (!east) {
-        const inwardDx = -0.707;
-        const inwardDy = 0.707;
-        // Shorten at topCorner if north edge also has sidewalk
-        const shortenAtTop = !north;
-        // Shorten at rightCorner if south edge also has sidewalk
-        const shortenAtRight = !south;
-        drawSidewalkEdge(topCorner.x, topCorner.y, rightCorner.x, rightCorner.y, inwardDx, inwardDy, shortenAtTop, shortenAtRight);
-      }
-      
-      // South edge sidewalk (bottom-right edge: rightCorner to bottomCorner)
-      // Inward direction points toward center-left and up
-      if (!south) {
-        const inwardDx = -0.707;
-        const inwardDy = -0.707;
-        // Shorten at rightCorner if east edge also has sidewalk
-        const shortenAtRight = !east;
-        // Shorten at bottomCorner if west edge also has sidewalk
-        const shortenAtBottom = !west;
-        drawSidewalkEdge(rightCorner.x, rightCorner.y, bottomCorner.x, bottomCorner.y, inwardDx, inwardDy, shortenAtRight, shortenAtBottom);
-      }
-      
-      // West edge sidewalk (bottom-left edge: bottomCorner to leftCorner)
-      // Inward direction points toward center-right and up
-      if (!west) {
-        const inwardDx = 0.707;
-        const inwardDy = -0.707;
-        // Shorten at bottomCorner if south edge also has sidewalk
-        const shortenAtBottom = !south;
-        // Shorten at leftCorner if north edge also has sidewalk
-        const shortenAtLeft = !north;
-        drawSidewalkEdge(bottomCorner.x, bottomCorner.y, leftCorner.x, leftCorner.y, inwardDx, inwardDy, shortenAtBottom, shortenAtLeft);
-      }
-      
-      // Draw corner sidewalk pieces for non-adjacent edges that meet
-      // Corner pieces connect exactly where the shortened edge strips end
-      const swWidth = sidewalkWidth;
-      const shortenDist = swWidth * 0.707;
-      ctx.fillStyle = sidewalkColor;
-      
-      // Helper to calculate where a shortened edge's inner endpoint is
-      const getShortenedInnerEndpoint = (
-        cornerX: number, cornerY: number,
-        otherCornerX: number, otherCornerY: number,
-        inwardDx: number, inwardDy: number
-      ) => {
-        // Edge direction FROM otherCorner TO corner (the direction the edge approaches the corner)
-        const edgeDx = cornerX - otherCornerX;
-        const edgeDy = cornerY - otherCornerY;
-        const edgeLen = Math.hypot(edgeDx, edgeDy);
-        const edgeDirX = edgeDx / edgeLen;
-        const edgeDirY = edgeDy / edgeLen;
-        // Shortened outer endpoint (move backwards from corner along edge)
-        const shortenedOuterX = cornerX - edgeDirX * shortenDist;
-        const shortenedOuterY = cornerY - edgeDirY * shortenDist;
-        // Inner endpoint
-        return {
-          x: shortenedOuterX + inwardDx * swWidth,
-          y: shortenedOuterY + inwardDy * swWidth
-        };
-      };
-      
-      // Top corner (where north and east edges meet) - only if both don't have roads
-      if (!north && !east) {
-        const northInner = getShortenedInnerEndpoint(
-          topCorner.x, topCorner.y, leftCorner.x, leftCorner.y,
-          0.707, 0.707
-        );
-        const eastInner = getShortenedInnerEndpoint(
-          topCorner.x, topCorner.y, rightCorner.x, rightCorner.y,
-          -0.707, 0.707
-        );
-        ctx.beginPath();
-        ctx.moveTo(topCorner.x, topCorner.y);
-        ctx.lineTo(northInner.x, northInner.y);
-        ctx.lineTo(eastInner.x, eastInner.y);
-        ctx.closePath();
-        ctx.fill();
-      }
-      
-      // Right corner (where east and south edges meet)
-      if (!east && !south) {
-        const eastInner = getShortenedInnerEndpoint(
-          rightCorner.x, rightCorner.y, topCorner.x, topCorner.y,
-          -0.707, 0.707
-        );
-        const southInner = getShortenedInnerEndpoint(
-          rightCorner.x, rightCorner.y, bottomCorner.x, bottomCorner.y,
-          -0.707, -0.707
-        );
-        ctx.beginPath();
-        ctx.moveTo(rightCorner.x, rightCorner.y);
-        ctx.lineTo(eastInner.x, eastInner.y);
-        ctx.lineTo(southInner.x, southInner.y);
-        ctx.closePath();
-        ctx.fill();
-      }
-      
-      // Bottom corner (where south and west edges meet)
-      if (!south && !west) {
-        const southInner = getShortenedInnerEndpoint(
-          bottomCorner.x, bottomCorner.y, rightCorner.x, rightCorner.y,
-          -0.707, -0.707
-        );
-        const westInner = getShortenedInnerEndpoint(
-          bottomCorner.x, bottomCorner.y, leftCorner.x, leftCorner.y,
-          0.707, -0.707
-        );
-        ctx.beginPath();
-        ctx.moveTo(bottomCorner.x, bottomCorner.y);
-        ctx.lineTo(southInner.x, southInner.y);
-        ctx.lineTo(westInner.x, westInner.y);
-        ctx.closePath();
-        ctx.fill();
-      }
-      
-      // Left corner (where west and north edges meet)
-      if (!west && !north) {
-        const westInner = getShortenedInnerEndpoint(
-          leftCorner.x, leftCorner.y, bottomCorner.x, bottomCorner.y,
-          0.707, -0.707
-        );
-        const northInner = getShortenedInnerEndpoint(
-          leftCorner.x, leftCorner.y, topCorner.x, topCorner.y,
-          0.707, 0.707
-        );
-        ctx.beginPath();
-        ctx.moveTo(leftCorner.x, leftCorner.y);
-        ctx.lineTo(westInner.x, westInner.y);
-        ctx.lineTo(northInner.x, northInner.y);
-        ctx.closePath();
-        ctx.fill();
-      }
-      
-      // ============================================
-      // DRAW ROAD SEGMENTS
-      // ============================================
-      ctx.fillStyle = '#4a4a4a';
-      
-      // North segment (to top-left) - aligned with gridline
-      if (north) {
-        const stopX = cx + (northEdgeX - cx) * edgeStop;
-        const stopY = cy + (northEdgeY - cy) * edgeStop;
-        const perp = getPerp(northDx, northDy);
-        const halfWidth = roadW * 0.5;
-        ctx.beginPath();
-        ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
-        ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
-        ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
-        ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
-        ctx.closePath();
-        ctx.fill();
-      }
-      
-      // East segment (to top-right) - aligned with gridline
-      if (east) {
-        const stopX = cx + (eastEdgeX - cx) * edgeStop;
-        const stopY = cy + (eastEdgeY - cy) * edgeStop;
-        const perp = getPerp(eastDx, eastDy);
-        const halfWidth = roadW * 0.5;
-        ctx.beginPath();
-        ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
-        ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
-        ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
-        ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
-        ctx.closePath();
-        ctx.fill();
-      }
-      
-      // South segment (to bottom-right) - aligned with gridline
-      if (south) {
-        const stopX = cx + (southEdgeX - cx) * edgeStop;
-        const stopY = cy + (southEdgeY - cy) * edgeStop;
-        const perp = getPerp(southDx, southDy);
-        const halfWidth = roadW * 0.5;
-        ctx.beginPath();
-        ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
-        ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
-        ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
-        ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
-        ctx.closePath();
-        ctx.fill();
-      }
-      
-      // West segment (to bottom-left) - aligned with gridline
-      if (west) {
-        const stopX = cx + (westEdgeX - cx) * edgeStop;
-        const stopY = cy + (westEdgeY - cy) * edgeStop;
-        const perp = getPerp(westDx, westDy);
-        const halfWidth = roadW * 0.5;
-        ctx.beginPath();
-        ctx.moveTo(cx + perp.nx * halfWidth, cy + perp.ny * halfWidth);
-        ctx.lineTo(stopX + perp.nx * halfWidth, stopY + perp.ny * halfWidth);
-        ctx.lineTo(stopX - perp.nx * halfWidth, stopY - perp.ny * halfWidth);
-        ctx.lineTo(cx - perp.nx * halfWidth, cy - perp.ny * halfWidth);
-        ctx.closePath();
-        ctx.fill();
-      }
-      
-      // Center intersection (always drawn)
-      const centerSize = roadW * 1.4;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - centerSize);
-      ctx.lineTo(cx + centerSize, cy);
-      ctx.lineTo(cx, cy + centerSize);
-      ctx.lineTo(cx - centerSize, cy);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Draw road markings (yellow dashed lines) - aligned with gridlines
-      ctx.strokeStyle = '#fbbf24';
-      ctx.lineWidth = 0.8;  // Thinner lines
-      ctx.setLineDash([1.5, 2]);  // Smaller, more frequent dots
-      ctx.lineCap = 'round';
-      
-      // Extend past tile edge to overlap with adjacent tile's marking
-      // This ensures continuous yellow lines across tile boundaries
-      const markingOverlap = 4; // pixels past edge for overlap
-      const markingStartOffset = 2; // pixels from center
-      
-      // North marking (toward top-left)
-      if (north) {
-        ctx.beginPath();
-        ctx.moveTo(cx + northDx * markingStartOffset, cy + northDy * markingStartOffset);
-        ctx.lineTo(northEdgeX + northDx * markingOverlap, northEdgeY + northDy * markingOverlap);
-        ctx.stroke();
-      }
-      
-      // East marking (toward top-right)
-      if (east) {
-        ctx.beginPath();
-        ctx.moveTo(cx + eastDx * markingStartOffset, cy + eastDy * markingStartOffset);
-        ctx.lineTo(eastEdgeX + eastDx * markingOverlap, eastEdgeY + eastDy * markingOverlap);
-        ctx.stroke();
-      }
-      
-      // South marking (toward bottom-right)
-      if (south) {
-        ctx.beginPath();
-        ctx.moveTo(cx + southDx * markingStartOffset, cy + southDy * markingStartOffset);
-        ctx.lineTo(southEdgeX + southDx * markingOverlap, southEdgeY + southDy * markingOverlap);
-        ctx.stroke();
-      }
-      
-      // West marking (toward bottom-left)
-      if (west) {
-        ctx.beginPath();
-        ctx.moveTo(cx + westDx * markingStartOffset, cy + westDy * markingStartOffset);
-        ctx.lineTo(westEdgeX + westDx * markingOverlap, westEdgeY + westDy * markingOverlap);
-        ctx.stroke();
-      }
-      
-      ctx.setLineDash([]);
-      ctx.lineCap = 'butt';
-    }
+    // Use extracted drawRoad function
     
     // Draw isometric tile base
     function drawIsometricTile(ctx: CanvasRenderingContext2D, x: number, y: number, tile: Tile, highlight: boolean, currentZoom: number, skipGreyBase: boolean = false, skipGreenBase: boolean = false) {
@@ -3802,7 +2903,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         'pier_large', 'roller_coaster_small', 'community_garden', 'pond_park', 'park_gate', 
         'mountain_lodge', 'mountain_trailhead'];
       const isPark = allParkTypes.includes(tile.building.type) ||
-                     (tile.building.type === 'empty' && isPartOfParkBuilding(tile.x, tile.y));
+                     (tile.building.type === 'empty' && isPartOfParkBuildingCallback(tile.x, tile.y));
       // Check if this is a building (not grass, empty, water, road, tree, or parks)
       // Also check if it's part of a multi-tile building footprint
       const isDirectBuilding = !isPark &&
@@ -3811,7 +2912,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         tile.building.type !== 'water' &&
         tile.building.type !== 'road' &&
         tile.building.type !== 'tree';
-      const isPartOfBuilding = tile.building.type === 'empty' && isPartOfMultiTileBuilding(tile.x, tile.y);
+      const isPartOfBuilding = tile.building.type === 'empty' && isPartOfMultiTileBuildingCallback(tile.x, tile.y);
       const isBuilding = isDirectBuilding || isPartOfBuilding;
       
       // ALL buildings get grey/concrete base tiles (except parks which stay green)
@@ -3935,7 +3036,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       
       // Handle roads separately with adjacency
       if (buildingType === 'road') {
-        drawRoad(ctx, x, y, tile.x, tile.y);
+        drawRoad(ctx, x, y, tile.x, tile.y, hasRoad);
         return;
       }
       
@@ -4591,14 +3692,14 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           'pier_large', 'roller_coaster_small', 'community_garden', 'pond_park', 'park_gate', 
           'mountain_lodge', 'mountain_trailhead'];
         const isPark = allParkTypesCheck.includes(tile.building.type) ||
-                       (tile.building.type === 'empty' && isPartOfParkBuilding(x, y));
+                       (tile.building.type === 'empty' && isPartOfParkBuildingCallback(x, y));
         const isDirectBuilding = !isPark &&
           tile.building.type !== 'grass' &&
           tile.building.type !== 'empty' &&
           tile.building.type !== 'water' &&
           tile.building.type !== 'road' &&
           tile.building.type !== 'tree';
-        const isPartOfBuilding = tile.building.type === 'empty' && isPartOfMultiTileBuilding(x, y);
+        const isPartOfBuilding = tile.building.type === 'empty' && isPartOfMultiTileBuildingCallback(x, y);
         const needsGreyBase = (isDirectBuilding || isPartOfBuilding) && !isPark;
         
         // Check if this is a grass/empty tile adjacent to water (needs green base drawn over water)
@@ -4607,7 +3708,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         
         // Check if this is a park that needs a green base tile
         const needsGreenBaseForPark = (tile.building.type === 'park' || tile.building.type === 'park_large') ||
-                                      (tile.building.type === 'empty' && isPartOfParkBuilding(x, y));
+                                      (tile.building.type === 'empty' && isPartOfParkBuildingCallback(x, y));
         
         // Draw base tile for all tiles (including water), but skip gray bases for buildings and green bases for grass/empty adjacent to water or parks
         // Highlight subway stations when subway overlay is active
@@ -5151,7 +4252,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
           if (selectedTool === 'select') {
             // For multi-tile buildings, select the origin tile
-            const origin = findBuildingOrigin(gridX, gridY);
+            const origin = findBuildingOriginCallback(gridX, gridY);
             if (origin) {
               setSelectedTile({ x: origin.originX, y: origin.originY });
             } else {
@@ -5183,32 +4284,14 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   }, [offset, gridSize, selectedTool, placeAtTile, zoom, showsDragGrid, supportsDragPlace, setSelectedTile, findBuildingOrigin]);
   
   // Calculate camera bounds based on grid size
-  const getMapBounds = useCallback((currentZoom: number, canvasW: number, canvasH: number) => {
-    const n = gridSize;
-    const padding = 100; // Allow some over-scroll
-    
-    // Map bounds in world coordinates
-    const mapLeft = -(n - 1) * TILE_WIDTH / 2;
-    const mapRight = (n - 1) * TILE_WIDTH / 2;
-    const mapTop = 0;
-    const mapBottom = (n - 1) * TILE_HEIGHT;
-    
-    const minOffsetX = padding - mapRight * currentZoom;
-    const maxOffsetX = canvasW - padding - mapLeft * currentZoom;
-    const minOffsetY = padding - mapBottom * currentZoom;
-    const maxOffsetY = canvasH - padding - mapTop * currentZoom;
-    
-    return { minOffsetX, maxOffsetX, minOffsetY, maxOffsetY };
+  const getMapBoundsCallback = useCallback((currentZoom: number, canvasW: number, canvasH: number) => {
+    return getMapBounds(gridSize, currentZoom, canvasW, canvasH);
   }, [gridSize]);
   
   // Clamp offset to keep camera within reasonable bounds
   const clampOffset = useCallback((newOffset: { x: number; y: number }, currentZoom: number) => {
-    const bounds = getMapBounds(currentZoom, canvasSize.width, canvasSize.height);
-    return {
-      x: Math.max(bounds.minOffsetX, Math.min(bounds.maxOffsetX, newOffset.x)),
-      y: Math.max(bounds.minOffsetY, Math.min(bounds.maxOffsetY, newOffset.y)),
-    };
-  }, [getMapBounds, canvasSize.width, canvasSize.height]);
+    return clampOffsetHelper(newOffset, gridSize, currentZoom, canvasSize.width, canvasSize.height);
+  }, [gridSize, canvasSize.width, canvasSize.height]);
 
   // Handle minimap navigation - center the view on the target tile
   useEffect(() => {
@@ -5227,7 +4310,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     };
     
     // Clamp and set the new offset - this is a legitimate use case for responding to navigation requests
-    const bounds = getMapBounds(zoom, canvasSize.width, canvasSize.height);
+    const bounds = getMapBoundsCallback(zoom, canvasSize.width, canvasSize.height);
     setOffset({ // eslint-disable-line
       x: Math.max(bounds.minOffsetX, Math.min(bounds.maxOffsetX, newOffset.x)),
       y: Math.max(bounds.minOffsetY, Math.min(bounds.maxOffsetY, newOffset.y)),
@@ -5235,7 +4318,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     
     // Signal that navigation is complete
     onNavigationComplete?.();
-  }, [navigationTarget, zoom, canvasSize.width, canvasSize.height, getMapBounds, onNavigationComplete]);
+  }, [navigationTarget, zoom, canvasSize.width, canvasSize.height, getMapBoundsCallback, onNavigationComplete]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
@@ -5513,7 +4596,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
 
             if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
               if (selectedTool === 'select') {
-                const origin = findBuildingOrigin(gridX, gridY);
+                const origin = findBuildingOriginCallback(gridX, gridY);
                 if (origin) {
                   setSelectedTile({ x: origin.originX, y: origin.originY });
                 } else {
