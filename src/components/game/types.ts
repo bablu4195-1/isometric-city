@@ -130,6 +130,25 @@ export type EmergencyVehicle = {
   flashTimer: number; // For emergency light animation
 };
 
+// Road merging and traffic system types
+export type RoadType = 'regular' | 'avenue' | 'highway';
+export type TrafficLightState = 'red' | 'yellow' | 'green';
+
+export interface RoadCluster {
+  tiles: Set<string>; // Set of "x,y" keys
+  type: RoadType;
+  lanes: number;
+}
+
+export interface TrafficLight {
+  x: number;
+  y: number;
+  state: TrafficLightState;
+  timer: number; // Time until next state change
+  direction: CarDirection; // Which direction this light controls
+  updatedThisFrame?: boolean; // Flag to prevent multiple updates per frame
+}
+
 // Pedestrian types and destinations
 export type PedestrianDestType = 'school' | 'commercial' | 'industrial' | 'park' | 'home';
 
