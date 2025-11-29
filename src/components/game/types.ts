@@ -133,6 +133,15 @@ export type EmergencyVehicle = {
 // Pedestrian types and destinations
 export type PedestrianDestType = 'school' | 'commercial' | 'industrial' | 'park' | 'home';
 
+export type PedestrianState =
+  | 'walking'
+  | 'park_stroll'
+  | 'basketball'
+  | 'tennis'
+  | 'entering_building'
+  | 'inside_building'
+  | 'exiting_building';
+
 export type Pedestrian = {
   id: number;
   tileX: number;
@@ -154,6 +163,18 @@ export type Pedestrian = {
   returningHome: boolean;
   path: { x: number; y: number }[];
   pathIndex: number;
+  state: PedestrianState;
+  stateTimer: number;
+  stateDuration: number;
+  activityAnchorX: number;
+  activityAnchorY: number;
+  activityOffsetX: number;
+  activityOffsetY: number;
+  activityAngle: number;
+  activityRadius: number;
+  activitySpeed: number;
+  activityProgress: number;
+  exitBehavior: 'start_walk' | 'return_home' | null;
 };
 
 // Boat types for water navigation

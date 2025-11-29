@@ -22,15 +22,30 @@ export function drawPedestrians(
   if (pedestrians.length === 0) return;
 
   pedestrians.forEach((ped) => {
-    const { screenX, screenY } = gridToScreen(ped.tileX, ped.tileY, 0, 0);
+    if (ped.state === 'inside_building') {
+      return;
+    }
+    
+    const useAnchorPosition = ped.state !== 'walking';
+    const anchorTileX = useAnchorPosition ? ped.activityAnchorX ?? ped.destX ?? ped.tileX : ped.tileX;
+    const anchorTileY = useAnchorPosition ? ped.activityAnchorY ?? ped.destY ?? ped.tileY : ped.tileY;
+    
+    const { screenX, screenY } = gridToScreen(anchorTileX, anchorTileY, 0, 0);
     const centerX = screenX + TILE_WIDTH / 2;
     const centerY = screenY + TILE_HEIGHT / 2;
-    const meta = DIRECTION_META[ped.direction];
-
-    // Pedestrians walk on sidewalks - offset them toward the edge of the road
-    const sidewalkOffset = ped.sidewalkSide === 'left' ? -12 : 12;
-    const pedX = centerX + meta.vec.dx * ped.progress + meta.normal.nx * sidewalkOffset;
-    const pedY = centerY + meta.vec.dy * ped.progress + meta.normal.ny * sidewalkOffset;
+    
+    let pedX = centerX;
+    let pedY = centerY;
+    
+    if (useAnchorPosition) {
+      pedX += ped.activityOffsetX;
+      pedY += ped.activityOffsetY;
+    } else {
+      const meta = DIRECTION_META[ped.direction];
+      const sidewalkOffset = ped.sidewalkSide === 'left' ? -12 : 12;
+      pedX = centerX + meta.vec.dx * ped.progress + meta.normal.nx * sidewalkOffset;
+      pedY = centerY + meta.vec.dy * ped.progress + meta.normal.ny * sidewalkOffset;
+    }
 
     // Viewport culling
     if (
@@ -41,13 +56,24 @@ export function drawPedestrians(
     ) {
       return;
     }
-
-    // Check if pedestrian is behind a building
-    if (isEntityBehindBuilding(grid, gridSize, ped.tileX, ped.tileY)) {
+    
+    // Check if pedestrian is behind a building (use anchor when interacting)
+    if (isEntityBehindBuilding(grid, gridSize, anchorTileX, anchorTileY)) {
       return;
     }
 
     ctx.save();
+    
+    let alpha = 1;
+    if (ped.state === 'entering_building') {
+      const progress = ped.stateDuration > 0 ? Math.min(1, ped.stateTimer / ped.stateDuration) : 1;
+      alpha = 1 - progress * 0.7;
+    } else if (ped.state === 'exiting_building') {
+      const progress = ped.stateDuration > 0 ? Math.min(1, ped.stateTimer / ped.stateDuration) : 1;
+      alpha = 0.4 + progress * 0.6;
+    }
+    
+    ctx.globalAlpha *= alpha;
     ctx.translate(pedX, pedY);
 
     // Walking animation - bob up and down and sway

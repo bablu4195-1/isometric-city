@@ -21,7 +21,7 @@ const INDUSTRIAL_TYPES: BuildingType[] = [
   'factory_small', 'factory_medium', 'factory_large', 'warehouse'
 ];
 
-const PARK_TYPES: BuildingType[] = [
+export const PARK_TYPES: BuildingType[] = [
   'park', 'park_large', 'tennis', 'basketball_courts', 'playground_small',
   'playground_large', 'baseball_field_small', 'soccer_field_small',
   'football_field', 'baseball_stadium', 'community_center', 'swimming_pool',

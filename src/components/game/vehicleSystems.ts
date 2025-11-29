@@ -2,7 +2,7 @@ import React, { useCallback, useRef } from 'react';
 import { Car, CarDirection, EmergencyVehicle, EmergencyVehicleType, Pedestrian, PedestrianDestType, WorldRenderState, TILE_WIDTH, TILE_HEIGHT } from './types';
 import { CAR_COLORS, PEDESTRIAN_SKIN_COLORS, PEDESTRIAN_SHIRT_COLORS, PEDESTRIAN_MIN_ZOOM, DIRECTION_META } from './constants';
 import { isRoadTile, getDirectionOptions, pickNextDirection, findPathOnRoads, getDirectionToTile, gridToScreen } from './utils';
-import { findResidentialBuildings, findPedestrianDestinations, findStations, findFires } from './gridFinders';
+import { findResidentialBuildings, findPedestrianDestinations, findStations, findFires, PARK_TYPES } from './gridFinders';
 import { drawPedestrians as drawPedestriansUtil } from './drawPedestrians';
 import { BuildingType, Tile } from '@/types/game';
 import { getTrafficLightState, canProceedThroughIntersection, TRAFFIC_LIGHT_TIMING } from './trafficSystem';
@@ -136,17 +136,12 @@ export function useVehicleSystems(
       return false;
     }
     
-    const startIndex = Math.floor(Math.random() * path.length);
-    const startTile = path[startIndex];
+    const startTile = path[0];
     
     let direction: CarDirection = 'south';
-    if (startIndex + 1 < path.length) {
-      const nextTile = path[startIndex + 1];
+    if (path.length > 1) {
+      const nextTile = path[1];
       const dir = getDirectionToTile(startTile.x, startTile.y, nextTile.x, nextTile.y);
-      if (dir) direction = dir;
-    } else if (startIndex > 0) {
-      const prevTile = path[startIndex - 1];
-      const dir = getDirectionToTile(prevTile.x, prevTile.y, startTile.x, startTile.y);
       if (dir) direction = dir;
     }
     
@@ -155,9 +150,9 @@ export function useVehicleSystems(
       tileX: startTile.x,
       tileY: startTile.y,
       direction,
-      progress: Math.random(),
+      progress: Math.random() * 0.3,
       speed: 0.12 + Math.random() * 0.08,
-      pathIndex: startIndex,
+      pathIndex: 0,
       age: 0,
       maxAge: 60 + Math.random() * 90,
       skinColor: PEDESTRIAN_SKIN_COLORS[Math.floor(Math.random() * PEDESTRIAN_SKIN_COLORS.length)],
@@ -169,8 +164,20 @@ export function useVehicleSystems(
       homeY: home.y,
       destX: dest.x,
       destY: dest.y,
-      returningHome: startIndex >= path.length - 1,
+      returningHome: false,
       path,
+      state: 'exiting_building',
+      stateTimer: 0,
+      stateDuration: 0.8 + Math.random() * 0.6,
+      activityAnchorX: home.x,
+      activityAnchorY: home.y,
+      activityOffsetX: 0,
+      activityOffsetY: 0,
+      activityAngle: Math.random() * Math.PI * 2,
+      activityRadius: 8,
+      activitySpeed: 1 + Math.random() * 0.5,
+      activityProgress: Math.random() * Math.PI * 2,
+      exitBehavior: 'start_walk',
     });
     
     return true;
@@ -792,6 +799,184 @@ export function useVehicleSystems(
       pedestrianSpawnTimerRef.current = spawnedCount > 0 ? 0.02 : 0.01;
     }
     
+    const startReturnTrip = (ped: Pedestrian): boolean => {
+      const returnPath = findPathOnRoads(currentGrid, currentGridSize, ped.destX, ped.destY, ped.homeX, ped.homeY);
+      if (!returnPath || returnPath.length === 0) {
+        return false;
+      }
+      
+      ped.path = returnPath;
+      ped.pathIndex = 0;
+      ped.progress = 0;
+      ped.tileX = returnPath[0].x;
+      ped.tileY = returnPath[0].y;
+      ped.returningHome = true;
+      ped.state = 'walking';
+      ped.stateTimer = 0;
+      ped.stateDuration = 0;
+      ped.activityOffsetX = 0;
+      ped.activityOffsetY = 0;
+      ped.activityRadius = 0;
+      ped.activitySpeed = 0;
+      ped.activityProgress = 0;
+      ped.activityAnchorX = ped.homeX;
+      ped.activityAnchorY = ped.homeY;
+      ped.exitBehavior = null;
+      
+      if (returnPath.length > 1) {
+        const nextTile = returnPath[1];
+        const dir = getDirectionToTile(returnPath[0].x, returnPath[0].y, nextTile.x, nextTile.y);
+        if (dir) ped.direction = dir;
+      }
+      
+      return true;
+    };
+    
+    const startParkStroll = (ped: Pedestrian) => {
+      ped.state = 'park_stroll';
+      ped.stateTimer = 0;
+      ped.stateDuration = 6 + Math.random() * 6;
+      ped.activityAngle = Math.random() * Math.PI * 2;
+      ped.activityRadius = 5 + Math.random() * 10;
+      ped.activitySpeed = 0.5 + Math.random() * 0.8;
+      ped.activityProgress = Math.random() * Math.PI * 2;
+      ped.activityOffsetX = 0;
+      ped.activityOffsetY = -4;
+      ped.exitBehavior = null;
+    };
+    
+    const startSportsActivity = (ped: Pedestrian, variant: 'basketball' | 'tennis') => {
+      ped.state = variant;
+      ped.stateTimer = 0;
+      ped.stateDuration = 5 + Math.random() * 5;
+      ped.activityRadius = variant === 'basketball' ? 5 + Math.random() * 2 : 8 + Math.random() * 4;
+      ped.activitySpeed = variant === 'basketball' ? 3 + Math.random() * 1.5 : 2.5 + Math.random() * 1.5;
+      ped.activityProgress = Math.random() * Math.PI * 2;
+      ped.activityOffsetX = 0;
+      ped.activityOffsetY = -2;
+      ped.exitBehavior = null;
+    };
+    
+    const startBuildingVisit = (ped: Pedestrian) => {
+      ped.state = 'entering_building';
+      ped.stateTimer = 0;
+      ped.stateDuration = 0.9 + Math.random() * 0.6;
+      ped.activityOffsetX = 0;
+      ped.activityOffsetY = 0;
+      ped.exitBehavior = 'return_home';
+    };
+    
+    const tryStartDestinationBehavior = (ped: Pedestrian): boolean => {
+      const destTile = currentGrid[ped.destY]?.[ped.destX];
+      if (!destTile) return false;
+      
+      const buildingType = destTile.building.type as BuildingType;
+      ped.activityAnchorX = ped.destX;
+      ped.activityAnchorY = ped.destY;
+      
+      if (buildingType === 'basketball_courts') {
+        startSportsActivity(ped, 'basketball');
+        return true;
+      }
+      
+      if (buildingType === 'tennis') {
+        startSportsActivity(ped, 'tennis');
+        return true;
+      }
+      
+      if (PARK_TYPES.includes(buildingType)) {
+        startParkStroll(ped);
+        return true;
+      }
+      
+      const nonInteractive: BuildingType[] = ['road', 'grass', 'empty', 'tree', 'water'];
+      if (nonInteractive.includes(buildingType)) {
+        return false;
+      }
+      
+      startBuildingVisit(ped);
+      return true;
+    };
+    
+    const handleNonWalkingState = (
+      ped: Pedestrian,
+      deltaTime: number,
+      multiplier: number
+    ): 'stay' | 'dead' | 'walking' => {
+      const scaledDelta = multiplier === 0 ? 0 : deltaTime * multiplier;
+      
+      switch (ped.state) {
+        case 'park_stroll': {
+          ped.activityAngle += ped.activitySpeed * scaledDelta;
+          ped.activityOffsetX = Math.cos(ped.activityAngle) * ped.activityRadius;
+          ped.activityOffsetY = Math.sin(ped.activityAngle) * ped.activityRadius * 0.6 - 4;
+          if (ped.stateTimer >= ped.stateDuration) {
+            return startReturnTrip(ped) ? 'walking' : 'dead';
+          }
+          return 'stay';
+        }
+        case 'basketball': {
+          ped.activityProgress += ped.activitySpeed * scaledDelta;
+          ped.activityOffsetX = Math.sin(ped.activityProgress) * ped.activityRadius;
+          ped.activityOffsetY = Math.cos(ped.activityProgress * 2) * 2 - 2;
+          if (ped.stateTimer >= ped.stateDuration) {
+            return startReturnTrip(ped) ? 'walking' : 'dead';
+          }
+          return 'stay';
+        }
+        case 'tennis': {
+          ped.activityProgress += ped.activitySpeed * scaledDelta;
+          ped.activityOffsetX = Math.sin(ped.activityProgress) * ped.activityRadius;
+          ped.activityOffsetY = Math.sin(ped.activityProgress * 0.5) * 3 - 3;
+          if (ped.stateTimer >= ped.stateDuration) {
+            return startReturnTrip(ped) ? 'walking' : 'dead';
+          }
+          return 'stay';
+        }
+        case 'entering_building': {
+          const progress = ped.stateDuration > 0 ? Math.min(1, ped.stateTimer / ped.stateDuration) : 1;
+          ped.activityOffsetY = -progress * 6;
+          if (ped.stateTimer >= ped.stateDuration) {
+            ped.state = 'inside_building';
+            ped.stateTimer = 0;
+            ped.stateDuration = ped.exitBehavior ? 2 + Math.random() * 3 : 0.8;
+            ped.activityOffsetY = -6;
+          }
+          return 'stay';
+        }
+        case 'inside_building': {
+          if (ped.stateTimer >= ped.stateDuration) {
+            if (!ped.exitBehavior) {
+              return 'dead';
+            }
+            ped.state = 'exiting_building';
+            ped.stateTimer = 0;
+            ped.stateDuration = 0.8 + Math.random() * 0.6;
+          }
+          return 'stay';
+        }
+        case 'exiting_building': {
+          const progress = ped.stateDuration > 0 ? Math.min(1, ped.stateTimer / ped.stateDuration) : 1;
+          ped.activityOffsetY = -(1 - progress) * 6;
+          if (ped.stateTimer >= ped.stateDuration) {
+            const behavior = ped.exitBehavior;
+            ped.exitBehavior = null;
+            ped.activityOffsetY = 0;
+            if (behavior === 'return_home') {
+              return startReturnTrip(ped) ? 'walking' : 'dead';
+            }
+            ped.state = 'walking';
+            ped.stateTimer = 0;
+            ped.stateDuration = 0;
+            return 'walking';
+          }
+          return 'stay';
+        }
+        default:
+          return 'stay';
+      }
+    };
+    
     const updatedPedestrians: Pedestrian[] = [];
     
     for (const ped of [...pedestriansRef.current]) {
@@ -808,14 +993,25 @@ export function useVehicleSystems(
         continue;
       }
       
+      if (ped.state !== 'walking') {
+        ped.stateTimer += speedMultiplier === 0 ? 0 : delta * speedMultiplier;
+        const stateResult = handleNonWalkingState(ped, delta, speedMultiplier);
+        if (stateResult === 'dead') {
+          alive = false;
+        } else if (stateResult === 'stay') {
+          updatedPedestrians.push(ped);
+          continue;
+        }
+      }
+      
+      if (!alive) continue;
+      
       // Most pedestrians respect traffic lights at intersections (based on their id)
-      // Check if approaching an intersection and should wait
       let pedShouldWait = false;
-      const pedRespectsLights = (ped.id % 5) !== 0; // 80% respect lights (4 out of 5)
+      const pedRespectsLights = (ped.id % 5) !== 0;
       
       if (pedRespectsLights && ped.pathIndex + 1 < ped.path.length && ped.progress > 0.6) {
         const nextTile = ped.path[ped.pathIndex + 1];
-        // Check if next tile is an intersection
         const nextNorth = isRoadTile(currentGrid, currentGridSize, nextTile.x - 1, nextTile.y);
         const nextEast = isRoadTile(currentGrid, currentGridSize, nextTile.x, nextTile.y - 1);
         const nextSouth = isRoadTile(currentGrid, currentGridSize, nextTile.x + 1, nextTile.y);
@@ -823,11 +1019,9 @@ export function useVehicleSystems(
         const isNextIntersection = [nextNorth, nextEast, nextSouth, nextWest].filter(Boolean).length >= 3;
         
         if (isNextIntersection) {
-          // Get traffic light state
           const trafficTime = trafficLightTimerRef.current;
           const lightState = getTrafficLightState(trafficTime);
           
-          // Pedestrians wait when they can't proceed (same logic as cars)
           if (!canProceedThroughIntersection(ped.direction, lightState)) {
             pedShouldWait = true;
           }
@@ -836,29 +1030,6 @@ export function useVehicleSystems(
       
       if (!pedShouldWait) {
         ped.progress += ped.speed * delta * speedMultiplier;
-      }
-      
-      if (ped.path.length === 1 && ped.progress >= 1) {
-        if (!ped.returningHome) {
-          ped.returningHome = true;
-          const returnPath = findPathOnRoads(currentGrid, currentGridSize, ped.destX, ped.destY, ped.homeX, ped.homeY);
-          if (returnPath && returnPath.length > 0) {
-            ped.path = returnPath;
-            ped.pathIndex = 0;
-            ped.progress = 0;
-            ped.tileX = returnPath[0].x;
-            ped.tileY = returnPath[0].y;
-            if (returnPath.length > 1) {
-              const nextTile = returnPath[1];
-              const dir = getDirectionToTile(returnPath[0].x, returnPath[0].y, nextTile.x, nextTile.y);
-              if (dir) ped.direction = dir;
-            }
-          } else {
-            continue;
-          }
-        } else {
-          continue;
-        }
       }
       
       while (ped.progress >= 1 && ped.pathIndex < ped.path.length - 1) {
@@ -878,21 +1049,24 @@ export function useVehicleSystems(
         
         if (ped.pathIndex >= ped.path.length - 1) {
           if (!ped.returningHome) {
-            ped.returningHome = true;
-            const returnPath = findPathOnRoads(currentGrid, currentGridSize, ped.destX, ped.destY, ped.homeX, ped.homeY);
-            if (returnPath && returnPath.length > 0) {
-              ped.path = returnPath;
-              ped.pathIndex = 0;
-              ped.progress = 0;
-              if (returnPath.length > 1) {
-                const nextTile = returnPath[1];
-                const dir = getDirectionToTile(returnPath[0].x, returnPath[0].y, nextTile.x, nextTile.y);
-                if (dir) ped.direction = dir;
-              }
-            } else {
+            const startedBehavior = tryStartDestinationBehavior(ped);
+            if (startedBehavior) {
+              updatedPedestrians.push(ped);
+              alive = false;
+              break;
+            }
+            if (!startReturnTrip(ped)) {
               alive = false;
             }
           } else {
+            ped.activityAnchorX = ped.homeX;
+            ped.activityAnchorY = ped.homeY;
+            ped.state = 'entering_building';
+            ped.stateTimer = 0;
+            ped.stateDuration = 0.7 + Math.random() * 0.5;
+            ped.exitBehavior = null;
+            ped.returningHome = false;
+            updatedPedestrians.push(ped);
             alive = false;
           }
           break;
@@ -905,32 +1079,32 @@ export function useVehicleSystems(
         }
       }
       
-      if (alive && ped.progress >= 1 && ped.pathIndex >= ped.path.length - 1) {
+      if (!alive) continue;
+      
+      if (ped.progress >= 1 && ped.pathIndex >= ped.path.length - 1) {
         if (!ped.returningHome) {
-          ped.returningHome = true;
-          const returnPath = findPathOnRoads(currentGrid, currentGridSize, ped.destX, ped.destY, ped.homeX, ped.homeY);
-          if (returnPath && returnPath.length > 0) {
-            ped.path = returnPath;
-            ped.pathIndex = 0;
-            ped.progress = 0;
-            ped.tileX = returnPath[0].x;
-            ped.tileY = returnPath[0].y;
-            if (returnPath.length > 1) {
-              const nextTile = returnPath[1];
-              const dir = getDirectionToTile(returnPath[0].x, returnPath[0].y, nextTile.x, nextTile.y);
-              if (dir) ped.direction = dir;
-            }
-          } else {
-            alive = false;
+          const startedBehavior = tryStartDestinationBehavior(ped);
+          if (startedBehavior) {
+            updatedPedestrians.push(ped);
+            continue;
+          }
+          if (!startReturnTrip(ped)) {
+            continue;
           }
         } else {
-          alive = false;
+          ped.activityAnchorX = ped.homeX;
+          ped.activityAnchorY = ped.homeY;
+          ped.state = 'entering_building';
+          ped.stateTimer = 0;
+          ped.stateDuration = 0.7 + Math.random() * 0.5;
+          ped.exitBehavior = null;
+          ped.returningHome = false;
+          updatedPedestrians.push(ped);
+          continue;
         }
       }
       
-      if (alive) {
-        updatedPedestrians.push(ped);
-      }
+      updatedPedestrians.push(ped);
     }
     
     pedestriansRef.current = updatedPedestrians;
