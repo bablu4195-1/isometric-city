@@ -174,6 +174,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const hoverCanvasRef = useRef<HTMLCanvasElement>(null); // PERF: Separate canvas for hover/selection highlights
   const carsCanvasRef = useRef<HTMLCanvasElement>(null);
   const buildingsCanvasRef = useRef<HTMLCanvasElement>(null); // Buildings rendered on top of cars/trains
+  const airCanvasRef = useRef<HTMLCanvasElement>(null); // Aircraft + fireworks rendered above buildings
   const lightingCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderPendingRef = useRef<number | null>(null); // PERF: Track pending render frame
@@ -1719,6 +1720,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         if (buildingsCanvasRef.current) {
           buildingsCanvasRef.current.style.width = `${rect.width}px`;
           buildingsCanvasRef.current.style.height = `${rect.height}px`;
+        }
+        if (airCanvasRef.current) {
+          airCanvasRef.current.style.width = `${rect.width}px`;
+          airCanvasRef.current.style.height = `${rect.height}px`;
         }
         if (lightingCanvasRef.current) {
           lightingCanvasRef.current.style.width = `${rect.width}px`;
@@ -3734,11 +3739,19 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   // Animate decorative car traffic AND emergency vehicles on top of the base canvas
   useEffect(() => {
     const canvas = carsCanvasRef.current;
-    if (!canvas) return;
+    const airCanvas = airCanvasRef.current;
+    if (!canvas || !airCanvas) return;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const airCtx = airCanvas.getContext('2d');
+    if (!ctx || !airCtx) return;
     
     ctx.imageSmoothingEnabled = false;
+    airCtx.imageSmoothingEnabled = false;
+    
+    const clearAirCanvas = () => {
+      airCtx.setTransform(1, 0, 0, 1, 0, 0);
+      airCtx.clearRect(0, 0, airCanvas.width, airCanvas.height);
+    };
     
     let animationFrameId: number;
     let lastTime = performance.now();
@@ -3778,9 +3791,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       // PERF: Skip drawing animated elements during mobile panning/zooming for better performance
       const skipAnimatedElements = isMobile && (isPanningRef.current || isPinchZoomingRef.current);
       if (skipAnimatedElements) {
-        // Clear the canvas but don't draw anything - hides all animated elements while panning/zooming
+        // Clear the canvases but don't draw anything - hides all animated elements while panning/zooming
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        clearAirCanvas();
       } else {
         drawCars(ctx);
         drawPedestrians(ctx); // Draw pedestrians (zoom-gated)
@@ -3789,9 +3803,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         drawSmog(ctx); // Draw factory smog (above ground, below aircraft)
         drawEmergencyVehicles(ctx); // Draw emergency vehicles!
         drawIncidentIndicators(ctx, delta); // Draw fire/crime incident indicators!
-        drawHelicopters(ctx); // Draw helicopters (below planes, above ground)
-        drawAirplanes(ctx); // Draw airplanes above everything
-        drawFireworks(ctx); // Draw fireworks above everything (nighttime only)
+        clearAirCanvas();
+        drawHelicopters(airCtx); // Draw helicopters (below planes, above buildings)
+        drawAirplanes(airCtx); // Draw airplanes above everything
+        drawFireworks(airCtx); // Draw fireworks above everything (nighttime only)
       }
     };
     
@@ -4502,6 +4517,12 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       />
       <canvas
         ref={buildingsCanvasRef}
+        width={canvasSize.width}
+        height={canvasSize.height}
+        className="absolute top-0 left-0 pointer-events-none"
+      />
+      <canvas
+        ref={airCanvasRef}
         width={canvasSize.width}
         height={canvasSize.height}
         className="absolute top-0 left-0 pointer-events-none"
