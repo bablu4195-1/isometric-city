@@ -24,9 +24,9 @@ export const PEDESTRIAN_HAT_CHANCE = 0.15;          // Chance of wearing a hat
 export const PEDESTRIAN_IDLE_CHANCE = 0.01;         // Chance to stop and idle briefly (reduced for perf)
 
 // Pedestrian performance limits
-export const PEDESTRIAN_MAX_COUNT = 800;            // Maximum pedestrians (hard cap)
-export const PEDESTRIAN_SPAWN_BATCH_SIZE = 25;      // How many to try spawning at once
-export const PEDESTRIAN_SPAWN_INTERVAL = 0.03;      // Seconds between spawn batches
+export const PEDESTRIAN_MAX_COUNT = 500;            // Maximum pedestrians (hard cap)
+export const PEDESTRIAN_SPAWN_BATCH_SIZE = 10;      // How many to try spawning at once
+export const PEDESTRIAN_SPAWN_INTERVAL = 0.15;      // Seconds between spawn batches
 export const PEDESTRIAN_UPDATE_SKIP_DISTANCE = 30;  // Skip detailed updates for pedestrians this far from view
 
 // Zoom thresholds for rendering detail elements
