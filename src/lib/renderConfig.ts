@@ -220,6 +220,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     airport: -1.5, // Original position
     water: -0.2,
     subway_station: -0.2,
+    rail_station: -0.2, // Same offset as subway_station
     fire_station: -0.2, // Shifted up to match police station
     police_station: -0.1, // Shifted down from previous position
     hospital: -0.5, // Shift up (reduced from previous)
@@ -491,6 +492,7 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     tree: 'tree',
     water: 'water',
     subway_station: 'subway_station',
+    rail_station: 'subway_station', // Use subway_station sprite for now
     city_hall: 'city_hall',
     amusement_park: 'amusement_park',
   },

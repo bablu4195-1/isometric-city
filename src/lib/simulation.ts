@@ -711,7 +711,7 @@ function createTile(x: number, y: number, buildingType: BuildingType = 'grass'):
 }
 
 // Building types that don't require construction (already complete when placed)
-const NO_CONSTRUCTION_TYPES: BuildingType[] = ['grass', 'empty', 'water', 'road', 'tree'];
+const NO_CONSTRUCTION_TYPES: BuildingType[] = ['grass', 'empty', 'water', 'road', 'rail', 'tree'];
 
 function createBuilding(type: BuildingType): Building {
   // Buildings that don't require construction start at 100% complete
@@ -1505,10 +1505,15 @@ function updateBudgetCosts(grid: Tile[][], budget: Budget): Budget {
   // Count subway tiles and stations
   let subwayTileCount = 0;
   let subwayStationCount = 0;
+  // Count rail tiles and stations
+  let railTileCount = 0;
+  let railStationCount = 0;
   for (const row of grid) {
     for (const tile of row) {
       if (tile.hasSubway) subwayTileCount++;
       if (tile.building.type === 'subway_station') subwayStationCount++;
+      if (tile.building.type === 'rail') railTileCount++;
+      if (tile.building.type === 'rail_station') railStationCount++;
     }
   }
 
@@ -1516,7 +1521,7 @@ function updateBudgetCosts(grid: Tile[][], budget: Budget): Budget {
   newBudget.fire.cost = fireCount * 50;
   newBudget.health.cost = hospitalCount * 100;
   newBudget.education.cost = schoolCount * 30 + universityCount * 100;
-  newBudget.transportation.cost = roadCount * 2 + subwayTileCount * 3 + subwayStationCount * 25;
+  newBudget.transportation.cost = roadCount * 2 + subwayTileCount * 3 + subwayStationCount * 25 + railTileCount * 4 + railStationCount * 30;
   newBudget.parks.cost = parkCount * 10;
   newBudget.power.cost = powerCount * 150;
   newBudget.water.cost = waterCount * 75;
@@ -2217,8 +2222,21 @@ export function placeBuilding(
     }
   }
 
+  // Can't place rails on existing buildings (only allow on grass, tree, or existing rails)
+  if (buildingType === 'rail') {
+    const allowedTypes: BuildingType[] = ['grass', 'tree', 'rail'];
+    if (!allowedTypes.includes(tile.building.type)) {
+      return state; // Can't place rail on existing building
+    }
+  }
+
   // Only roads can be placed on roads - all other buildings require clearing the road first
   if (buildingType && buildingType !== 'road' && tile.building.type === 'road') {
+    return state;
+  }
+
+  // Only rails can be placed on rails - all other buildings require clearing the rail first
+  if (buildingType && buildingType !== 'rail' && tile.building.type === 'rail') {
     return state;
   }
 
@@ -2291,7 +2309,8 @@ export function placeBuilding(
       // Can't place on water, existing buildings, or 'empty' tiles (part of multi-tile buildings)
       // Note: 'road' is included here so roads can extend over existing roads,
       // but non-road buildings are already blocked from roads by the check above
-      const allowedTypes: BuildingType[] = ['grass', 'tree', 'road'];
+      // Also allow rail for rail_station placement
+      const allowedTypes: BuildingType[] = ['grass', 'tree', 'road', 'rail'];
       if (!allowedTypes.includes(tile.building.type)) {
         return state; // Can't place on existing building or part of multi-tile building
       }

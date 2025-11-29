@@ -374,6 +374,37 @@ export function SubwayStationIcon({ size = 18, className }: IconProps) {
   );
 }
 
+export function RailIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      {/* Two parallel tracks */}
+      <path {...baseStroke} d="M4 12h16" strokeWidth="2" />
+      <path {...baseStroke} d="M4 16h16" strokeWidth="2" />
+      {/* Ties */}
+      <line {...baseStroke} x1="6" y1="10" x2="6" y2="18" />
+      <line {...baseStroke} x1="12" y1="10" x2="12" y2="18" />
+      <line {...baseStroke} x1="18" y1="10" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+export function RailStationIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
+      {/* Station building - reuse subway station design */}
+      <path {...baseStroke} d="M4 19h16" />
+      <path {...baseStroke} d="M6 19V9l6-4 6 4v10" />
+      {/* Tracks in front */}
+      <path {...baseStroke} d="M4 12h16" strokeWidth="1.5" />
+      <path {...baseStroke} d="M4 16h16" strokeWidth="1.5" />
+      {/* Stairs going down */}
+      <path {...baseStroke} d="M9 19v-3h2v-2h2v-2h2v7" />
+      {/* "M" for Metro */}
+      <path {...baseStroke} d="M8 10l2 2 2-2" />
+    </svg>
+  );
+}
+
 function ZoneIcon({ color, size = 18, className }: IconProps & { color: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
@@ -387,6 +418,7 @@ export const ToolIcons: Partial<Record<Tool, React.FC<IconProps>>> = {
   select: SelectIcon,
   bulldoze: BulldozeIcon,
   road: RoadIcon,
+  rail: RailIcon,
   subway: SubwayIcon,
   tree: TreeIcon,
   zone_residential: (props) => <ZoneIcon {...props} color="#22c55e" />, 
@@ -402,6 +434,7 @@ export const ToolIcons: Partial<Record<Tool, React.FC<IconProps>>> = {
   power_plant: PowerIcon,
   water_tower: WaterIcon,
   subway_station: SubwayStationIcon,
+  rail_station: RailStationIcon,
   stadium: TrophyIcon,
   museum: MuseumIcon,
   airport: PlaneIcon,
