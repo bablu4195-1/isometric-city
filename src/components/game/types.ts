@@ -133,6 +133,20 @@ export type EmergencyVehicle = {
 // Pedestrian types and destinations
 export type PedestrianDestType = 'school' | 'commercial' | 'industrial' | 'park' | 'home';
 
+export type PedestrianState = 
+  | 'walking'           // Walking to destination
+  | 'at_destination'    // Arrived at destination, deciding what to do
+  | 'inside_building'   // Inside a building (commercial, school, etc.)
+  | 'at_park'           // At a park/recreation facility, spending time there
+  | 'returning_home';   // Walking back home
+
+export type PedestrianActivity = 
+  | 'shopping'          // At commercial building
+  | 'learning'          // At school/university
+  | 'working'           // At industrial building
+  | 'recreation'        // At park/basketball/tennis/etc.
+  | 'resting';          // At home
+
 export type Pedestrian = {
   id: number;
   tileX: number;
@@ -146,14 +160,29 @@ export type Pedestrian = {
   shirtColor: string;
   walkOffset: number; // For walking animation
   sidewalkSide: 'left' | 'right'; // Which side of the road they walk on
+  
+  // State management
+  state: PedestrianState;
+  activity: PedestrianActivity | null;
+  activityStartTime: number; // When current activity started
+  activityDuration: number; // How long to stay in current activity
+  
+  // Destination management
   destType: PedestrianDestType;
   homeX: number;
   homeY: number;
-  destX: number;
-  destY: number;
-  returningHome: boolean;
+  currentDestX: number; // Current destination X
+  currentDestY: number; // Current destination Y
+  currentDestType: PedestrianDestType; // Current destination type
+  destinationQueue: Array<{ x: number; y: number; type: PedestrianDestType }>; // Queue of destinations to visit
+  
+  // Pathfinding
   path: { x: number; y: number }[];
   pathIndex: number;
+  
+  // Building interaction
+  insideBuildingX: number | null; // Building they're currently inside
+  insideBuildingY: number | null;
 };
 
 // Boat types for water navigation

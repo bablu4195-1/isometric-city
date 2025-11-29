@@ -31,6 +31,23 @@ const PARK_TYPES: BuildingType[] = [
   'community_garden', 'pond_park', 'park_gate', 'mountain_lodge', 'mountain_trailhead'
 ];
 
+// Buildings that pedestrians can enter and spend time inside
+const ENTERABLE_BUILDINGS: BuildingType[] = [
+  ...COMMERCIAL_TYPES,
+  ...SCHOOL_TYPES,
+  ...INDUSTRIAL_TYPES,
+  'hospital', 'police_station', 'fire_station', 'museum', 'stadium', 'city_hall'
+];
+
+// Recreation facilities where pedestrians spend time outside (parks, courts, etc.)
+const RECREATION_FACILITIES: BuildingType[] = [
+  'park', 'park_large', 'tennis', 'basketball_courts', 'playground_small',
+  'playground_large', 'baseball_field_small', 'soccer_field_small',
+  'football_field', 'baseball_stadium', 'swimming_pool', 'skate_park',
+  'mini_golf_course', 'bleachers_field', 'go_kart_track', 'amphitheater',
+  'community_garden', 'pond_park', 'park_gate'
+];
+
 export interface HeliportInfo {
   x: number;
   y: number;
@@ -95,6 +112,31 @@ export function findPedestrianDestinations(
     }
   }
   return destinations;
+}
+
+/**
+ * Check if a building type is enterable (pedestrians can go inside)
+ */
+export function isEnterableBuilding(buildingType: BuildingType): boolean {
+  return ENTERABLE_BUILDINGS.includes(buildingType);
+}
+
+/**
+ * Check if a building type is a recreation facility (parks, courts, etc.)
+ */
+export function isRecreationFacility(buildingType: BuildingType): boolean {
+  return RECREATION_FACILITIES.includes(buildingType);
+}
+
+/**
+ * Get activity type for a building
+ */
+export function getActivityForBuilding(buildingType: BuildingType): 'shopping' | 'learning' | 'working' | 'recreation' | null {
+  if (COMMERCIAL_TYPES.includes(buildingType)) return 'shopping';
+  if (SCHOOL_TYPES.includes(buildingType)) return 'learning';
+  if (INDUSTRIAL_TYPES.includes(buildingType)) return 'working';
+  if (RECREATION_FACILITIES.includes(buildingType)) return 'recreation';
+  return null;
 }
 
 /**
