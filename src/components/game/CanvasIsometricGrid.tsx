@@ -2926,7 +2926,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     const ambient = getAmbientColor(visualHour);
     
     // Apply darkness overlay
-    const alpha = darkness * 0.85;
+    const alpha = darkness * 0.6;
     ctx.fillStyle = `rgba(${ambient.r}, ${ambient.g}, ${ambient.b}, ${alpha})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
