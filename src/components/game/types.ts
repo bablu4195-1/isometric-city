@@ -156,6 +156,30 @@ export type Pedestrian = {
   pathIndex: number;
 };
 
+// Train types for rail network
+export type TrainType = 'passenger' | 'freight';
+
+export type TrainCarriage = {
+  offsetProgress: number; // Offset from the lead carriage (in tiles)
+  type: TrainType;
+};
+
+export type Train = {
+  id: number;
+  type: TrainType;
+  tileX: number;
+  tileY: number;
+  direction: CarDirection;
+  progress: number;
+  speed: number;
+  age: number;
+  maxAge: number;
+  color: string;
+  carriages: TrainCarriage[]; // Additional carriages following the lead
+  path: { x: number; y: number }[];
+  pathIndex: number;
+};
+
 // Boat types for water navigation
 export type BoatState = 'sailing' | 'docked' | 'arriving' | 'departing' | 'touring';
 
