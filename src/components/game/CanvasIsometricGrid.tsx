@@ -3428,14 +3428,20 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     
     // Draw rail tracks (above roads)
     insertionSortByDepth(railQueue);
+    
+    // Debug: log if we have any rails
+    if (railQueue.length > 0) {
+      console.log('Drawing', railQueue.length, 'rail tiles');
+    }
+    
     railQueue.forEach(({ tile, screenX, screenY }) => {
         ctx.save();
         ctx.globalAlpha = 1;
         
-        // Draw ballast/gravel base first
+        // Draw ballast/gravel base first - use bright red for debugging
         const w = TILE_WIDTH;
         const h = TILE_HEIGHT;
-        ctx.fillStyle = '#5c5c5c';
+        ctx.fillStyle = '#ff0000'; // RED for visibility
         ctx.beginPath();
         ctx.moveTo(screenX + w / 2, screenY);
         ctx.lineTo(screenX + w, screenY + h / 2);

@@ -301,7 +301,7 @@ function drawStraightTrack(
 
 /**
  * Draw a curved track segment connecting two perpendicular directions
- * Uses bezier curves for smooth isometric appearance
+ * For simplicity, draws the curve as two straight segments through center
  */
 function drawCurvedTrack(
   ctx: CanvasRenderingContext2D,
@@ -311,79 +311,10 @@ function drawCurvedTrack(
   spacing: number,
   _clockwise: boolean
 ): void {
-  // Get perpendicular offsets for both track directions
-  // From point perpendicular (toward center)
-  const fromDirX = center.x - from.x;
-  const fromDirY = center.y - from.y;
-  const fromLen = Math.hypot(fromDirX, fromDirY);
-  const fromPerpX = -fromDirY / fromLen * spacing / 2;
-  const fromPerpY = fromDirX / fromLen * spacing / 2;
-  
-  // To point perpendicular (toward center)
-  const toDirX = center.x - to.x;
-  const toDirY = center.y - to.y;
-  const toLen = Math.hypot(toDirX, toDirY);
-  const toPerpX = -toDirY / toLen * spacing / 2;
-  const toPerpY = toDirX / toLen * spacing / 2;
-  
-  // Control point is at the tile center for smooth curve
-  const controlX = center.x;
-  const controlY = center.y;
-  
-  // Draw ties along the curve using quadratic bezier interpolation
-  const numTies = 5;
-  ctx.strokeStyle = RAIL_COLORS.TIE;
-  ctx.lineWidth = RAIL_CONFIG.TIE_WIDTH;
-  ctx.lineCap = 'butt';
-  
-  for (let i = 0; i <= numTies; i++) {
-    const t = i / numTies;
-    // Quadratic bezier interpolation for center line
-    const cx = (1-t)*(1-t)*from.x + 2*(1-t)*t*controlX + t*t*to.x;
-    const cy = (1-t)*(1-t)*from.y + 2*(1-t)*t*controlY + t*t*to.y;
-    
-    // Get tangent direction at this point
-    const tx = 2*(1-t)*(controlX - from.x) + 2*t*(to.x - controlX);
-    const ty = 2*(1-t)*(controlY - from.y) + 2*t*(to.y - controlY);
-    const tLen = Math.hypot(tx, ty);
-    
-    if (tLen > 0) {
-      // Perpendicular to tangent - extend beyond track spacing for tie overhang
-      const tieHalfLen = spacing * 0.7;
-      const px = -ty / tLen * tieHalfLen;
-      const py = tx / tLen * tieHalfLen;
-      
-      ctx.beginPath();
-      ctx.moveTo(cx + px, cy + py);
-      ctx.lineTo(cx - px, cy - py);
-      ctx.stroke();
-    }
-  }
-  
-  // Draw the two rail lines using quadratic bezier curves
-  ctx.strokeStyle = RAIL_COLORS.RAIL;
-  ctx.lineWidth = RAIL_CONFIG.RAIL_WIDTH;
-  ctx.lineCap = 'round';
-  
-  // Inner rail (offset toward inside of curve)
-  ctx.beginPath();
-  ctx.moveTo(from.x + fromPerpX, from.y + fromPerpY);
-  ctx.quadraticCurveTo(controlX, controlY, to.x + toPerpX, to.y + toPerpY);
-  ctx.stroke();
-  
-  // Outer rail (offset toward outside of curve)
-  ctx.beginPath();
-  ctx.moveTo(from.x - fromPerpX, from.y - fromPerpY);
-  ctx.quadraticCurveTo(controlX, controlY, to.x - toPerpX, to.y - toPerpY);
-  ctx.stroke();
-  
-  // Add highlights to inner rail
-  ctx.strokeStyle = RAIL_COLORS.RAIL_HIGHLIGHT;
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.moveTo(from.x + fromPerpX, from.y + fromPerpY);
-  ctx.quadraticCurveTo(controlX, controlY, to.x + toPerpX, to.y + toPerpY);
-  ctx.stroke();
+  // For curves, draw two straight track segments: from->center and center->to
+  // This creates a simple angled curve that works well in isometric view
+  drawStraightTrack(ctx, from, center, spacing);
+  drawStraightTrack(ctx, center, to, spacing);
 }
 
 /**
@@ -478,6 +409,10 @@ export function drawRailTracks(
   const edges = getEdgeMidpoints(screenX, screenY);
   const { north, east, south, west, center } = edges;
   const spacing = TILE_WIDTH * RAIL_CONFIG.TRACK_SPACING;
+  
+  // DEBUG: Draw a bright colored marker to confirm function is called
+  ctx.fillStyle = '#00ff00';
+  ctx.fillRect(center.x - 5, center.y - 5, 10, 10);
   
   // Draw ballast base first
   drawBallast(ctx, screenX, screenY, config, edges);
