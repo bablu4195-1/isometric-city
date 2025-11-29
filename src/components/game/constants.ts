@@ -25,6 +25,7 @@ export const PEDESTRIAN_IDLE_CHANCE = 0.01;         // Chance to stop and idle b
 
 // Pedestrian performance limits
 export const PEDESTRIAN_MAX_COUNT = 800;            // Maximum pedestrians (hard cap)
+export const PEDESTRIAN_ROAD_TILE_DENSITY = 2.4;    // Target pedestrians per road tile (reduced from 3)
 export const PEDESTRIAN_SPAWN_BATCH_SIZE = 25;      // How many to try spawning at once
 export const PEDESTRIAN_SPAWN_INTERVAL = 0.03;      // Seconds between spawn batches
 export const PEDESTRIAN_UPDATE_SKIP_DISTANCE = 30;  // Skip detailed updates for pedestrians this far from view
