@@ -3744,12 +3744,191 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         drawHelicopters(ctx); // Draw helicopters (below planes, above ground)
         drawAirplanes(ctx); // Draw airplanes above everything
         drawFireworks(ctx); // Draw fireworks above everything (nighttime only)
+        
+        // Redraw buildings on top of vehicles so tall buildings (like skyscrapers) render above cars/trains
+        const dpr = window.devicePixelRatio || 1;
+        ctx.save();
+        ctx.scale(dpr * zoom, dpr * zoom);
+        ctx.translate(offset.x / zoom, offset.y / zoom);
+        
+        // Calculate viewport bounds for culling
+        const viewWidth = canvasSize.width / (dpr * zoom);
+        const viewHeight = canvasSize.height / (dpr * zoom);
+        const viewLeft = -offset.x / zoom - TILE_WIDTH * 2;
+        const viewTop = -offset.y / zoom - TILE_HEIGHT * 4;
+        const viewRight = viewWidth - offset.x / zoom + TILE_WIDTH * 2;
+        const viewBottom = viewHeight - offset.y / zoom + TILE_HEIGHT * 4;
+        
+        // Build building queue for visible tiles
+        const buildingQueue: Array<{ screenX: number; screenY: number; tile: Tile; depth: number }> = [];
+        
+        // Calculate visible diagonal bands
+        const visibleMinSum = Math.max(0, Math.floor((viewLeft - TILE_WIDTH) / (TILE_WIDTH / 2) + (viewTop - TILE_HEIGHT) / (TILE_HEIGHT / 2)));
+        const visibleMaxSum = Math.min(gridSize * 2 - 2, Math.ceil((viewRight + TILE_WIDTH) / (TILE_WIDTH / 2) + (viewBottom + TILE_HEIGHT) / (TILE_HEIGHT / 2)));
+        
+        // Iterate through visible tiles
+        for (let sum = visibleMinSum; sum <= visibleMaxSum; sum++) {
+          for (let x = Math.max(0, sum - gridSize + 1); x <= Math.min(sum, gridSize - 1); x++) {
+            const y = sum - x;
+            if (y < 0 || y >= gridSize) continue;
+            
+            const { screenX, screenY } = gridToScreen(x, y, 0, 0);
+            
+            // Viewport culling
+            if (screenX + TILE_WIDTH < viewLeft || screenX > viewRight ||
+                screenY + TILE_HEIGHT * 4 < viewTop || screenY > viewBottom) {
+              continue;
+            }
+            
+            const tile = grid[y][x];
+            const buildingType = tile.building.type;
+            
+            // Only redraw actual buildings (not roads, rails, water, grass, empty)
+            if (buildingType !== 'road' && buildingType !== 'rail' && buildingType !== 'water' && 
+                buildingType !== 'grass' && buildingType !== 'empty') {
+              const size = getBuildingSize(buildingType);
+              const depth = x + y + size.width + size.height - 2;
+              buildingQueue.push({ screenX, screenY, tile, depth });
+            }
+          }
+        }
+        
+        // Sort by depth and draw buildings
+        buildingQueue.sort((a, b) => a.depth - b.depth);
+        
+        // Draw buildings using the same logic as main render
+        // We'll use a simplified version that just draws the sprite
+        buildingQueue.forEach(({ screenX, screenY, tile }) => {
+          const buildingType = tile.building.type;
+          const w = TILE_WIDTH;
+          const h = TILE_HEIGHT;
+          
+          // Check if this building type has a sprite
+          const activePack = getActiveSpritePack();
+          const hasTileSprite = BUILDING_TO_SPRITE[buildingType] || 
+            (activePack.parksBuildings && activePack.parksBuildings[buildingType]) ||
+            (activePack.stationsVariants && activePack.stationsVariants[buildingType]);
+          
+          if (hasTileSprite && buildingType !== 'water') {
+            // Skip construction phase 1 (foundation) - those don't need to be redrawn
+            const isUnderConstruction = tile.building.constructionProgress !== undefined &&
+                                         tile.building.constructionProgress < 100;
+            const constructionProgress = tile.building.constructionProgress ?? 100;
+            const isFoundationPhase = isUnderConstruction && constructionProgress < 40;
+            
+            if (isFoundationPhase) {
+              return; // Skip foundation phase buildings
+            }
+            
+            // Determine sprite source and coordinates (simplified version of main drawBuilding logic)
+            const isConstructionPhase = isUnderConstruction && constructionProgress >= 40;
+            const isAbandoned = tile.building.abandoned === true;
+            const isParksBuilding = activePack.parksBuildings && activePack.parksBuildings[buildingType];
+            
+            let spriteSource = activePack.src;
+            let useParksBuilding: { row: number; col: number } | null = null;
+            
+            if (isConstructionPhase && isParksBuilding && activePack.parksConstructionSrc) {
+              useParksBuilding = activePack.parksBuildings![buildingType];
+              spriteSource = activePack.parksConstructionSrc;
+            } else if (isConstructionPhase && activePack.constructionSrc) {
+              spriteSource = activePack.constructionSrc;
+            } else if (isAbandoned && activePack.abandonedSrc) {
+              spriteSource = activePack.abandonedSrc;
+            } else if (isParksBuilding && activePack.parksSrc) {
+              useParksBuilding = activePack.parksBuildings![buildingType];
+              spriteSource = activePack.parksSrc;
+            }
+            
+            const filteredSpriteSheet = getCachedImage(spriteSource, true) || getCachedImage(spriteSource);
+            
+            if (filteredSpriteSheet) {
+              const sheetWidth = filteredSpriteSheet.naturalWidth || filteredSpriteSheet.width;
+              const sheetHeight = filteredSpriteSheet.naturalHeight || filteredSpriteSheet.height;
+              
+              let coords: { sx: number; sy: number; sw: number; sh: number } | null;
+              
+              if (useParksBuilding) {
+                const parksCols = activePack.parksCols || 5;
+                const parksRows = activePack.parksRows || 6;
+                const tileWidth = Math.floor(sheetWidth / parksCols);
+                const tileHeight = Math.floor(sheetHeight / parksRows);
+                coords = {
+                  sx: useParksBuilding.col * tileWidth,
+                  sy: useParksBuilding.row * tileHeight,
+                  sw: tileWidth,
+                  sh: tileHeight,
+                };
+              } else {
+                coords = getSpriteCoords(buildingType, sheetWidth, sheetHeight);
+              }
+              
+              if (coords) {
+                const buildingSize = getBuildingSize(buildingType);
+                const isMultiTile = buildingSize.width > 1 || buildingSize.height > 1;
+                
+                let drawPosX = screenX;
+                let drawPosY = screenY;
+                
+                if (isMultiTile) {
+                  const frontmostOffsetX = buildingSize.width - 1;
+                  const frontmostOffsetY = buildingSize.height - 1;
+                  const screenOffsetX = (frontmostOffsetX - frontmostOffsetY) * (w / 2);
+                  const screenOffsetY = (frontmostOffsetX + frontmostOffsetY) * (h / 2);
+                  drawPosX = screenX + screenOffsetX;
+                  drawPosY = screenY + screenOffsetY;
+                }
+                
+                let scaleMultiplier = isMultiTile ? Math.max(buildingSize.width, buildingSize.height) : 1;
+                const globalScale = activePack.globalScale ?? 1;
+                const destWidth = w * 1.2 * scaleMultiplier * globalScale;
+                const aspectRatio = coords.sh / coords.sw;
+                const destHeight = destWidth * aspectRatio;
+                
+                let drawX = drawPosX + w / 2 - destWidth / 2;
+                const spriteKey = BUILDING_TO_SPRITE[buildingType];
+                let horizontalOffset = (spriteKey && SPRITE_HORIZONTAL_OFFSETS[spriteKey]) ? SPRITE_HORIZONTAL_OFFSETS[spriteKey] * w : 0;
+                if (useParksBuilding && activePack.parksHorizontalOffsets && buildingType in activePack.parksHorizontalOffsets) {
+                  horizontalOffset = activePack.parksHorizontalOffsets[buildingType] * w;
+                }
+                drawX += horizontalOffset;
+                
+                let verticalPush = isMultiTile ? (buildingSize.width + buildingSize.height - 2) * h * 0.25 : destHeight * 0.15;
+                let extraOffset = 0;
+                if (isConstructionPhase && isParksBuilding && activePack.parksConstructionVerticalOffsets && buildingType in activePack.parksConstructionVerticalOffsets) {
+                  extraOffset = activePack.parksConstructionVerticalOffsets[buildingType] * h;
+                } else if (isConstructionPhase && activePack.constructionVerticalOffsets && buildingType in activePack.constructionVerticalOffsets) {
+                  extraOffset = activePack.constructionVerticalOffsets[buildingType] * h;
+                } else if (isAbandoned && activePack.abandonedVerticalOffsets && buildingType in activePack.abandonedVerticalOffsets) {
+                  extraOffset = activePack.abandonedVerticalOffsets[buildingType] * h;
+                } else if (useParksBuilding && activePack.parksVerticalOffsets && buildingType in activePack.parksVerticalOffsets) {
+                  extraOffset = activePack.parksVerticalOffsets[buildingType] * h;
+                } else if (spriteKey && SPRITE_VERTICAL_OFFSETS[spriteKey]) {
+                  extraOffset = SPRITE_VERTICAL_OFFSETS[spriteKey] * h;
+                }
+                verticalPush += extraOffset;
+                
+                const drawY = drawPosY + h - destHeight + verticalPush;
+                
+                // Draw the sprite
+                ctx.drawImage(
+                  filteredSpriteSheet,
+                  coords.sx, coords.sy, coords.sw, coords.sh,
+                  Math.round(drawX), Math.round(drawY),
+                  Math.round(destWidth), Math.round(destHeight)
+                );
+              }
+            }
+          }
+        });
+        
+        ctx.restore();
       }
     };
     
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, updateAirplanes, drawAirplanes, updateHelicopters, drawHelicopters, updateBoats, drawBoats, updateTrains, drawTrainsCallback, drawIncidentIndicators, updateFireworks, drawFireworks, updateSmog, drawSmog, visualHour, isMobile]);
+  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, updateAirplanes, drawAirplanes, updateHelicopters, drawHelicopters, updateBoats, drawBoats, updateTrains, drawTrainsCallback, drawIncidentIndicators, updateFireworks, drawFireworks, updateSmog, drawSmog, visualHour, isMobile, grid, gridSize, offset, zoom, currentSpritePack, imagesLoaded]);
   
   // Day/Night cycle lighting rendering - optimized for performance
   useEffect(() => {
