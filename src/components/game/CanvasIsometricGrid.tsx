@@ -166,12 +166,52 @@ export interface CanvasIsometricGridProps {
   onViewportChange?: (viewport: { offset: { x: number; y: number }; zoom: number; canvasSize: { width: number; height: number } }) => void;
 }
 
+const PARK_LIKE_BUILDINGS: BuildingType[] = [
+  'park',
+  'park_large',
+  'tennis',
+  'basketball_courts',
+  'playground_small',
+  'playground_large',
+  'baseball_field_small',
+  'soccer_field_small',
+  'football_field',
+  'skate_park',
+  'mini_golf_course',
+  'bleachers_field',
+  'go_kart_track',
+  'amphitheater',
+  'greenhouse_garden',
+  'animal_pens_farm',
+  'cabin_house',
+  'campground',
+  'marina_docks_small',
+  'pier_large',
+  'roller_coaster_small',
+  'community_garden',
+  'pond_park',
+  'park_gate',
+  'mountain_lodge',
+  'mountain_trailhead',
+];
+
+const BUILDING_OVERPAINT_SKIP_TYPES = new Set<BuildingType>([
+  'empty',
+  'grass',
+  'water',
+  'road',
+  'rail',
+  'tree',
+  ...PARK_LIKE_BUILDINGS,
+]);
+
 // Canvas-based Isometric Grid - HIGH PERFORMANCE
 export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMobile = false, navigationTarget, onNavigationComplete, onViewportChange }: CanvasIsometricGridProps) {
   const { state, placeAtTile, connectToCity, checkAndDiscoverCities, currentSpritePack, visualHour } = useGame();
   const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies, gameVersion } = state;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoverCanvasRef = useRef<HTMLCanvasElement>(null); // PERF: Separate canvas for hover/selection highlights
+  const buildingOverlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const carsCanvasRef = useRef<HTMLCanvasElement>(null);
   const lightingCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1696,6 +1736,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           hoverCanvasRef.current.style.width = `${rect.width}px`;
           hoverCanvasRef.current.style.height = `${rect.height}px`;
         }
+        if (buildingOverlayCanvasRef.current) {
+          buildingOverlayCanvasRef.current.style.width = `${rect.width}px`;
+          buildingOverlayCanvasRef.current.style.height = `${rect.height}px`;
+        }
         if (carsCanvasRef.current) {
           carsCanvasRef.current.style.width = `${rect.width}px`;
           carsCanvasRef.current.style.height = `${rect.height}px`;
@@ -1720,10 +1764,22 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   // Main render function - PERF: Uses requestAnimationFrame throttling to batch multiple state updates
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !imagesLoaded) return;
+    const buildingOverlayCanvas = buildingOverlayCanvasRef.current;
+    const buildingOverlayCtx = buildingOverlayCanvas ? buildingOverlayCanvas.getContext('2d') : null;
+    if (!canvas || !imagesLoaded) {
+      if (buildingOverlayCtx) {
+        clearCanvas(buildingOverlayCtx);
+      }
+      return;
+    }
     
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      if (buildingOverlayCtx) {
+        clearCanvas(buildingOverlayCtx);
+      }
+      return;
+    }
     
     // PERF: Cancel any pending render to avoid duplicate work
     if (renderPendingRef.current !== null) {
@@ -1738,6 +1794,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     
       // Disable image smoothing for crisp pixel art
       ctx.imageSmoothingEnabled = false;
+      if (buildingOverlayCtx) {
+        buildingOverlayCtx.imageSmoothingEnabled = false;
+        clearCanvas(buildingOverlayCtx);
+        buildingOverlayCtx.save();
+        buildingOverlayCtx.scale(dpr * zoom, dpr * zoom);
+        buildingOverlayCtx.translate(offset.x / zoom, offset.y / zoom);
+      }
     
       // Clear canvas with gradient background
       const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -1781,6 +1844,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     // PERF: Reuse queue arrays across frames to avoid GC pressure
     // Arrays are cleared by setting length = 0 which is faster than recreating
     const buildingQueue: BuildingDraw[] = [];
+    const buildingOverlayQueue: BuildingDraw[] = [];
     const waterQueue: BuildingDraw[] = [];
     const roadQueue: BuildingDraw[] = []; // Roads drawn above water
     const railQueue: BuildingDraw[] = []; // Rail tracks drawn above water
@@ -3403,6 +3467,9 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
             const size = getBuildingSize(tile.building.type);
             const depth = x + y + size.width + size.height - 2;
             buildingQueue.push({ screenX, screenY, tile, depth });
+            if (!BUILDING_OVERPAINT_SKIP_TYPES.has(tile.building.type) && !(tileMetadata?.isPartOfParkBuilding)) {
+              buildingOverlayQueue.push({ screenX, screenY, tile, depth });
+            }
           }
         }
         
@@ -3544,6 +3611,14 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     buildingQueue.forEach(({ tile, screenX, screenY }) => {
       drawBuilding(ctx, screenX, screenY, tile);
     });
+    
+    if (buildingOverlayCtx) {
+      insertionSortByDepth(buildingOverlayQueue);
+      buildingOverlayQueue.forEach(({ tile, screenX, screenY }) => {
+        drawBuilding(buildingOverlayCtx, screenX, screenY, tile);
+      });
+      buildingOverlayCtx.restore();
+    }
     
     // Draw overlays last so they remain visible on top of buildings
     overlayQueue.forEach(({ tile, screenX, screenY }) => {
@@ -4438,6 +4513,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         width={canvasSize.width}
         height={canvasSize.height}
         className="absolute top-0 left-0"
+        style={{ zIndex: 0 }}
       />
       {/* PERF: Separate canvas for hover/selection highlights - avoids full redraw on mouse move */}
       <canvas
@@ -4445,19 +4521,28 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         width={canvasSize.width}
         height={canvasSize.height}
         className="absolute top-0 left-0 pointer-events-none"
+        style={{ zIndex: 4 }}
       />
       <canvas
         ref={carsCanvasRef}
         width={canvasSize.width}
         height={canvasSize.height}
         className="absolute top-0 left-0 pointer-events-none"
+        style={{ zIndex: 2 }}
+      />
+      <canvas
+        ref={buildingOverlayCanvasRef}
+        width={canvasSize.width}
+        height={canvasSize.height}
+        className="absolute top-0 left-0 pointer-events-none"
+        style={{ zIndex: 3 }}
       />
       <canvas
         ref={lightingCanvasRef}
         width={canvasSize.width}
         height={canvasSize.height}
         className="absolute top-0 left-0 pointer-events-none"
-        style={{ mixBlendMode: 'multiply' }}
+        style={{ mixBlendMode: 'multiply', zIndex: 5 }}
       />
       
       {selectedTile && selectedTool === 'select' && !isMobile && (
