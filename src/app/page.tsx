@@ -298,12 +298,10 @@ export default function HomePage() {
           IsoCity
         </h1>
         
-        {/* Sprite Gallery - hide if there are saved cities to save space */}
-        {savedCities.length === 0 && (
-          <div className="mb-6">
-            <SpriteGallery count={9} cols={3} />
-          </div>
-        )}
+        {/* Sprite Gallery - always show on mobile for visual context */}
+        <div className="mb-6 w-full flex justify-center">
+          <SpriteGallery count={9} cols={3} />
+        </div>
         
         {/* Buttons */}
         <div className="flex flex-col gap-3 w-full max-w-xs">
