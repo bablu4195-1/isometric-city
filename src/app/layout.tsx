@@ -16,12 +16,22 @@ const dmSans = DM_Sans({
   weight: ['400', '500', '600', '700'],
 });
 
+// Get the base URL for metadata - prioritize production URL
+const getBaseUrl = () => {
+  // Use NEXT_PUBLIC_SITE_URL if set (for production)
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
+  }
+  // Use VERCEL_URL for Vercel deployments (preview/production)
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  // Fallback to localhost for development
+  return 'http://localhost:3000';
+};
+
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000'
-  ),
+  metadataBase: new URL(getBaseUrl()),
   title: 'ISOCITY — Metropolis Builder',
   description: 'A richly detailed isometric city builder. Build your metropolis and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
   openGraph: {
@@ -34,6 +44,7 @@ export const metadata: Metadata = {
         width: 1179,
         height: 1406,
         type: 'image/png',
+        alt: 'ISOCITY — Metropolis Builder',
       },
     ],
   },
@@ -46,6 +57,7 @@ export const metadata: Metadata = {
         url: '/og-image.png',
         width: 1179,
         height: 1406,
+        alt: 'ISOCITY — Metropolis Builder',
       },
     ],
   },
