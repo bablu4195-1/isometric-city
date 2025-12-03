@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { Playfair_Display, DM_Sans } from 'next/font/google';
+import { OG_IMAGE_DIMENSIONS, getOgImagePool, toPublicPath } from '@/lib/ogImages';
 import './globals.css';
 
 const playfair = Playfair_Display({
@@ -16,48 +18,99 @@ const dmSans = DM_Sans({
   weight: ['400', '500', '600', '700'],
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000'
-  ),
-  title: 'ISOCITY — Metropolis Builder',
-  description: 'A richly detailed isometric city builder. Build your metropolis and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
-  openGraph: {
-    title: 'ISOCITY — Metropolis Builder',
-    description: 'A richly detailed isometric city builder. Build your metropolis and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
-    type: 'website',
-    images: [
-      {
-        url: '/og-image.png',
-        width: 1179,
-        height: 1406,
-        type: 'image/png',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'ISOCITY — Metropolis Builder',
-    description: 'A richly detailed isometric city builder. Build your metropolis and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
-    images: [
-      {
-        url: '/og-image.png',
-        width: 1179,
-        height: 1406,
-      },
-    ],
-  },
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'IsoCity',
-  },
-  formatDetection: {
-    telephone: false,
-  },
+const SITE_TITLE = 'ISOCITY — Metropolis Builder';
+const SITE_DESCRIPTION =
+  'A richly detailed isometric city builder. Build your metropolis and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.';
+
+const buildDefaultBaseUrl = () => {
+  const configuredUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+
+  if (configuredUrl) {
+    try {
+      return new URL(configuredUrl).toString();
+    } catch {
+      // Intentionally swallow errors and fall through to localhost.
+    }
+  }
+
+  return 'http://localhost:3000';
 };
+
+const DEFAULT_BASE_URL = buildDefaultBaseUrl();
+
+const buildAbsoluteUrl = (path: string, base: URL) => new URL(path, base).toString();
+
+const resolveMetadataBase = () => {
+  const headersList = headers();
+  const forwardedProto = headersList.get('x-forwarded-proto');
+  const forwardedHost = headersList.get('x-forwarded-host');
+  const host = headersList.get('host');
+  const finalHost = forwardedHost ?? host;
+  const fallback = DEFAULT_BASE_URL;
+  const protocol =
+    forwardedProto ?? (finalHost && finalHost.includes('localhost') ? 'http' : 'https');
+
+  if (finalHost) {
+    try {
+      return new URL(`${protocol}://${finalHost}`);
+    } catch {
+      return new URL(fallback);
+    }
+  }
+
+  return new URL(fallback);
+};
+
+export function generateMetadata(): Metadata {
+  const metadataBase = resolveMetadataBase();
+  const dynamicOgImageUrl = buildAbsoluteUrl('/opengraph-image', metadataBase);
+  const staticOgImageUrls = getOgImagePool().map((relativePath) =>
+    buildAbsoluteUrl(toPublicPath(relativePath), metadataBase)
+  );
+
+  const sharedOpenGraphImageEntries = [
+    {
+      url: dynamicOgImageUrl,
+      width: OG_IMAGE_DIMENSIONS.width,
+      height: OG_IMAGE_DIMENSIONS.height,
+      type: 'image/png',
+    },
+    ...staticOgImageUrls.map((url) => ({
+      url,
+      width: OG_IMAGE_DIMENSIONS.width,
+      height: OG_IMAGE_DIMENSIONS.height,
+      type: 'image/png',
+    })),
+  ];
+
+  return {
+    metadataBase,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    openGraph: {
+      title: SITE_TITLE,
+      description: SITE_DESCRIPTION,
+      type: 'website',
+      images: sharedOpenGraphImageEntries,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: SITE_TITLE,
+      description: SITE_DESCRIPTION,
+      images: [dynamicOgImageUrl, ...staticOgImageUrls],
+    },
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: 'black-translucent',
+      title: 'IsoCity',
+    },
+    formatDetection: {
+      telephone: false,
+    },
+  };
+}
 
 export const viewport: Viewport = {
   width: 'device-width',
