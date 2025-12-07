@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import path from 'path';
 
+// Mark this route as dynamic since it uses request.url
+export const dynamic = 'force-dynamic';
+
 // Static list of game screenshots
 const GAME_IMAGES = [
   'IMG_6902.PNG',
