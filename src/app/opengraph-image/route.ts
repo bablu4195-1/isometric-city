@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import path from 'path';
 
@@ -15,22 +15,30 @@ const GAME_IMAGES = [
   'IMG_6911.PNG',
 ];
 
-export async function GET(request: NextRequest) {
-  try {
-    // Pick a random image (or use a query param for consistent previews)
-    const url = new URL(request.url);
-    const imageIndex = url.searchParams.get('i');
-    
-    let selectedImage: string;
-    if (imageIndex !== null && !isNaN(parseInt(imageIndex))) {
-      const idx = parseInt(imageIndex) % GAME_IMAGES.length;
-      selectedImage = GAME_IMAGES[idx];
-    } else {
-      selectedImage = GAME_IMAGES[Math.floor(Math.random() * GAME_IMAGES.length)];
+// Allow opting into a deterministic screenshot by setting NEXT_PUBLIC_OG_IMAGE_INDEX
+const OG_IMAGE_INDEX = process.env.NEXT_PUBLIC_OG_IMAGE_INDEX;
+
+function pickImage(): string | null {
+  if (OG_IMAGE_INDEX !== undefined) {
+    const parsedIndex = parseInt(OG_IMAGE_INDEX, 10);
+    if (!Number.isNaN(parsedIndex) && GAME_IMAGES.length > 0) {
+      return GAME_IMAGES[((parsedIndex % GAME_IMAGES.length) + GAME_IMAGES.length) % GAME_IMAGES.length];
     }
-    
-    // Read the image file directly from the public folder
-    const imagePath = path.join(process.cwd(), 'public', 'games', selectedImage);
+  }
+
+  if (GAME_IMAGES.length === 0) {
+    return null;
+  }
+
+  return GAME_IMAGES[Math.floor(Math.random() * GAME_IMAGES.length)];
+}
+
+export async function GET() {
+  try {
+    const selectedImage = pickImage();
+    const imagePath = selectedImage
+      ? path.join(process.cwd(), 'public', 'games', selectedImage)
+      : path.join(process.cwd(), 'public', 'og-image.png');
     const imageBuffer = await readFile(imagePath);
     
     // Return the image directly with proper headers for social media crawlers
