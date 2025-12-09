@@ -30,11 +30,11 @@ export const metadata: Metadata = {
     type: 'website',
     images: [
       {
-        url: '/opengraph-image',
-        width: 1179,
-        height: 1406,
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
         type: 'image/png',
-        alt: 'ISOCITY - Isometric city builder game screenshot',
+        alt: 'ISOCITY - Metropolis Builder - Isometric city builder game',
       },
     ],
   },
@@ -44,10 +44,10 @@ export const metadata: Metadata = {
     description: 'A richly detailed isometric city builder. Build your metropolis and manage resources with cars, planes, helicopters, boats, trains, citizens, and more.',
     images: [
       {
-        url: '/opengraph-image',
-        width: 1179,
-        height: 1406,
-        alt: 'ISOCITY - Isometric city builder game screenshot',
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'ISOCITY - Metropolis Builder - Isometric city builder game',
       },
     ],
   },
