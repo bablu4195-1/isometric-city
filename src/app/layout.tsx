@@ -31,8 +31,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: '/opengraph-image',
-        width: 1179,
-        height: 1406,
+        width: 1200,
+        height: 630,
         type: 'image/png',
         alt: 'ISOCITY - Isometric city builder game screenshot',
       },
@@ -45,8 +45,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: '/opengraph-image',
-        width: 1179,
-        height: 1406,
+        width: 1200,
+        height: 630,
         alt: 'ISOCITY - Isometric city builder game screenshot',
       },
     ],
