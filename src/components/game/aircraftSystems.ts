@@ -75,7 +75,7 @@ export function useAircraftSystems(
     if (cachedPopulationRef.current.gridVersion === currentGridVersion) {
       totalPopulation = cachedPopulationRef.current.count;
     } else {
-      // Recalculate and cache
+      // Recalculate and cache - this avoids expensive population calculations every frame
       totalPopulation = 0;
       for (let y = 0; y < currentGridSize; y++) {
         for (let x = 0; x < currentGridSize; x++) {
