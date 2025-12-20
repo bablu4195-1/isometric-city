@@ -240,8 +240,13 @@ export function AdvisorIcon({ size = 18, className }: IconProps) {
 export function SettingsIcon({ size = 18, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" className={className}>
-      <circle {...baseStroke} cx="12" cy="12" r="3" />
-      <path {...baseStroke} d="M4 12h2M18 12h2M12 4v2M12 18v2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M6.3 17.7l1.4-1.4M16.3 7.7l1.4-1.4" />
+      {/* Center hole */}
+      <circle {...baseStroke} cx="12" cy="12" r="2.5" />
+      {/* Gear cog with 6 teeth */}
+      <path 
+        {...baseStroke} 
+        d="M10.5 2.5h3v2.1a7 7 0 011.8.7l1.5-1.5 2.1 2.1-1.5 1.5a7 7 0 01.7 1.8h2.1v3h-2.1a7 7 0 01-.7 1.8l1.5 1.5-2.1 2.1-1.5-1.5a7 7 0 01-1.8.7v2.1h-3v-2.1a7 7 0 01-1.8-.7l-1.5 1.5-2.1-2.1 1.5-1.5a7 7 0 01-.7-1.8H2.8v-3h2.1a7 7 0 01.7-1.8L4.1 5.9l2.1-2.1 1.5 1.5a7 7 0 011.8-.7z" 
+      />
     </svg>
   );
 }
