@@ -145,6 +145,7 @@ export function useBoatSystem(
     const updatedBoats: Boat[] = [];
     
     for (const boat of boatsRef.current) {
+      // eslint-disable-next-line react-hooks/immutability -- refs intentionally hold mutable simulation entities
       boat.age += delta;
       
       // Update wake particles (similar to contrails) - shorter on mobile
@@ -510,7 +511,7 @@ export function useBoatSystem(
     }
     
     ctx.restore();
-  }, [worldStateRef, boatsRef, visualHour]);
+  }, [worldStateRef, boatsRef, visualHour, isMobile]);
 
   return {
     updateBoats,
