@@ -3637,7 +3637,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
             // Competitive RTS: click/drag selects units; click selects tile if no unit drag
             if (isCompetitive && humanPlayerId) {
               // Try to select a friendly unit under cursor first
-              const hitRadius = 18;
+              const hitRadius = 26;
               const friendlyUnits = competitiveUnits.filter(u => u.ownerId === humanPlayerId);
               let hitUnit: CompetitiveUnit | null = null;
               for (const u of friendlyUnits) {

@@ -949,6 +949,18 @@ function isAttackableBuildingType(type: BuildingType): boolean {
   return !(type === 'water' || type === 'grass' || type === 'tree' || type === 'road' || type === 'rail' || type === 'empty');
 }
 
+function nearestOwnerForZonedBuilding(x: number, y: number, players: CompetitivePlayer[]): PlayerId | undefined {
+  let best: { id: PlayerId; d2: number } | null = null;
+  for (const p of players) {
+    if (p.eliminated) continue;
+    const dx = (p.base.x + 0.5) - (x + 0.5);
+    const dy = (p.base.y + 0.5) - (y + 0.5);
+    const d2 = dx * dx + dy * dy;
+    if (!best || d2 < best.d2) best = { id: p.id, d2 };
+  }
+  return best?.id;
+}
+
 function revealCircle(
   size: number,
   revealed: boolean[][],
@@ -2153,13 +2165,35 @@ export function simulateTick(state: GameState): GameState {
                 modifiedRows.add(y + dy);
               }
             }
-            applyBuildingFootprint(newGrid, x, y, candidate, tile.zone, 1, services);
+            const built = applyBuildingFootprint(newGrid, x, y, candidate, tile.zone, 1, services);
+            if (isCompetitive && state.competitive) {
+              const ownerId = nearestOwnerForZonedBuilding(x, y, state.competitive.players);
+              if (ownerId) {
+                built.ownerId = ownerId;
+                built.maxHp = getDefaultBuildingHp(candidate as BuildingType);
+                built.hp = built.maxHp;
+              }
+            }
           }
         }
       } else if (tile.zone !== 'none' && tile.building.type !== 'grass') {
         // Evolve existing building - this may modify multiple tiles for multi-tile buildings
         // The evolveBuilding function handles its own row modifications internally
-        newGrid[y][x].building = evolveBuilding(newGrid, x, y, services, state.stats.demand);
+        const evolved = evolveBuilding(newGrid, x, y, services, state.stats.demand);
+        newGrid[y][x].building = evolved;
+        if (isCompetitive && state.competitive) {
+          // Ensure zoned buildings get a sensible owner + HP for combat
+          if (evolved.type !== 'grass' && evolved.type !== 'water' && evolved.type !== 'road' && evolved.type !== 'tree' && evolved.type !== 'empty') {
+            if (!evolved.ownerId) {
+              const ownerId = nearestOwnerForZonedBuilding(x, y, state.competitive.players);
+              if (ownerId) evolved.ownerId = ownerId;
+            }
+            if (evolved.maxHp === undefined || evolved.hp === undefined) {
+              evolved.maxHp = getDefaultBuildingHp(evolved.type);
+              evolved.hp = evolved.maxHp;
+            }
+          }
+        }
       }
 
       // Update pollution from buildings

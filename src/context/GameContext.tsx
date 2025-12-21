@@ -685,6 +685,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       if (!tile) return prev;
       if (cost > 0 && prev.stats.money < cost) return prev;
 
+      // Competitive: can't build in unexplored fog
+      if (prev.gameMode === 'competitive' && prev.competitive?.fog?.revealed) {
+        const revealed = prev.competitive.fog.revealed;
+        if (!revealed[y]?.[x]) return prev;
+      }
+
       // Prevent wasted spend if nothing would change
       if (tool === 'bulldoze' && tile.building.type === 'grass' && tile.zone === 'none') {
         return prev;
@@ -725,6 +731,22 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (nextState === prev) return prev;
+
+      // Competitive: assign ownership + HP to placed buildings (origin tile only)
+      if (prev.gameMode === 'competitive' && prev.competitive && building) {
+        if (building !== 'road' && building !== 'rail' && building !== 'tree' && building !== 'grass' && building !== 'water' && building !== 'empty') {
+          const b = nextState.grid[y]?.[x]?.building;
+          if (b) {
+            b.ownerId = prev.competitive.humanPlayerId;
+            if (b.maxHp === undefined || b.hp === undefined) {
+              // Keep simple defaults consistent with combat system
+              const size = info?.size ?? 1;
+              b.maxHp = 160 * size;
+              b.hp = b.maxHp;
+            }
+          }
+        }
+      }
 
       if (cost > 0) {
         nextState = {
@@ -1155,6 +1177,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
       return {
         ...prev,
+        selectedTool: 'select',
         stats: { ...prev.stats, money: prev.stats.money - cost },
         competitive: {
           ...comp,
