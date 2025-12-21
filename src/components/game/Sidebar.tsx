@@ -269,7 +269,7 @@ function ExitDialog({
 
 // Memoized Sidebar Component
 export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => void }) {
-  const { state, setTool, setActivePanel, saveCity } = useGame();
+  const { state, setTool, setActivePanel, saveCity, isCompetitiveMode } = useGame();
   const { selectedTool, stats, activePanel } = state;
   const [showExitDialog, setShowExitDialog] = useState(false);
   
@@ -381,6 +381,50 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
       </div>
       
       <ScrollArea className="flex-1 py-2">
+        {/* Military section for competitive mode */}
+        {isCompetitiveMode && (
+          <>
+            <div className="px-4 py-2 text-[10px] font-bold tracking-widest text-red-400">
+              ⚔️ MILITARY
+            </div>
+            <div className="px-2 flex flex-col gap-0.5 mb-2">
+              <Button
+                onClick={() => setActivePanel(activePanel === 'military' ? 'none' : 'military')}
+                variant={activePanel === 'military' ? 'default' : 'ghost'}
+                className={`w-full justify-start gap-3 px-3 py-2 h-auto text-sm ${
+                  activePanel === 'military' ? 'bg-red-500 text-white hover:bg-red-600' : 'hover:bg-red-500/10'
+                }`}
+              >
+                <span>🪖</span>
+                <span className="flex-1 text-left">Train Units</span>
+              </Button>
+              <Button
+                onClick={() => setTool('military_select')}
+                variant={selectedTool === 'military_select' ? 'default' : 'ghost'}
+                className={`w-full justify-start gap-3 px-3 py-2 h-auto text-sm ${
+                  selectedTool === 'military_select' ? 'bg-primary text-primary-foreground' : ''
+                }`}
+              >
+                <span>🎯</span>
+                <span className="flex-1 text-left">Select Units</span>
+              </Button>
+              <Button
+                onClick={() => setTool('barracks')}
+                variant={selectedTool === 'barracks' ? 'default' : 'ghost'}
+                disabled={stats.money < 1000}
+                className={`w-full justify-start gap-3 px-3 py-2 h-auto text-sm ${
+                  selectedTool === 'barracks' ? 'bg-primary text-primary-foreground' : ''
+                }`}
+              >
+                <span>🏛️</span>
+                <span className="flex-1 text-left">Barracks</span>
+                <span className="text-xs opacity-60">$1000</span>
+              </Button>
+            </div>
+            <div className="mx-4 mb-2 h-px bg-red-500/30" />
+          </>
+        )}
+        
         {/* Direct categories (TOOLS, ZONES) */}
         {Object.entries(directCategories).map(([category, tools]) => (
           <div key={category} className="mb-1">
@@ -441,7 +485,18 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
       </ScrollArea>
       
       <div className="border-t border-sidebar-border p-2">
-        <div className="grid grid-cols-4 gap-1">
+        <div className={`grid ${isCompetitiveMode ? 'grid-cols-5' : 'grid-cols-4'} gap-1`}>
+          {isCompetitiveMode && (
+            <Button
+              onClick={() => setActivePanel(activePanel === 'military' ? 'none' : 'military')}
+              variant={activePanel === 'military' ? 'default' : 'ghost'}
+              size="icon-sm"
+              className={`w-full ${activePanel === 'military' ? 'bg-red-500 hover:bg-red-600' : ''}`}
+              title="Military"
+            >
+              <span className="text-sm">⚔️</span>
+            </Button>
+          )}
           {[
             { panel: 'budget' as const, icon: <BudgetIcon size={16} />, label: 'Budget' },
             { panel: 'statistics' as const, icon: <ChartIcon size={16} />, label: 'Statistics' },

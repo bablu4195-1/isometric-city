@@ -73,7 +73,9 @@ export type BuildingType =
   | 'pond_park'
   | 'park_gate'
   | 'mountain_lodge'
-  | 'mountain_trailhead';
+  | 'mountain_trailhead'
+  // Military (competitive mode)
+  | 'barracks';
 
 export type ZoneType = 'none' | 'residential' | 'commercial' | 'industrial';
 
@@ -133,7 +135,13 @@ export type Tool =
   | 'pond_park'
   | 'park_gate'
   | 'mountain_lodge'
-  | 'mountain_trailhead';
+  | 'mountain_trailhead'
+  // Military tools (competitive mode)
+  | 'military_select'
+  | 'train_infantry'
+  | 'train_tank'
+  | 'train_helicopter'
+  | 'barracks';
 
 export interface ToolInfo {
   name: string;
@@ -199,6 +207,12 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   park_gate: { name: 'Park Gate', cost: 150, description: 'Decorative park entrance', size: 1 },
   mountain_lodge: { name: 'Mountain Lodge', cost: 1500, description: 'Nature retreat lodge (2x2)', size: 2 },
   mountain_trailhead: { name: 'Trailhead', cost: 400, description: 'Hiking trail entrance (3x3)', size: 3 },
+  // Military tools (competitive mode)
+  military_select: { name: 'Select Units', cost: 0, description: 'Select and command military units' },
+  train_infantry: { name: 'Train Infantry', cost: 100, description: 'Train infantry units at barracks' },
+  train_tank: { name: 'Train Tank', cost: 500, description: 'Train tank units at barracks' },
+  train_helicopter: { name: 'Train Helicopter', cost: 800, description: 'Train attack helicopters' },
+  barracks: { name: 'Barracks', cost: 1000, description: 'Military training facility (2x2)', size: 2 },
 };
 
 export interface Building {
@@ -313,6 +327,110 @@ export interface WaterBody {
   centerY: number;
 }
 
+// === COMPETITIVE MODE TYPES ===
+
+export type GameMode = 'sandbox' | 'competitive';
+
+export type MilitaryUnitType = 'infantry' | 'tank' | 'military_helicopter';
+
+export interface MilitaryUnit {
+  id: number;
+  type: MilitaryUnitType;
+  playerId: number;
+  x: number; // Screen x position
+  y: number; // Screen y position
+  tileX: number; // Tile position
+  tileY: number; // Tile position
+  health: number;
+  maxHealth: number;
+  damage: number;
+  attackRange: number; // In tiles
+  moveSpeed: number;
+  selected: boolean;
+  targetX: number | null;
+  targetY: number | null;
+  attackTargetId: number | null; // ID of target unit
+  attackBuildingX: number | null; // Building tile to attack
+  attackBuildingY: number | null;
+  state: 'idle' | 'moving' | 'attacking' | 'destroyed';
+  direction: number; // Angle in radians
+  animTimer: number;
+  // For helicopters - altitude handling
+  altitude?: number;
+}
+
+export const MILITARY_UNIT_STATS: Record<MilitaryUnitType, {
+  name: string;
+  cost: number;
+  health: number;
+  damage: number;
+  attackRange: number;
+  moveSpeed: number;
+  attackSpeed: number; // Attacks per second
+}> = {
+  infantry: {
+    name: 'Infantry',
+    cost: 100,
+    health: 50,
+    damage: 10,
+    attackRange: 2,
+    moveSpeed: 30,
+    attackSpeed: 1,
+  },
+  tank: {
+    name: 'Tank',
+    cost: 500,
+    health: 200,
+    damage: 40,
+    attackRange: 4,
+    moveSpeed: 20,
+    attackSpeed: 0.5,
+  },
+  military_helicopter: {
+    name: 'Attack Helicopter',
+    cost: 800,
+    health: 100,
+    damage: 30,
+    attackRange: 5,
+    moveSpeed: 60,
+    attackSpeed: 0.8,
+  },
+};
+
+export interface CompetitivePlayer {
+  id: number;
+  name: string;
+  color: string;
+  isAI: boolean;
+  isEliminated: boolean;
+  money: number;
+  score: number;
+  // Starting city center
+  startX: number;
+  startY: number;
+  // Territory (tiles owned)
+  ownedTiles: Set<string>; // "x,y" format for quick lookup
+}
+
+export interface FogOfWarState {
+  explored: boolean[][]; // Has the player ever seen this tile?
+  visible: boolean[][]; // Can the player currently see this tile?
+}
+
+export interface CompetitiveState {
+  mode: GameMode;
+  players: CompetitivePlayer[];
+  currentPlayerId: number; // Human player is always ID 0
+  units: MilitaryUnit[];
+  unitIdCounter: number;
+  fogOfWar: FogOfWarState;
+  selectedUnitIds: number[];
+  selectionBox: { startX: number; startY: number; endX: number; endY: number } | null;
+  gameOver: boolean;
+  winnerId: number | null;
+  aiUpdateTimer: number;
+}
+
 export interface GameState {
   id: string; // Unique UUID for this game
   grid: Tile[][];
@@ -333,11 +451,13 @@ export interface GameState {
   notifications: Notification[];
   advisorMessages: AdvisorMessage[];
   history: HistoryPoint[];
-  activePanel: 'none' | 'budget' | 'statistics' | 'advisors' | 'settings';
+  activePanel: 'none' | 'budget' | 'statistics' | 'advisors' | 'settings' | 'military';
   disastersEnabled: boolean;
   adjacentCities: AdjacentCity[];
   waterBodies: WaterBody[];
   gameVersion: number; // Increments when a new game starts - used to clear transient state like vehicles
+  // Competitive mode data (optional - only present in competitive games)
+  competitive?: CompetitiveState;
 }
 
 // Saved city metadata for the multi-save system
@@ -424,4 +544,6 @@ export const BUILDING_STATS: Record<BuildingType, { maxPop: number; maxJobs: num
   park_gate: { maxPop: 0, maxJobs: 1, pollution: -2, landValue: 8 },
   mountain_lodge: { maxPop: 0, maxJobs: 15, pollution: -5, landValue: 35 },
   mountain_trailhead: { maxPop: 0, maxJobs: 2, pollution: -10, landValue: 15 },
+  // Military
+  barracks: { maxPop: 0, maxJobs: 30, pollution: 5, landValue: -5 },
 };

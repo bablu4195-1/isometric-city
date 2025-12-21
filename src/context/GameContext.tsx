@@ -10,6 +10,13 @@ import {
   Tool,
   TOOL_INFO,
   ZoneType,
+  GameMode,
+  MilitaryUnit,
+  MilitaryUnitType,
+  CompetitivePlayer,
+  CompetitiveState,
+  FogOfWarState,
+  MILITARY_UNIT_STATS,
 } from '@/types/game';
 import {
   bulldozeTile,
@@ -85,6 +92,14 @@ type GameContextValue = {
   loadSavedCity: (cityId: string) => boolean;
   deleteSavedCity: (cityId: string) => void;
   renameSavedCity: (cityId: string, newName: string) => void;
+  // Competitive mode functions
+  isCompetitiveMode: boolean;
+  trainUnit: (unitType: MilitaryUnitType) => boolean;
+  selectUnits: (unitIds: number[]) => void;
+  setSelectionBox: (box: { startX: number; startY: number; endX: number; endY: number } | null) => void;
+  commandUnitsToMove: (targetX: number, targetY: number) => void;
+  commandUnitsToAttack: (targetTileX: number, targetTileY: number) => void;
+  updateCompetitiveState: () => void;
 };
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -98,6 +113,7 @@ const toolBuildingMap: Partial<Record<Tool, BuildingType>> = {
   rail: 'rail',
   rail_station: 'rail_station',
   tree: 'tree',
+  barracks: 'barracks',
   police_station: 'police_station',
   fire_station: 'fire_station',
   hospital: 'hospital',
@@ -479,7 +495,69 @@ function deleteCityState(cityId: string): void {
   }
 }
 
-export function GameProvider({ children }: { children: React.ReactNode }) {
+// Player colors for competitive mode
+const PLAYER_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#eab308']; // Blue, Red, Green, Yellow
+
+// Create initial competitive state
+function createInitialCompetitiveState(gridSize: number, numPlayers: number = 4): CompetitiveState {
+  const players: CompetitivePlayer[] = [];
+  const margin = Math.floor(gridSize * 0.15);
+  
+  // Player positions (corners of the map)
+  const positions = [
+    { x: margin, y: margin }, // Top-left (Player)
+    { x: gridSize - margin, y: margin }, // Top-right
+    { x: margin, y: gridSize - margin }, // Bottom-left
+    { x: gridSize - margin, y: gridSize - margin }, // Bottom-right
+  ];
+  
+  for (let i = 0; i < numPlayers; i++) {
+    players.push({
+      id: i,
+      name: i === 0 ? 'You' : `AI ${i}`,
+      color: PLAYER_COLORS[i],
+      isAI: i !== 0,
+      isEliminated: false,
+      money: 5000, // Starting resources for competitive
+      score: 0,
+      startX: positions[i].x,
+      startY: positions[i].y,
+      ownedTiles: new Set<string>(),
+    });
+  }
+  
+  // Initialize fog of war (only player's starting area is visible)
+  const explored: boolean[][] = [];
+  const visible: boolean[][] = [];
+  for (let y = 0; y < gridSize; y++) {
+    explored[y] = [];
+    visible[y] = [];
+    for (let x = 0; x < gridSize; x++) {
+      // Player starts with 10 tile radius explored
+      const distToPlayer = Math.sqrt(
+        Math.pow(x - positions[0].x, 2) + Math.pow(y - positions[0].y, 2)
+      );
+      explored[y][x] = distToPlayer <= 12;
+      visible[y][x] = distToPlayer <= 12;
+    }
+  }
+  
+  return {
+    mode: 'competitive',
+    players,
+    currentPlayerId: 0,
+    units: [],
+    unitIdCounter: 0,
+    fogOfWar: { explored, visible },
+    selectedUnitIds: [],
+    selectionBox: null,
+    gameOver: false,
+    winnerId: null,
+    aiUpdateTimer: 0,
+  };
+}
+
+export function GameProvider({ children, initialMode = 'sandbox' }: { children: React.ReactNode; initialMode?: GameMode }) {
   // Start with a default state, we'll load from localStorage after mount
   const [state, setState] = useState<GameState>(() => createInitialGameState(DEFAULT_GRID_SIZE, 'IsoCity'));
   
@@ -514,7 +592,89 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     const cities = loadSavedCitiesIndex();
     setSavedCities(cities);
     
-    // Load game state
+    // Handle competitive mode - start fresh with larger map
+    if (initialMode === 'competitive') {
+      const competitiveGridSize = 100; // Larger map for competitive
+      const freshState = createInitialGameState(competitiveGridSize, 'Battleground');
+      freshState.stats.money = 5000; // Fewer starting resources
+      freshState.competitive = createInitialCompetitiveState(competitiveGridSize, 4);
+      
+      // Place initial buildings for each player (city hall + barracks)
+      const players = freshState.competitive.players;
+      for (const player of players) {
+        // Place city hall at player's starting position
+        const chX = player.startX;
+        const chY = player.startY;
+        if (freshState.grid[chY] && freshState.grid[chY][chX]) {
+          freshState.grid[chY][chX].building = {
+            type: 'city_hall',
+            level: 1,
+            population: 0,
+            jobs: 60,
+            powered: true,
+            watered: true,
+            onFire: false,
+            fireProgress: 0,
+            age: 0,
+            constructionProgress: 100,
+            abandoned: false,
+          };
+          // Mark tiles as owned by this player
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              player.ownedTiles.add(`${chX + dx},${chY + dy}`);
+            }
+          }
+        }
+        
+        // Place barracks nearby
+        const bX = chX + 3;
+        const bY = chY + 1;
+        if (freshState.grid[bY] && freshState.grid[bY][bX]) {
+          freshState.grid[bY][bX].building = {
+            type: 'barracks',
+            level: 1,
+            population: 0,
+            jobs: 30,
+            powered: true,
+            watered: true,
+            onFire: false,
+            fireProgress: 0,
+            age: 0,
+            constructionProgress: 100,
+            abandoned: false,
+          };
+        }
+        
+        // Place some roads
+        for (let i = 1; i <= 2; i++) {
+          const roadX = chX + i;
+          if (freshState.grid[chY] && freshState.grid[chY][roadX]) {
+            freshState.grid[chY][roadX].building = {
+              type: 'road',
+              level: 1,
+              population: 0,
+              jobs: 0,
+              powered: false,
+              watered: false,
+              onFire: false,
+              fireProgress: 0,
+              age: 0,
+              constructionProgress: 100,
+              abandoned: false,
+            };
+          }
+        }
+      }
+      
+      skipNextSaveRef.current = true;
+      setState(freshState);
+      setHasExistingGame(false);
+      hasLoadedRef.current = true;
+      return;
+    }
+    
+    // Load game state (sandbox mode)
     const saved = loadGameState();
     if (saved) {
       skipNextSaveRef.current = true; // Set skip flag BEFORE updating state
@@ -525,7 +685,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
     // Mark as loaded immediately - the skipNextSaveRef will handle skipping the first save
     hasLoadedRef.current = true;
-  }, []);
+  }, [initialMode]);
   
   // Track the state that needs to be saved
   const stateToSaveRef = useRef<GameState | null>(null);
@@ -1118,6 +1278,399 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.id]);
 
+  // === COMPETITIVE MODE FUNCTIONS ===
+  
+  const isCompetitiveMode = state.competitive?.mode === 'competitive';
+  
+  // Train a military unit at the player's barracks
+  const trainUnit = useCallback((unitType: MilitaryUnitType): boolean => {
+    if (!state.competitive) return false;
+    
+    const stats = MILITARY_UNIT_STATS[unitType];
+    const player = state.competitive.players[0]; // Human player
+    
+    if (state.stats.money < stats.cost) return false;
+    
+    // Find a barracks to spawn from
+    let barracksX = player.startX + 3;
+    let barracksY = player.startY + 1;
+    
+    // Search for any barracks owned by the player
+    for (let y = 0; y < state.gridSize; y++) {
+      for (let x = 0; x < state.gridSize; x++) {
+        if (state.grid[y][x].building.type === 'barracks') {
+          // Check if in explored area (player's territory)
+          if (state.competitive.fogOfWar.explored[y][x]) {
+            barracksX = x;
+            barracksY = y;
+            break;
+          }
+        }
+      }
+    }
+    
+    const newUnit: MilitaryUnit = {
+      id: state.competitive.unitIdCounter,
+      type: unitType,
+      playerId: 0,
+      x: barracksX * 64, // Approximate screen position
+      y: barracksY * 32,
+      tileX: barracksX,
+      tileY: barracksY,
+      health: stats.health,
+      maxHealth: stats.health,
+      damage: stats.damage,
+      attackRange: stats.attackRange,
+      moveSpeed: stats.moveSpeed,
+      selected: false,
+      targetX: null,
+      targetY: null,
+      attackTargetId: null,
+      attackBuildingX: null,
+      attackBuildingY: null,
+      state: 'idle',
+      direction: 0,
+      animTimer: 0,
+      altitude: unitType === 'military_helicopter' ? 1 : undefined,
+    };
+    
+    setState((prev) => ({
+      ...prev,
+      stats: {
+        ...prev.stats,
+        money: prev.stats.money - stats.cost,
+      },
+      competitive: prev.competitive ? {
+        ...prev.competitive,
+        units: [...prev.competitive.units, newUnit],
+        unitIdCounter: prev.competitive.unitIdCounter + 1,
+      } : prev.competitive,
+    }));
+    
+    return true;
+  }, [state.competitive, state.stats.money, state.gridSize, state.grid]);
+  
+  // Select units by their IDs
+  const selectUnits = useCallback((unitIds: number[]) => {
+    setState((prev) => {
+      if (!prev.competitive) return prev;
+      
+      const updatedUnits = prev.competitive.units.map(unit => ({
+        ...unit,
+        selected: unitIds.includes(unit.id) && unit.playerId === 0,
+      }));
+      
+      return {
+        ...prev,
+        competitive: {
+          ...prev.competitive,
+          units: updatedUnits,
+          selectedUnitIds: unitIds.filter(id => 
+            updatedUnits.find(u => u.id === id && u.playerId === 0)
+          ),
+        },
+      };
+    });
+  }, []);
+  
+  // Set selection box for drag selection
+  const setSelectionBox = useCallback((box: { startX: number; startY: number; endX: number; endY: number } | null) => {
+    setState((prev) => {
+      if (!prev.competitive) return prev;
+      return {
+        ...prev,
+        competitive: {
+          ...prev.competitive,
+          selectionBox: box,
+        },
+      };
+    });
+  }, []);
+  
+  // Command selected units to move to a location
+  const commandUnitsToMove = useCallback((targetX: number, targetY: number) => {
+    setState((prev) => {
+      if (!prev.competitive) return prev;
+      
+      const updatedUnits = prev.competitive.units.map(unit => {
+        if (unit.selected && unit.playerId === 0) {
+          return {
+            ...unit,
+            targetX,
+            targetY,
+            attackTargetId: null,
+            attackBuildingX: null,
+            attackBuildingY: null,
+            state: 'moving' as const,
+          };
+        }
+        return unit;
+      });
+      
+      return {
+        ...prev,
+        competitive: {
+          ...prev.competitive,
+          units: updatedUnits,
+        },
+      };
+    });
+  }, []);
+  
+  // Command selected units to attack a building
+  const commandUnitsToAttack = useCallback((targetTileX: number, targetTileY: number) => {
+    setState((prev) => {
+      if (!prev.competitive) return prev;
+      
+      const updatedUnits = prev.competitive.units.map(unit => {
+        if (unit.selected && unit.playerId === 0) {
+          return {
+            ...unit,
+            targetX: null,
+            targetY: null,
+            attackTargetId: null,
+            attackBuildingX: targetTileX,
+            attackBuildingY: targetTileY,
+            state: 'attacking' as const,
+          };
+        }
+        return unit;
+      });
+      
+      return {
+        ...prev,
+        competitive: {
+          ...prev.competitive,
+          units: updatedUnits,
+        },
+      };
+    });
+  }, []);
+  
+  // Update competitive state (AI, unit movement, combat, fog of war)
+  const updateCompetitiveState = useCallback(() => {
+    setState((prev) => {
+      if (!prev.competitive || prev.speed === 0) return prev;
+      
+      const delta = 0.1; // Base tick time
+      const speedMult = prev.speed === 1 ? 1 : prev.speed === 2 ? 2 : 3;
+      
+      let updatedUnits = [...prev.competitive.units];
+      let updatedGrid = prev.grid;
+      let gridChanged = false;
+      
+      // Update each unit
+      updatedUnits = updatedUnits.map(unit => {
+        if (unit.state === 'destroyed') return unit;
+        
+        let newUnit = { ...unit, animTimer: unit.animTimer + delta };
+        
+        // Handle movement
+        if (unit.state === 'moving' && unit.targetX !== null && unit.targetY !== null) {
+          const dx = unit.targetX - unit.x;
+          const dy = unit.targetY - unit.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist > 5) {
+            const moveAmount = unit.moveSpeed * delta * speedMult;
+            newUnit.x += (dx / dist) * moveAmount;
+            newUnit.y += (dy / dist) * moveAmount;
+            newUnit.direction = Math.atan2(dy, dx);
+            
+            // Update tile position
+            newUnit.tileX = Math.floor(newUnit.x / 64);
+            newUnit.tileY = Math.floor(newUnit.y / 32);
+          } else {
+            newUnit.state = 'idle';
+            newUnit.targetX = null;
+            newUnit.targetY = null;
+          }
+        }
+        
+        // Handle attacking buildings
+        if (unit.state === 'attacking' && unit.attackBuildingX !== null && unit.attackBuildingY !== null) {
+          const targetTileX = unit.attackBuildingX;
+          const targetTileY = unit.attackBuildingY;
+          
+          // Calculate distance to target
+          const distToTarget = Math.abs(unit.tileX - targetTileX) + Math.abs(unit.tileY - targetTileY);
+          
+          if (distToTarget <= unit.attackRange) {
+            // In range - attack!
+            // Deal damage by starting/increasing fire
+            if (!gridChanged) {
+              updatedGrid = JSON.parse(JSON.stringify(prev.grid));
+              gridChanged = true;
+            }
+            
+            const targetTile = updatedGrid[targetTileY]?.[targetTileX];
+            if (targetTile && targetTile.building.type !== 'grass' && targetTile.building.type !== 'water') {
+              if (!targetTile.building.onFire) {
+                targetTile.building.onFire = true;
+                targetTile.building.fireProgress = 0;
+              }
+              // Increase fire progress
+              targetTile.building.fireProgress = Math.min(100, 
+                targetTile.building.fireProgress + unit.damage * delta * speedMult * 0.5
+              );
+            }
+          } else {
+            // Move toward target
+            const targetScreenX = targetTileX * 64;
+            const targetScreenY = targetTileY * 32;
+            const dx = targetScreenX - unit.x;
+            const dy = targetScreenY - unit.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > 5) {
+              const moveAmount = unit.moveSpeed * delta * speedMult;
+              newUnit.x += (dx / dist) * moveAmount;
+              newUnit.y += (dy / dist) * moveAmount;
+              newUnit.direction = Math.atan2(dy, dx);
+              newUnit.tileX = Math.floor(newUnit.x / 64);
+              newUnit.tileY = Math.floor(newUnit.y / 32);
+            }
+          }
+        }
+        
+        return newUnit;
+      });
+      
+      // Update fog of war based on unit positions
+      const newExplored = prev.competitive.fogOfWar.explored.map(row => [...row]);
+      const newVisible = prev.competitive.fogOfWar.visible.map(row => row.map(() => false));
+      
+      // Player units reveal fog
+      for (const unit of updatedUnits) {
+        if (unit.playerId === 0 && unit.state !== 'destroyed') {
+          const visionRange = unit.type === 'military_helicopter' ? 8 : 5;
+          for (let dy = -visionRange; dy <= visionRange; dy++) {
+            for (let dx = -visionRange; dx <= visionRange; dx++) {
+              const checkX = unit.tileX + dx;
+              const checkY = unit.tileY + dy;
+              if (checkX >= 0 && checkX < prev.gridSize && checkY >= 0 && checkY < prev.gridSize) {
+                if (dx * dx + dy * dy <= visionRange * visionRange) {
+                  newExplored[checkY][checkX] = true;
+                  newVisible[checkY][checkX] = true;
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // Player's starting area is always visible
+      const playerStartX = prev.competitive.players[0].startX;
+      const playerStartY = prev.competitive.players[0].startY;
+      for (let dy = -12; dy <= 12; dy++) {
+        for (let dx = -12; dx <= 12; dx++) {
+          const checkX = playerStartX + dx;
+          const checkY = playerStartY + dy;
+          if (checkX >= 0 && checkX < prev.gridSize && checkY >= 0 && checkY < prev.gridSize) {
+            if (dx * dx + dy * dy <= 144) { // 12^2
+              newVisible[checkY][checkX] = true;
+            }
+          }
+        }
+      }
+      
+      // Simple AI - spawn units and attack player
+      let updatedPlayers = [...prev.competitive.players];
+      const aiTimer = prev.competitive.aiUpdateTimer + delta * speedMult;
+      
+      if (aiTimer >= 5) { // AI acts every 5 seconds
+        for (let i = 1; i < updatedPlayers.length; i++) {
+          const aiPlayer = updatedPlayers[i];
+          if (aiPlayer.isEliminated) continue;
+          
+          // AI spawns units periodically
+          if (Math.random() < 0.3) {
+            const unitType: MilitaryUnitType = Math.random() < 0.6 ? 'infantry' : (Math.random() < 0.7 ? 'tank' : 'military_helicopter');
+            const stats = MILITARY_UNIT_STATS[unitType];
+            
+            const newAIUnit: MilitaryUnit = {
+              id: prev.competitive.unitIdCounter + updatedUnits.length,
+              type: unitType,
+              playerId: aiPlayer.id,
+              x: aiPlayer.startX * 64 + Math.random() * 64,
+              y: aiPlayer.startY * 32 + Math.random() * 32,
+              tileX: aiPlayer.startX,
+              tileY: aiPlayer.startY,
+              health: stats.health,
+              maxHealth: stats.health,
+              damage: stats.damage,
+              attackRange: stats.attackRange,
+              moveSpeed: stats.moveSpeed,
+              selected: false,
+              targetX: null,
+              targetY: null,
+              attackTargetId: null,
+              attackBuildingX: null,
+              attackBuildingY: null,
+              state: 'idle',
+              direction: 0,
+              animTimer: 0,
+              altitude: unitType === 'military_helicopter' ? 1 : undefined,
+            };
+            
+            updatedUnits.push(newAIUnit);
+          }
+          
+          // AI units attack toward player
+          for (const unit of updatedUnits) {
+            if (unit.playerId === aiPlayer.id && unit.state === 'idle') {
+              // 20% chance to start attacking player's city hall
+              if (Math.random() < 0.2) {
+                unit.attackBuildingX = prev.competitive.players[0].startX;
+                unit.attackBuildingY = prev.competitive.players[0].startY;
+                unit.state = 'attacking';
+              }
+            }
+          }
+        }
+      }
+      
+      // Check for elimination (city hall destroyed)
+      for (const player of updatedPlayers) {
+        if (player.isEliminated) continue;
+        
+        const cityHallTile = gridChanged 
+          ? updatedGrid[player.startY]?.[player.startX]
+          : prev.grid[player.startY]?.[player.startX];
+        
+        if (!cityHallTile || cityHallTile.building.type === 'grass' || cityHallTile.building.fireProgress >= 100) {
+          player.isEliminated = true;
+        }
+      }
+      
+      // Check for game over
+      const activePlayers = updatedPlayers.filter(p => !p.isEliminated);
+      const gameOver = activePlayers.length <= 1;
+      const winnerId = gameOver && activePlayers.length === 1 ? activePlayers[0].id : null;
+      
+      // Calculate scores
+      for (const player of updatedPlayers) {
+        const unitCount = updatedUnits.filter(u => u.playerId === player.id && u.state !== 'destroyed').length;
+        player.score = player.isEliminated ? 0 : 1000 + unitCount * 100;
+      }
+      
+      return {
+        ...prev,
+        grid: gridChanged ? updatedGrid : prev.grid,
+        competitive: {
+          ...prev.competitive,
+          units: updatedUnits,
+          unitIdCounter: prev.competitive.unitIdCounter + (updatedUnits.length - prev.competitive.units.length),
+          fogOfWar: { explored: newExplored, visible: newVisible },
+          players: updatedPlayers,
+          gameOver,
+          winnerId,
+          aiUpdateTimer: aiTimer >= 5 ? 0 : aiTimer,
+        },
+      };
+    });
+  }, []);
+
   const value: GameContextValue = {
     state,
     setTool,
@@ -1157,6 +1710,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     loadSavedCity,
     deleteSavedCity,
     renameSavedCity,
+    // Competitive mode functions
+    isCompetitiveMode,
+    trainUnit,
+    selectUnits,
+    setSelectionBox,
+    commandUnitsToMove,
+    commandUnitsToAttack,
+    updateCompetitiveState,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

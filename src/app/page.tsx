@@ -235,6 +235,7 @@ export default function HomePage() {
   const [showGame, setShowGame] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [savedCities, setSavedCities] = useState<SavedCityMeta[]>([]);
+  const [gameMode, setGameMode] = useState<'sandbox' | 'competitive'>('sandbox');
   const { isMobileDevice, isSmallScreen } = useMobile();
   const isMobile = isMobileDevice || isSmallScreen;
 
@@ -280,7 +281,7 @@ export default function HomePage() {
 
   if (showGame) {
     return (
-      <GameProvider>
+      <GameProvider initialMode={gameMode}>
         <main className="h-screen w-screen overflow-hidden">
           <Game onExit={handleExitGame} />
         </main>
@@ -305,14 +306,29 @@ export default function HomePage() {
         {/* Buttons */}
         <div className="flex flex-col gap-3 w-full max-w-xs">
           <Button 
-            onClick={() => setShowGame(true)}
+            onClick={() => {
+              setGameMode('sandbox');
+              setShowGame(true);
+            }}
             className="w-full py-6 text-xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
           >
             Start
           </Button>
           
           <Button 
+            onClick={() => {
+              setGameMode('competitive');
+              localStorage.removeItem(STORAGE_KEY);
+              setShowGame(true);
+            }}
+            className="w-full py-6 text-xl font-light tracking-wide bg-red-500/20 hover:bg-red-500/30 text-red-200 hover:text-red-100 border border-red-500/30 rounded-none transition-all duration-300"
+          >
+            Start Competitive
+          </Button>
+          
+          <Button 
             onClick={async () => {
+              setGameMode('sandbox');
               const { default: exampleState } = await import('@/resources/example_state_8.json');
               localStorage.setItem(STORAGE_KEY, JSON.stringify(exampleState));
               setShowGame(true);
@@ -357,13 +373,27 @@ export default function HomePage() {
           </h1>
           <div className="flex flex-col gap-3">
             <Button 
-              onClick={() => setShowGame(true)}
+              onClick={() => {
+                setGameMode('sandbox');
+                setShowGame(true);
+              }}
               className="w-64 py-8 text-2xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
             >
               Start
             </Button>
             <Button 
+              onClick={() => {
+                setGameMode('competitive');
+                localStorage.removeItem(STORAGE_KEY); // Start fresh for competitive
+                setShowGame(true);
+              }}
+              className="w-64 py-8 text-2xl font-light tracking-wide bg-red-500/20 hover:bg-red-500/30 text-red-200 hover:text-red-100 border border-red-500/30 rounded-none transition-all duration-300"
+            >
+              Start Competitive
+            </Button>
+            <Button 
               onClick={async () => {
+                setGameMode('sandbox');
                 const { default: exampleState } = await import('@/resources/example_state_8.json');
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(exampleState));
                 setShowGame(true);

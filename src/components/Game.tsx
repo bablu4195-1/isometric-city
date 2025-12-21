@@ -23,7 +23,9 @@ import {
   StatisticsPanel,
   SettingsPanel,
   AdvisorsPanel,
+  MilitaryPanel,
 } from '@/components/game/panels';
+import { Scoreboard } from '@/components/game/Scoreboard';
 import { MiniMap } from '@/components/game/MiniMap';
 import { TopBar, StatsPanel } from '@/components/game/TopBar';
 import { CanvasIsometricGrid } from '@/components/game/CanvasIsometricGrid';
@@ -32,7 +34,7 @@ import { CanvasIsometricGrid } from '@/components/game/CanvasIsometricGrid';
 const CARGO_TYPE_NAMES = ['containers', 'bulk materials', 'oil'];
 
 export default function Game({ onExit }: { onExit?: () => void }) {
-  const { state, setTool, setActivePanel, addMoney, addNotification, setSpeed } = useGame();
+  const { state, setTool, setActivePanel, addMoney, addNotification, setSpeed, isCompetitiveMode, updateCompetitiveState } = useGame();
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
   const [navigationTarget, setNavigationTarget] = useState<{ x: number; y: number } | null>(null);
@@ -152,6 +154,17 @@ export default function Game({ onExit }: { onExit?: () => void }) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [state.activePanel, state.selectedTool, state.speed, selectedTile, setActivePanel, setTool, setSpeed, overlayMode]);
+
+  // Update competitive state periodically
+  useEffect(() => {
+    if (!isCompetitiveMode) return;
+    
+    const interval = setInterval(() => {
+      updateCompetitiveState();
+    }, 100); // Update every 100ms for smooth unit movement
+    
+    return () => clearInterval(interval);
+  }, [isCompetitiveMode, updateCompetitiveState]);
 
   // Handle cheat code triggers
   useEffect(() => {
@@ -275,6 +288,10 @@ export default function Game({ onExit }: { onExit?: () => void }) {
         {state.activePanel === 'statistics' && <StatisticsPanel />}
         {state.activePanel === 'advisors' && <AdvisorsPanel />}
         {state.activePanel === 'settings' && <SettingsPanel />}
+        {state.activePanel === 'military' && <MilitaryPanel />}
+        
+        {/* Scoreboard for competitive mode */}
+        {isCompetitiveMode && <Scoreboard />}
         
         <VinnieDialog open={showVinnieDialog} onOpenChange={setShowVinnieDialog} />
         <CommandMenu />

@@ -103,6 +103,7 @@ import {
   TRAINS_PER_RAIL_TILES,
 } from '@/components/game/trainSystem';
 import { Train } from '@/components/game/types';
+import { drawMilitaryUnits, drawFogOfWar, findUnitsInSelectionBox, findUnitAtPosition } from '@/components/game/militarySystem';
 
 // Props interface for CanvasIsometricGrid
 export interface CanvasIsometricGridProps {
@@ -118,8 +119,8 @@ export interface CanvasIsometricGridProps {
 
 // Canvas-based Isometric Grid - HIGH PERFORMANCE
 export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile, isMobile = false, navigationTarget, onNavigationComplete, onViewportChange, onBargeDelivery }: CanvasIsometricGridProps) {
-  const { state, placeAtTile, connectToCity, checkAndDiscoverCities, currentSpritePack, visualHour } = useGame();
-  const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies, gameVersion } = state;
+  const { state, placeAtTile, connectToCity, checkAndDiscoverCities, currentSpritePack, visualHour, isCompetitiveMode, selectUnits, setSelectionBox, commandUnitsToMove, commandUnitsToAttack } = useGame();
+  const { grid, gridSize, selectedTool, speed, adjacentCities, waterBodies, gameVersion, competitive } = state;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoverCanvasRef = useRef<HTMLCanvasElement>(null); // PERF: Separate canvas for hover/selection highlights
   const carsCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -166,6 +167,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const initialPinchDistanceRef = useRef<number | null>(null);
   const initialZoomRef = useRef<number>(zoom);
   const lastTouchCenterRef = useRef<{ x: number; y: number } | null>(null);
+  
+  // Military unit selection state
+  const [militarySelectionStart, setMilitarySelectionStart] = useState<{ x: number; y: number } | null>(null);
+  const militaryCanvasRef = useRef<HTMLCanvasElement>(null);
   
   // Airplane system refs
   const airplanesRef = useRef<Airplane[]>([]);
@@ -3147,12 +3152,31 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         }
         drawAirplanes(airCtx); // Draw airplanes above everything
         drawFireworks(airCtx); // Draw fireworks above everything (nighttime only)
+        
+        // Draw military units in competitive mode
+        if (competitive) {
+          const { offset: mOffset, zoom: mZoom } = worldStateRef.current;
+          drawMilitaryUnits(airCtx, competitive, mOffset, mZoom, airCanvas.width, airCanvas.height);
+        }
       }
     };
     
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, drawRecreationPedestrians, updateAirplanes, drawAirplanes, updateHelicopters, drawHelicopters, updateSeaplanes, drawSeaplanes, updateBoats, drawBoats, updateBarges, drawBarges, updateTrains, drawTrainsCallback, drawIncidentIndicators, updateFireworks, drawFireworks, updateSmog, drawSmog, visualHour, isMobile, grid, gridSize, speed]);
+  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, drawRecreationPedestrians, updateAirplanes, drawAirplanes, updateHelicopters, drawHelicopters, updateSeaplanes, drawSeaplanes, updateBoats, drawBoats, updateBarges, drawBarges, updateTrains, drawTrainsCallback, drawIncidentIndicators, updateFireworks, drawFireworks, updateSmog, drawSmog, visualHour, isMobile, grid, gridSize, speed, competitive]);
+  
+  // Fog of war rendering for competitive mode
+  useEffect(() => {
+    if (!competitive || !isCompetitiveMode) return;
+    
+    const canvas = lightingCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Draw fog of war on top of lighting
+    drawFogOfWar(ctx, competitive.fogOfWar, gridSize, offset, zoom);
+  }, [competitive, isCompetitiveMode, gridSize, offset, zoom]);
   
   // Day/Night cycle lighting rendering - optimized for performance
   useEffect(() => {
@@ -3435,6 +3459,25 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         const mouseY = (e.clientY - rect.top) / zoom;
         const { gridX, gridY } = screenToGrid(mouseX, mouseY, offset.x / zoom, offset.y / zoom);
         
+        // Handle military unit selection in competitive mode
+        if (isCompetitiveMode && selectedTool === 'military_select' && competitive) {
+          const clickX = e.clientX - rect.left;
+          const clickY = e.clientY - rect.top;
+          
+          // Check if clicked on a unit
+          const clickedUnit = findUnitAtPosition(competitive.units, clickX, clickY, offset, zoom);
+          
+          if (clickedUnit && clickedUnit.playerId === 0) {
+            // Select the clicked unit
+            selectUnits([clickedUnit.id]);
+          } else {
+            // Start selection box
+            setMilitarySelectionStart({ x: clickX, y: clickY });
+            setSelectionBox({ startX: clickX, startY: clickY, endX: clickX, endY: clickY });
+          }
+          return;
+        }
+        
         if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
           if (selectedTool === 'select') {
             // For multi-tile buildings, select the origin tile
@@ -3467,7 +3510,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         }
       }
     }
-  }, [offset, gridSize, selectedTool, placeAtTile, zoom, showsDragGrid, supportsDragPlace, setSelectedTile, findBuildingOrigin]);
+  }, [offset, gridSize, selectedTool, placeAtTile, zoom, showsDragGrid, supportsDragPlace, setSelectedTile, findBuildingOrigin, isCompetitiveMode, competitive, selectUnits, setSelectionBox]);
   
   // Calculate camera bounds based on grid size
   const getMapBounds = useCallback((currentZoom: number, canvasW: number, canvasH: number) => {
@@ -3536,6 +3579,18 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     
     const rect = containerRef.current?.getBoundingClientRect();
     if (rect) {
+      // Handle military selection box dragging
+      if (militarySelectionStart && isCompetitiveMode) {
+        const currentX = e.clientX - rect.left;
+        const currentY = e.clientY - rect.top;
+        setSelectionBox({
+          startX: militarySelectionStart.x,
+          startY: militarySelectionStart.y,
+          endX: currentX,
+          endY: currentY,
+        });
+      }
+      
       const mouseX = (e.clientX - rect.left) / zoom;
       const mouseY = (e.clientY - rect.top) / zoom;
       const { gridX, gridY } = screenToGrid(mouseX, mouseY, offset.x / zoom, offset.y / zoom);
@@ -3623,9 +3678,21 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         }
       }
     }
-  }, [isPanning, dragStart, offset, zoom, gridSize, isDragging, showsDragGrid, dragStartTile, selectedTool, roadDrawDirection, supportsDragPlace, placeAtTile, clampOffset, grid]);
+  }, [isPanning, dragStart, offset, zoom, gridSize, isDragging, showsDragGrid, dragStartTile, selectedTool, roadDrawDirection, supportsDragPlace, placeAtTile, clampOffset, grid, militarySelectionStart, isCompetitiveMode, setSelectionBox]);
   
   const handleMouseUp = useCallback(() => {
+    // Handle military selection box release
+    if (militarySelectionStart && isCompetitiveMode && competitive?.selectionBox) {
+      const box = competitive.selectionBox;
+      const selectedIds = findUnitsInSelectionBox(competitive.units, box, offset, zoom);
+      if (selectedIds.length > 0) {
+        selectUnits(selectedIds);
+      }
+      setMilitarySelectionStart(null);
+      setSelectionBox(null);
+      return;
+    }
+    
     // Fill the drag rectangle when mouse is released (only for zoning tools)
     if (isDragging && dragStartTile && dragEndTile && showsDragGrid) {
       const minX = Math.min(dragStartTile.x, dragEndTile.x);
@@ -3659,13 +3726,47 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     setIsPanning(false);
     setRoadDrawDirection(null);
     placedRoadTilesRef.current.clear();
+    setMilitarySelectionStart(null);
     
     // Clear hovered tile when mouse leaves
     if (!containerRef.current) {
       setHoveredTile(null);
     }
-  }, [isDragging, showsDragGrid, dragStartTile, placeAtTile, selectedTool, dragEndTile, checkAndDiscoverCities]);
+  }, [isDragging, showsDragGrid, dragStartTile, placeAtTile, selectedTool, dragEndTile, checkAndDiscoverCities, militarySelectionStart, isCompetitiveMode, competitive, offset, zoom, selectUnits, setSelectionBox]);
   
+  // Handle right-click for military unit commands
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (!isCompetitiveMode || !competitive) return;
+    
+    // Prevent default context menu
+    e.preventDefault();
+    
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    // Check if any units are selected
+    const selectedUnits = competitive.units.filter(u => u.selected && u.playerId === 0);
+    if (selectedUnits.length === 0) return;
+    
+    const mouseX = (e.clientX - rect.left) / zoom;
+    const mouseY = (e.clientY - rect.top) / zoom;
+    const { gridX, gridY } = screenToGrid(mouseX, mouseY, offset.x / zoom, offset.y / zoom);
+    
+    if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
+      const tile = grid[gridY]?.[gridX];
+      
+      // Check if clicking on an enemy building or unit
+      if (tile && tile.building.type !== 'grass' && tile.building.type !== 'water' && tile.building.type !== 'road') {
+        // Attack command
+        commandUnitsToAttack(gridX, gridY);
+      } else {
+        // Move command - convert grid to screen position for movement target
+        const screenTarget = gridToScreen(gridX, gridY, 0, 0);
+        commandUnitsToMove(screenTarget.screenX + TILE_WIDTH / 2, screenTarget.screenY + TILE_HEIGHT / 2);
+      }
+    }
+  }, [isCompetitiveMode, competitive, offset, zoom, gridSize, grid, commandUnitsToAttack, commandUnitsToMove]);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     
@@ -3845,6 +3946,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onContextMenu={handleContextMenu}
       onWheel={handleWheel}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
