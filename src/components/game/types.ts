@@ -23,10 +23,35 @@ export type Car = {
 };
 
 // Airplane types for airport animation
-export type AirplaneState = 'flying' | 'landing' | 'taking_off' | 'taxiing';
+// States: taxiing_to_runway -> takeoff_roll -> rotating -> climbing -> flying -> approach -> final_approach -> flare -> touchdown -> rollout -> taxiing_to_gate
+export type AirplaneState = 
+  | 'flying'           // Cruising at altitude
+  | 'landing'          // Legacy: descending toward airport
+  | 'taking_off'       // Legacy: climbing from airport
+  | 'taxiing'          // Legacy: on ground
+  | 'taxiing_to_runway'  // Moving to runway start position
+  | 'takeoff_roll'       // Accelerating on runway before rotation
+  | 'rotating'           // Nose up, about to lift off
+  | 'climbing'           // Initial climb after liftoff
+  | 'approach'           // Descending toward airport from distance
+  | 'final_approach'     // On final approach, aligned with runway
+  | 'flare'              // Pitch up just before touchdown
+  | 'touchdown'          // Wheels just touched, rubber smoke
+  | 'rollout';           // Decelerating on runway after landing
 
 // Plane model types from the sprite sheet
 export type PlaneType = '737' | '777' | '747' | 'a380' | 'g650' | 'seaplane';
+
+// Runway smoke/dust particle type
+export type RunwayParticle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  age: number;
+  opacity: number;
+  size: number;
+};
 
 export type ContrailParticle = {
   x: number;
@@ -42,6 +67,8 @@ export type Airplane = {
   y: number;
   // Flight direction in radians
   angle: number;
+  // Target angle for smooth rotation during ground ops
+  targetAngle: number;
   // Current state
   state: AirplaneState;
   // Speed (pixels per second in screen space)
@@ -53,16 +80,34 @@ export type Airplane = {
   // Airport tile coordinates (for landing/takeoff reference)
   airportX: number;
   airportY: number;
+  // Runway angle (direction the runway points for takeoff/landing)
+  runwayAngle: number;
+  // Runway start position (screen coords) for takeoff
+  runwayStartX: number;
+  runwayStartY: number;
+  // Runway end position (screen coords) for takeoff direction target
+  runwayEndX: number;
+  runwayEndY: number;
   // Progress for landing/takeoff (0-1)
   stateProgress: number;
   // Contrail particles
   contrail: ContrailParticle[];
+  // Runway particles (tire smoke, dust)
+  runwayParticles: RunwayParticle[];
+  // Wake particles for ground effect
+  wakeSpawnProgress: number;
   // Time until despawn (for flying planes)
   lifeTime: number;
   // Plane color/style (legacy, for fallback rendering)
   color: string;
   // Plane model type from sprite sheet
   planeType: PlaneType;
+  // Pitch angle for visual rotation (nose up during rotation/flare)
+  pitch: number;
+  // Time spent in current state
+  stateTime: number;
+  // Whether this plane is departing (taking off) or arriving (landing)
+  isDeparting: boolean;
 };
 
 // Seaplane types for bay/water operations

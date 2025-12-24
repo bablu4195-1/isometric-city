@@ -64,6 +64,50 @@ export const AIRPLANE_COLORS = ['#ffffff', '#1e40af', '#dc2626', '#059669', '#7c
 export const CONTRAIL_MAX_AGE = 3.0; // seconds
 export const CONTRAIL_SPAWN_INTERVAL = 0.02; // seconds between contrail particles
 
+// Runway dynamics constants
+// Runway direction: In the 3x3 airport, the runway points toward top-right (NE in screen space)
+// This is approximately -45 degrees or -PI/4 radians (going UP and to the RIGHT on screen)
+export const RUNWAY_ANGLE = -Math.PI / 4; // Direction planes take off toward (NE on screen)
+export const RUNWAY_LENGTH = 180; // Visual runway length in pixels for taxi/roll calculations
+
+// Airplane ground operation speeds (pixels/second)
+export const AIRPLANE_TAXI_SPEED = 15; // Slow taxi to/from runway
+export const AIRPLANE_TAKEOFF_ROLL_SPEED_INITIAL = 25; // Start of takeoff roll
+export const AIRPLANE_TAKEOFF_ROLL_ACCELERATION = 80; // Acceleration during roll (px/s²)
+export const AIRPLANE_ROTATION_SPEED = 90; // Speed at rotation point (V1)
+export const AIRPLANE_LIFTOFF_SPEED = 100; // Speed at liftoff (VR)
+export const AIRPLANE_CLIMB_SPEED = 110; // Initial climb speed
+export const AIRPLANE_CRUISE_SPEED_MIN = 80; // Minimum cruise speed
+export const AIRPLANE_CRUISE_SPEED_MAX = 120; // Maximum cruise speed
+
+// Landing speeds
+export const AIRPLANE_APPROACH_SPEED = 90; // Approach speed
+export const AIRPLANE_FINAL_APPROACH_SPEED = 70; // On final
+export const AIRPLANE_FLARE_SPEED = 60; // Just before touchdown
+export const AIRPLANE_TOUCHDOWN_SPEED = 55; // At touchdown
+export const AIRPLANE_ROLLOUT_DECELERATION = 40; // Deceleration during rollout (px/s²)
+
+// State timing constants (seconds)
+export const AIRPLANE_TAXI_TIME_MIN = 2; // Minimum taxi time to runway
+export const AIRPLANE_TAXI_TIME_MAX = 4; // Maximum taxi time to runway
+export const AIRPLANE_TAKEOFF_ROLL_DISTANCE = 120; // Pixels to travel on runway before rotation
+export const AIRPLANE_ROTATION_TIME = 0.8; // Time in rotation state before liftoff
+export const AIRPLANE_FLARE_TIME = 0.6; // Time in flare before touchdown
+export const AIRPLANE_TOUCHDOWN_SMOKE_DURATION = 0.4; // Duration of tire smoke
+export const AIRPLANE_ROLLOUT_DISTANCE = 100; // Distance to travel after touchdown
+
+// Climb and descent rates
+export const AIRPLANE_CLIMB_RATE = 0.5; // Altitude units per second during climb
+export const AIRPLANE_DESCENT_RATE = 0.2; // Altitude units per second during approach
+export const AIRPLANE_FINAL_DESCENT_RATE = 0.35; // Faster descent rate on final
+
+// Runway effects constants
+export const RUNWAY_PARTICLE_MAX_AGE = 1.2; // How long tire smoke/dust particles last
+export const RUNWAY_PARTICLE_SPAWN_INTERVAL = 0.03; // Spawn interval during effects
+export const TOUCHDOWN_SMOKE_INTENSITY = 8; // Number of particles at touchdown
+export const RUNWAY_SMOKE_COLOR_TAKEOFF = 'rgba(180, 170, 150, '; // Dust/exhaust color
+export const RUNWAY_SMOKE_COLOR_LANDING = 'rgba(100, 100, 100, '; // Tire smoke (darker)
+
 // Airplane sprite sheet configuration
 export const AIRPLANE_SPRITE_SRC = '/assets/sprites_red_water_new_planes.png';
 export const AIRPLANE_SPRITE_COLS = 5; // 5 columns per row

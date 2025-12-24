@@ -3,7 +3,7 @@
  * Extracted from CanvasIsometricGrid for better modularity
  */
 
-import { Airplane, Helicopter, Seaplane, TILE_WIDTH, TILE_HEIGHT, PlaneType } from './types';
+import { Airplane, Helicopter, Seaplane, TILE_WIDTH, TILE_HEIGHT, PlaneType, RunwayParticle } from './types';
 import {
   AIRPLANE_SPRITE_COLS,
   AIRPLANE_SPRITE_ROWS,
@@ -208,7 +208,43 @@ function getPlaneSprite(
 }
 
 /**
- * Draw airplanes with contrails using sprite sheet
+ * Draw runway particles (tire smoke, dust, exhaust)
+ */
+function drawRunwayParticles(
+  ctx: CanvasRenderingContext2D,
+  particles: RunwayParticle[],
+  viewBounds: { viewLeft: number; viewTop: number; viewRight: number; viewBottom: number },
+  isTakeoff: boolean
+): void {
+  if (particles.length === 0) return;
+  
+  ctx.save();
+  for (const particle of particles) {
+    // Skip if outside viewport
+    if (
+      particle.x < viewBounds.viewLeft - 20 ||
+      particle.x > viewBounds.viewRight + 20 ||
+      particle.y < viewBounds.viewTop - 20 ||
+      particle.y > viewBounds.viewBottom + 20
+    ) {
+      continue;
+    }
+    
+    // Takeoff particles are more brownish (dust/exhaust), landing particles are darker (tire smoke)
+    const baseColor = isTakeoff 
+      ? `rgba(180, 170, 150, ${particle.opacity * 0.5})`  // Dust/exhaust
+      : `rgba(80, 80, 80, ${particle.opacity * 0.6})`;     // Tire smoke
+    
+    ctx.fillStyle = baseColor;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/**
+ * Draw airplanes with contrails and runway effects using sprite sheet
  */
 export function drawAirplanes(
   ctx: CanvasRenderingContext2D,
@@ -224,7 +260,7 @@ export function drawAirplanes(
   const planeSprite = getCachedImage(AIRPLANE_SPRITE_CACHE_KEY, false);
 
   for (const plane of airplanes) {
-    // Draw contrails first (behind plane)
+    // Draw contrails first (behind plane) - only at altitude
     if (plane.contrail.length > 0) {
       ctx.save();
       for (const particle of plane.contrail) {
@@ -248,6 +284,12 @@ export function drawAirplanes(
       }
       ctx.restore();
     }
+    
+    // Draw runway particles (tire smoke, dust) - only on ground
+    if (plane.runwayParticles && plane.runwayParticles.length > 0) {
+      const isTakeoff = plane.isDeparting;
+      drawRunwayParticles(ctx, plane.runwayParticles, viewBounds, isTakeoff);
+    }
 
     // Skip plane rendering if outside viewport
     if (
@@ -262,15 +304,23 @@ export function drawAirplanes(
     // Get direction from angle (with hysteresis to prevent flickering)
     const direction = angleToDirection(plane.angle, plane);
     
-    // Draw shadow (when low altitude)
+    // Determine if plane is on ground for shadow calculation
+    const isOnGround = plane.altitude < 0.05;
+    
+    // Draw shadow (when low altitude or on ground)
     if (plane.altitude < 0.8) {
-      const shadowOffset = (1 - plane.altitude) * 18;
-      const shadowOpacity = 0.25 * (1 - plane.altitude);
+      // Shadow offset decreases as altitude decreases (shadow closer to plane)
+      const shadowOffset = isOnGround ? 2 : (1 - plane.altitude) * 18;
+      // Shadow more visible when higher, subtle when on ground
+      const shadowOpacity = isOnGround ? 0.15 : 0.25 * (1 - plane.altitude);
       const baseScale = PLANE_SCALES[plane.planeType] || 0.6;
-      const shadowScale = (0.55 + plane.altitude * 0.35) * baseScale;
+      const shadowScale = isOnGround 
+        ? baseScale * 0.85  // Ground shadow slightly smaller
+        : (0.55 + plane.altitude * 0.35) * baseScale;
 
       ctx.save();
       ctx.translate(plane.x + shadowOffset, plane.y + shadowOffset * 0.5);
+      ctx.rotate(plane.angle); // Rotate shadow with plane direction
       ctx.scale(shadowScale, shadowScale * 0.5);
       ctx.fillStyle = `rgba(0, 0, 0, ${shadowOpacity})`;
       
@@ -300,15 +350,25 @@ export function drawAirplanes(
         const rotationOffset = getRotationOffset(plane.angle, spriteInfo.baseAngle);
         ctx.rotate(rotationOffset);
         
+        // Apply pitch effect (nose up/down)
+        // Pitch affects the Y scale slightly to simulate 3D rotation
+        const pitch = plane.pitch || 0;
+        const pitchScale = 1 - Math.abs(pitch) * 0.3; // Compress slightly when pitched
+        const pitchOffset = -pitch * 15; // Move up when nose up
+        
         // Scale based on altitude and plane type
         const baseScale = PLANE_SCALES[plane.planeType] || 0.3;
-        const altitudeScale = 0.7 + plane.altitude * 0.5;
+        // On ground, use a consistent scale; in air, scale with altitude
+        const altitudeScale = isOnGround ? 0.85 : 0.7 + plane.altitude * 0.5;
         const totalScale = baseScale * altitudeScale;
         
         // Apply mirroring if needed (mirrorX = horizontal flip, mirrorY = vertical flip)
         const scaleX = spriteInfo.mirrorX ? -totalScale : totalScale;
-        const scaleY = spriteInfo.mirrorY ? -totalScale : totalScale;
+        const scaleY = (spriteInfo.mirrorY ? -totalScale : totalScale) * pitchScale;
         ctx.scale(scaleX, scaleY);
+        
+        // Apply pitch offset
+        ctx.translate(0, pitchOffset);
         
         // Draw the sprite centered
         ctx.drawImage(
