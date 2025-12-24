@@ -64,6 +64,44 @@ export const AIRPLANE_COLORS = ['#ffffff', '#1e40af', '#dc2626', '#059669', '#7c
 export const CONTRAIL_MAX_AGE = 3.0; // seconds
 export const CONTRAIL_SPAWN_INTERVAL = 0.02; // seconds between contrail particles
 
+// Airplane dynamics constants
+export const AIRPLANE_TAXI_SPEED = 15; // Speed when taxiing on ground (pixels/sec)
+export const AIRPLANE_TAKEOFF_ACCELERATION = 80; // Acceleration during takeoff roll (pixels/sec^2)
+export const AIRPLANE_ROTATION_SPEED = 100; // Speed when rotating (lift off) (pixels/sec)
+export const AIRPLANE_CLIMB_SPEED = 120; // Speed during initial climb (pixels/sec)
+export const AIRPLANE_CRUISE_SPEED_MIN = 80; // Minimum cruising speed (pixels/sec)
+export const AIRPLANE_CRUISE_SPEED_MAX = 120; // Maximum cruising speed (pixels/sec)
+export const AIRPLANE_APPROACH_SPEED = 60; // Speed on approach (pixels/sec)
+export const AIRPLANE_FLARE_SPEED = 45; // Speed during flare (pixels/sec)
+export const AIRPLANE_TOUCHDOWN_SPEED = 50; // Speed at touchdown (pixels/sec)
+export const AIRPLANE_ROLLOUT_DECEL = 35; // Deceleration during rollout (pixels/sec^2)
+export const AIRPLANE_CLIMB_RATE = 0.4; // Altitude gain per second during climb (0-1 scale)
+export const AIRPLANE_DESCENT_RATE = 0.15; // Altitude loss per second during descent
+export const AIRPLANE_FLARE_ALTITUDE = 0.08; // Altitude at which to start flare
+export const AIRPLANE_MAX_PITCH = 0.3; // Maximum pitch angle during rotation (radians, ~17 degrees)
+export const AIRPLANE_TURN_RATE = 1.5; // Maximum turn rate (radians/sec)
+
+// Airplane state timing constants
+export const AIRPLANE_HOLDING_TIME_MIN = 1.0; // Minimum time holding short (seconds)
+export const AIRPLANE_HOLDING_TIME_MAX = 3.0; // Maximum time holding short
+export const AIRPLANE_TAXI_TO_RUNWAY_TIME = 2.0; // Time to taxi from gate to runway
+export const AIRPLANE_TAXI_TO_GATE_TIME = 3.0; // Time to taxi from runway to gate
+export const AIRPLANE_FLIGHT_TIME_MIN = 25; // Minimum flight time (seconds)
+export const AIRPLANE_FLIGHT_TIME_MAX = 45; // Maximum flight time
+export const AIRPLANE_SPAWN_INTERVAL_MIN = 3; // Minimum seconds between spawns
+export const AIRPLANE_SPAWN_INTERVAL_MAX = 8; // Maximum seconds between spawns
+
+// Jet exhaust particle constants
+export const JET_EXHAUST_MAX_AGE = 0.6; // seconds
+export const JET_EXHAUST_SPAWN_INTERVAL = 0.02; // seconds between particles
+export const JET_EXHAUST_SPEED = 60; // Initial exhaust velocity (pixels/sec)
+export const JET_EXHAUST_MAX_PARTICLES = 30; // Max particles per plane
+
+// Tire smoke particle constants (landing)
+export const TIRE_SMOKE_MAX_AGE = 0.8; // seconds
+export const TIRE_SMOKE_SPAWN_INTERVAL = 0.015; // seconds between particles during touchdown
+export const TIRE_SMOKE_MAX_PARTICLES = 20; // Max particles per landing
+
 // Airplane sprite sheet configuration
 export const AIRPLANE_SPRITE_SRC = '/assets/sprites_red_water_new_planes.png';
 export const AIRPLANE_SPRITE_COLS = 5; // 5 columns per row

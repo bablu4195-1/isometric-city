@@ -262,19 +262,90 @@ export function findFires(
 }
 
 /**
- * Find all airports in the city
+ * Airport info with runway orientation
+ */
+export interface AirportInfo {
+  x: number;
+  y: number;
+  flipped: boolean;
+  // Runway direction: NE (toward top-right) when not flipped, SE (toward bottom-right) when flipped
+  runwayAngle: number;
+  // Screen coordinates for runway start (threshold where takeoffs begin / landings end)
+  runwayStartX: number;
+  runwayStartY: number;
+  // Screen coordinates for runway end (where takeoffs end / landings touch down)
+  runwayEndX: number;
+  runwayEndY: number;
+  // Terminal/gate position (where planes taxi to/from)
+  terminalX: number;
+  terminalY: number;
+}
+
+/**
+ * Find all airports in the city with runway orientation info
+ * The airport runway runs diagonally - toward NE when not flipped, toward SE when flipped
  */
 export function findAirports(
   grid: Tile[][],
   gridSize: number
-): { x: number; y: number }[] {
+): AirportInfo[] {
   if (!grid || gridSize <= 0) return [];
 
-  const airports: { x: number; y: number }[] = [];
+  const airports: AirportInfo[] = [];
   for (let y = 0; y < gridSize; y++) {
     for (let x = 0; x < gridSize; x++) {
       if (grid[y][x].building.type === 'airport') {
-        airports.push({ x, y });
+        const tile = grid[y][x];
+        const flipped = tile.building.flipped === true;
+        
+        // Airport is 4x4, runway runs diagonally across it
+        // In isometric view:
+        // - Not flipped: runway points NE (toward top-right of screen)
+        // - Flipped: runway points NW (toward top-left of screen)
+        
+        // Calculate screen coordinates for the airport origin
+        const { screenX: originX, screenY: originY } = gridToScreen(x, y, 0, 0);
+        
+        // Airport is 4x4 tiles, center is at offset (2, 2) in tiles
+        const centerX = originX + TILE_WIDTH * 2;
+        const centerY = originY + TILE_HEIGHT * 2;
+        
+        // Runway direction angles in screen space
+        // NE direction: -PI/4 (up-right) - this is the default (not flipped)
+        // NW direction: -3*PI/4 (up-left) - when flipped
+        // The runway asset shows planes taking off toward top-right (NE)
+        const runwayAngle = flipped ? (-3 * Math.PI / 4) : (-Math.PI / 4);
+        
+        // Runway extends from near the bottom of the tile to near the top
+        // In screen space, the runway is about 3 tiles long
+        const runwayLength = TILE_WIDTH * 2.5;
+        
+        // Start is at the threshold (back of runway - where takeoffs start)
+        // End is at the departure end (front of runway - where takeoffs end)
+        const runwayStartX = centerX - Math.cos(runwayAngle) * runwayLength * 0.4;
+        const runwayStartY = centerY - Math.sin(runwayAngle) * runwayLength * 0.4;
+        const runwayEndX = centerX + Math.cos(runwayAngle) * runwayLength * 0.6;
+        const runwayEndY = centerY + Math.sin(runwayAngle) * runwayLength * 0.6;
+        
+        // Terminal is on the opposite side of the runway from the centerline
+        // Offset perpendicular to runway direction
+        const perpAngle = runwayAngle + Math.PI / 2;
+        const terminalOffset = TILE_WIDTH * 0.8;
+        const terminalX = centerX + Math.cos(perpAngle) * terminalOffset;
+        const terminalY = centerY + Math.sin(perpAngle) * terminalOffset;
+        
+        airports.push({
+          x,
+          y,
+          flipped,
+          runwayAngle,
+          runwayStartX,
+          runwayStartY,
+          runwayEndX,
+          runwayEndY,
+          terminalX,
+          terminalY,
+        });
       }
     }
   }
