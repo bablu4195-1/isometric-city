@@ -12,7 +12,6 @@ import {
   PLANE_TYPES,
   // Runway dynamics constants
   RUNWAY_HEADING,
-  RUNWAY_HEADING_OPPOSITE,
   AIRPLANE_TAXI_SPEED,
   AIRPLANE_TAXI_TIME_MIN,
   AIRPLANE_TAXI_TIME_MAX,
@@ -44,7 +43,7 @@ import {
   RUNWAY_LENGTH,
 } from './constants';
 import { gridToScreen } from './utils';
-import { findAirports, findHeliports } from './gridFinders';
+import { findAirports, findHeliports, AirportInfo } from './gridFinders';
 
 export interface AircraftSystemRefs {
   airplanesRef: React.MutableRefObject<Airplane[]>;
@@ -78,7 +77,7 @@ export function useAircraftSystems(
   const { worldStateRef, gridVersionRef, cachedPopulationRef, isMobile } = systemState;
 
   // Find airports callback
-  const findAirportsCallback = useCallback((): { x: number; y: number }[] => {
+  const findAirportsCallback = useCallback((): AirportInfo[] => {
     const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
     return findAirports(currentGrid, currentGridSize);
   }, [worldStateRef]);
@@ -150,13 +149,23 @@ export function useAircraftSystems(
       const airport = airports[Math.floor(Math.random() * airports.length)];
       
       // Convert airport tile to screen coordinates
-      // 3x3 airport - center is at 1.5 tiles offset
+      // 3x3 airport - center is at 1.5 tiles offset (note: game.ts says 4x4 but asset appears 3x3)
       const { screenX: airportScreenX, screenY: airportScreenY } = gridToScreen(airport.x, airport.y, 0, 0);
       const airportCenterX = airportScreenX + TILE_WIDTH * 1.5;
       const airportCenterY = airportScreenY + TILE_HEIGHT * 1.5;
       
+      // Calculate runway heading based on whether airport is flipped
+      // When flipped, the runway direction mirrors horizontally
+      // Original: NE direction (RUNWAY_HEADING ≈ -π/4)
+      // Flipped: NW direction (π - RUNWAY_HEADING ≈ 3π/4)
+      const actualRunwayHeading = airport.flipped 
+        ? Math.PI - RUNWAY_HEADING  // Mirror horizontally: NE becomes NW
+        : RUNWAY_HEADING;
+      
       // Calculate runway threshold position (start of runway for takeoff)
-      const runwayThresholdX = airportCenterX + RUNWAY_THRESHOLD_OFFSET_X;
+      // When flipped, the X offset should be mirrored
+      const thresholdOffsetX = airport.flipped ? -RUNWAY_THRESHOLD_OFFSET_X : RUNWAY_THRESHOLD_OFFSET_X;
+      const runwayThresholdX = airportCenterX + thresholdOffsetX;
       const runwayThresholdY = airportCenterY + RUNWAY_THRESHOLD_OFFSET_Y;
       
       // Decide if taking off or arriving from distance
@@ -172,8 +181,8 @@ export function useAircraftSystems(
           id: airplaneIdRef.current++,
           x: airportCenterX + terminalOffsetX,
           y: airportCenterY + terminalOffsetY,
-          angle: RUNWAY_HEADING + (Math.random() - 0.5) * 0.3, // Start facing roughly toward runway
-          targetAngle: RUNWAY_HEADING,
+          angle: actualRunwayHeading + (Math.random() - 0.5) * 0.3, // Start facing roughly toward runway
+          targetAngle: actualRunwayHeading,
           state: 'taxiing_to_runway',
           speed: AIRPLANE_TAXI_SPEED * (0.8 + Math.random() * 0.4),
           altitude: 0,
@@ -182,7 +191,7 @@ export function useAircraftSystems(
           airportY: airport.y,
           airportScreenX: airportCenterX,
           airportScreenY: airportCenterY,
-          runwayAngle: RUNWAY_HEADING,
+          runwayAngle: actualRunwayHeading,
           stateProgress: 0,
           contrail: [],
           tireSmoke: [],
@@ -194,6 +203,7 @@ export function useAircraftSystems(
           color: AIRPLANE_COLORS[Math.floor(Math.random() * AIRPLANE_COLORS.length)],
           planeType: planeType,
           isArriving: false,
+          isAirportFlipped: airport.flipped,
           pitch: 0,
           roll: 0,
         });
@@ -243,7 +253,7 @@ export function useAircraftSystems(
           airportY: airport.y,
           airportScreenX: airportCenterX,
           airportScreenY: airportCenterY,
-          runwayAngle: RUNWAY_HEADING,
+          runwayAngle: actualRunwayHeading, // Use correct heading based on flip
           stateProgress: 0,
           contrail: [],
           tireSmoke: [],
@@ -255,6 +265,7 @@ export function useAircraftSystems(
           color: AIRPLANE_COLORS[Math.floor(Math.random() * AIRPLANE_COLORS.length)],
           planeType: planeType,
           isArriving: true,
+          isAirportFlipped: airport.flipped,
           pitch: 0,
           roll: 0,
         });
@@ -308,7 +319,9 @@ export function useAircraftSystems(
       }
       
       // Calculate runway threshold and end positions
-      const runwayThresholdX = plane.airportScreenX + RUNWAY_THRESHOLD_OFFSET_X;
+      // Account for flipped airports - X offset is mirrored when flipped
+      const thresholdOffsetX = plane.isAirportFlipped ? -RUNWAY_THRESHOLD_OFFSET_X : RUNWAY_THRESHOLD_OFFSET_X;
+      const runwayThresholdX = plane.airportScreenX + thresholdOffsetX;
       const runwayThresholdY = plane.airportScreenY + RUNWAY_THRESHOLD_OFFSET_Y;
       const runwayEndX = runwayThresholdX + Math.cos(plane.runwayAngle) * RUNWAY_LENGTH;
       const runwayEndY = runwayThresholdY + Math.sin(plane.runwayAngle) * RUNWAY_LENGTH;
@@ -452,8 +465,8 @@ export function useAircraftSystems(
             // Arriving plane: start approach when close and lifetime running low
             if (plane.lifeTime < 15 || distToAirport < 400) {
               // Calculate the approach path: need to align with runway
-              // Land on opposite heading (coming from SW, landing toward NE)
-              const landingHeading = RUNWAY_HEADING_OPPOSITE;
+              // Land on opposite heading (landing direction is opposite of takeoff)
+              const landingHeading = plane.runwayAngle + Math.PI;
               
               // Calculate ideal approach position (extended final)
               const approachDist = 250;
@@ -487,7 +500,8 @@ export function useAircraftSystems(
         
         case 'approach': {
           // Final approach: descend while aligning with runway
-          const landingHeading = RUNWAY_HEADING_OPPOSITE;
+          // Landing heading is opposite of takeoff heading
+          const landingHeading = plane.runwayAngle + Math.PI;
           
           // Calculate distance to runway threshold
           const distToThreshold = Math.hypot(plane.x - runwayThresholdX, plane.y - runwayThresholdY);
@@ -539,8 +553,9 @@ export function useAircraftSystems(
           // Final flare before touchdown
           plane.stateProgress += delta;
           
-          // Lock onto runway heading
-          plane.angle = smoothTurn(plane.angle, RUNWAY_HEADING_OPPOSITE, 2.0, delta);
+          // Lock onto runway heading (landing is opposite of takeoff)
+          const landingHeading = plane.runwayAngle + Math.PI;
+          plane.angle = smoothTurn(plane.angle, landingHeading, 2.0, delta);
           plane.roll = 0;
           
           // Pitch up slightly for flare
@@ -587,8 +602,9 @@ export function useAircraftSystems(
           plane.altitude = 0;
           plane.pitch = 0;
           
-          // Keep aligned with runway
-          plane.angle = smoothTurn(plane.angle, RUNWAY_HEADING_OPPOSITE, 1.5, delta);
+          // Keep aligned with runway (landing heading)
+          const landingHeading = plane.runwayAngle + Math.PI;
+          plane.angle = smoothTurn(plane.angle, landingHeading, 1.5, delta);
           
           // Decelerate
           plane.speed = Math.max(AIRPLANE_ROLLOUT_END_SPEED + 20, plane.speed - AIRPLANE_ROLLOUT_DECELERATION * delta);

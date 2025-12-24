@@ -126,6 +126,8 @@ export type Airplane = {
   planeType: PlaneType;
   // Whether this plane is arriving (from edge) or departing (from airport)
   isArriving: boolean;
+  // Whether the airport is flipped/mirrored (affects runway threshold position)
+  isAirportFlipped: boolean;
   // Pitch angle for rotation during takeoff/landing (visual only)
   pitch: number;
   // Roll angle for banking during turns (visual only)

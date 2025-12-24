@@ -262,19 +262,32 @@ export function findFires(
 }
 
 /**
+ * Airport info including position and orientation
+ */
+export interface AirportInfo {
+  x: number;
+  y: number;
+  flipped: boolean; // Whether the airport sprite is horizontally mirrored
+}
+
+/**
  * Find all airports in the city
  */
 export function findAirports(
   grid: Tile[][],
   gridSize: number
-): { x: number; y: number }[] {
+): AirportInfo[] {
   if (!grid || gridSize <= 0) return [];
 
-  const airports: { x: number; y: number }[] = [];
+  const airports: AirportInfo[] = [];
   for (let y = 0; y < gridSize; y++) {
     for (let x = 0; x < gridSize; x++) {
       if (grid[y][x].building.type === 'airport') {
-        airports.push({ x, y });
+        airports.push({ 
+          x, 
+          y, 
+          flipped: grid[y][x].building.flipped ?? false 
+        });
       }
     }
   }
