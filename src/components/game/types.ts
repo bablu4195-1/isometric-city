@@ -23,7 +23,27 @@ export type Car = {
 };
 
 // Airplane types for airport animation
-export type AirplaneState = 'flying' | 'landing' | 'taking_off' | 'taxiing';
+export type AirplaneState = 
+  | 'flying'           // In the air, cruising
+  | 'approaching'      // Descending toward runway, lining up for landing
+  | 'landing'          // Final approach, about to touch down
+  | 'touchdown'        // Just touched down, tire smoke and deceleration
+  | 'rolling_land'     // Rolling on runway after landing, slowing down
+  | 'taxiing'          // Taxiing on ground
+  | 'rolling_takeoff'  // Accelerating on runway for takeoff
+  | 'rotating'         // Nose up, about to lift off
+  | 'taking_off';      // Just left the ground, climbing
+
+// Runway smoke/tire marks for landing effects
+export type RunwaySmokeParticle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  age: number;
+  opacity: number;
+  size: number;
+};
 
 // Plane model types from the sprite sheet
 export type PlaneType = '737' | '777' | '747' | 'a380' | 'g650' | 'seaplane';
@@ -42,6 +62,8 @@ export type Airplane = {
   y: number;
   // Flight direction in radians
   angle: number;
+  // Target angle for smooth turning
+  targetAngle: number;
   // Current state
   state: AirplaneState;
   // Speed (pixels per second in screen space)
@@ -53,12 +75,27 @@ export type Airplane = {
   // Airport tile coordinates (for landing/takeoff reference)
   airportX: number;
   airportY: number;
+  // Airport flip status (affects runway direction)
+  airportFlipped: boolean;
+  // Runway angle for this airport
+  runwayAngle: number;
+  // Runway screen coordinates
+  runwayCenterX: number;
+  runwayCenterY: number;
+  runwayStartX: number;
+  runwayStartY: number;
+  runwayEndX: number;
+  runwayEndY: number;
   // Progress for landing/takeoff (0-1)
   stateProgress: number;
   // Contrail particles
   contrail: ContrailParticle[];
+  // Runway smoke particles (for landing touchdown)
+  runwaySmoke: RunwaySmokeParticle[];
   // Time until despawn (for flying planes)
   lifeTime: number;
+  // Taxi time before takeoff
+  taxiTime: number;
   // Plane color/style (legacy, for fallback rendering)
   color: string;
   // Plane model type from sprite sheet

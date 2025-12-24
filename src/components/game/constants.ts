@@ -64,6 +64,25 @@ export const AIRPLANE_COLORS = ['#ffffff', '#1e40af', '#dc2626', '#059669', '#7c
 export const CONTRAIL_MAX_AGE = 3.0; // seconds
 export const CONTRAIL_SPAWN_INTERVAL = 0.02; // seconds between contrail particles
 
+// Airplane dynamics constants
+export const AIRPLANE_TAXI_SPEED = 15; // Speed when taxiing on ground (px/sec)
+export const AIRPLANE_TAKEOFF_ROLL_SPEED = 80; // Speed during takeoff roll
+export const AIRPLANE_TAKEOFF_SPEED = 120; // Speed at liftoff
+export const AIRPLANE_FLIGHT_SPEED_MIN = 100; // Minimum cruising speed
+export const AIRPLANE_FLIGHT_SPEED_MAX = 140; // Maximum cruising speed
+export const AIRPLANE_APPROACH_SPEED = 70; // Speed during landing approach
+export const AIRPLANE_TOUCHDOWN_SPEED = 60; // Speed at touchdown
+export const AIRPLANE_TAXI_TIME_MIN = 2; // Minimum taxi time before takeoff (seconds)
+export const AIRPLANE_TAXI_TIME_MAX = 5; // Maximum taxi time before takeoff (seconds)
+export const AIRPLANE_FLIGHT_TIME_MIN = 25; // Minimum flight time (seconds)
+export const AIRPLANE_FLIGHT_TIME_MAX = 45; // Maximum flight time (seconds)
+export const AIRPLANE_MIN_ZOOM = 0.3; // Minimum zoom to show detailed airplane effects
+
+// Runway smoke constants (for landing touchdown effects)
+export const RUNWAY_SMOKE_MAX_AGE = 1.2; // seconds
+export const RUNWAY_SMOKE_SPAWN_INTERVAL = 0.03; // seconds between smoke particles during touchdown
+export const RUNWAY_SMOKE_MAX_PARTICLES = 30; // Maximum smoke particles per plane
+
 // Airplane sprite sheet configuration
 export const AIRPLANE_SPRITE_SRC = '/assets/sprites_red_water_new_planes.png';
 export const AIRPLANE_SPRITE_COLS = 5; // 5 columns per row

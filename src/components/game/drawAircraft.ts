@@ -208,7 +208,7 @@ function getPlaneSprite(
 }
 
 /**
- * Draw airplanes with contrails using sprite sheet
+ * Draw airplanes with contrails and runway effects using sprite sheet
  */
 export function drawAirplanes(
   ctx: CanvasRenderingContext2D,
@@ -224,7 +224,34 @@ export function drawAirplanes(
   const planeSprite = getCachedImage(AIRPLANE_SPRITE_CACHE_KEY, false);
 
   for (const plane of airplanes) {
-    // Draw contrails first (behind plane)
+    // Draw runway smoke particles first (during touchdown)
+    if (plane.runwaySmoke && plane.runwaySmoke.length > 0) {
+      ctx.save();
+      for (const particle of plane.runwaySmoke) {
+        // Skip if outside viewport
+        if (
+          particle.x < viewBounds.viewLeft - 20 ||
+          particle.x > viewBounds.viewRight + 20 ||
+          particle.y < viewBounds.viewTop - 20 ||
+          particle.y > viewBounds.viewBottom + 20
+        ) {
+          continue;
+        }
+
+        // Tire smoke is gray/brown, expands and fades
+        const size = particle.size;
+        const opacity = particle.opacity * 0.5;
+
+        // Grayish-brown tire smoke color
+        ctx.fillStyle = `rgba(140, 130, 120, ${opacity})`;
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    
+    // Draw contrails (behind plane, when at altitude)
     if (plane.contrail.length > 0) {
       ctx.save();
       for (const particle of plane.contrail) {
@@ -262,21 +289,30 @@ export function drawAirplanes(
     // Get direction from angle (with hysteresis to prevent flickering)
     const direction = angleToDirection(plane.angle, plane);
     
-    // Draw shadow (when low altitude)
-    if (plane.altitude < 0.8) {
-      const shadowOffset = (1 - plane.altitude) * 18;
-      const shadowOpacity = 0.25 * (1 - plane.altitude);
+    // Draw shadow - more prominent when on ground, subtle when flying
+    const isOnGround = plane.altitude < 0.1;
+    if (plane.altitude < 0.9) {
+      // Shadow offset decreases as altitude increases (shadow moves closer to plane)
+      const shadowOffset = isOnGround ? 3 : (1 - plane.altitude) * 18;
+      // Shadow is more visible on ground
+      const shadowOpacity = isOnGround ? 0.35 : 0.25 * (1 - plane.altitude);
       const baseScale = PLANE_SCALES[plane.planeType] || 0.6;
-      const shadowScale = (0.55 + plane.altitude * 0.35) * baseScale;
+      // Shadow scale matches plane on ground, shrinks with altitude
+      const shadowScale = isOnGround 
+        ? baseScale * 0.85 
+        : (0.55 + plane.altitude * 0.35) * baseScale;
 
       ctx.save();
       ctx.translate(plane.x + shadowOffset, plane.y + shadowOffset * 0.5);
+      ctx.rotate(plane.angle); // Align shadow with plane direction
       ctx.scale(shadowScale, shadowScale * 0.5);
       ctx.fillStyle = `rgba(0, 0, 0, ${shadowOpacity})`;
       
-      // Simple ellipse shadow
+      // Ellipse shadow - larger on ground to show full plane shape
+      const shadowWidth = isOnGround ? 70 : 50;
+      const shadowHeight = isOnGround ? 28 : 20;
       ctx.beginPath();
-      ctx.ellipse(0, 0, 50, 20, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, shadowWidth, shadowHeight, 0, 0, Math.PI * 2);
       ctx.fill();
       
       ctx.restore();

@@ -262,19 +262,91 @@ export function findFires(
 }
 
 /**
- * Find all airports in the city
+ * Airport information including runway orientation
+ */
+export interface AirportInfo {
+  x: number;
+  y: number;
+  // Whether the airport sprite is flipped (affects runway direction)
+  isFlipped: boolean;
+  // Runway angle in radians (screen space)
+  // Normal (not flipped): runway points NE (-π/4 radians, toward top-right of screen)
+  // Flipped: runway points SE (+π/4 radians, toward bottom-right of screen)
+  runwayAngle: number;
+  // Screen coordinates of runway center (for takeoff/landing positioning)
+  runwayCenterX: number;
+  runwayCenterY: number;
+  // Screen coordinates of runway start (beginning of takeoff roll)
+  runwayStartX: number;
+  runwayStartY: number;
+  // Screen coordinates of runway end (end of landing roll)
+  runwayEndX: number;
+  runwayEndY: number;
+}
+
+/**
+ * Find all airports in the city with runway orientation info
  */
 export function findAirports(
   grid: Tile[][],
   gridSize: number
-): { x: number; y: number }[] {
+): AirportInfo[] {
   if (!grid || gridSize <= 0) return [];
 
-  const airports: { x: number; y: number }[] = [];
+  const airports: AirportInfo[] = [];
   for (let y = 0; y < gridSize; y++) {
     for (let x = 0; x < gridSize; x++) {
       if (grid[y][x].building.type === 'airport') {
-        airports.push({ x, y });
+        const tile = grid[y][x];
+        
+        // Determine if the airport is flipped using the same logic as rendering
+        // Airport is a 4x4 building, check road adjacency for flip direction
+        const mirrorSeed = (x * 47 + y * 83) % 100;
+        const isFlipped = mirrorSeed < 50;
+        
+        // Calculate runway angle based on flip status
+        // Looking at the airport sprite: runway goes from bottom-left to top-right
+        // In isometric screen space:
+        // - Normal: runway points toward NE (top-right) = angle of approximately -0.46 radians
+        // - Flipped: runway points toward SE (bottom-right) = angle of approximately +0.46 radians
+        // The runway angle is roughly 25 degrees from horizontal due to isometric projection
+        const runwayAngle = isFlipped ? 0.46 : -0.46;
+        
+        // Get screen coordinates for the airport
+        const { screenX, screenY } = gridToScreen(x, y, 0, 0);
+        
+        // Airport is 4x4 tiles, so center is at offset (2, 2) tiles from origin
+        // The runway is offset slightly from the building center
+        // Runway runs diagonally across the airport
+        const airportCenterX = screenX + TILE_WIDTH * 2;
+        const airportCenterY = screenY + TILE_HEIGHT * 2;
+        
+        // Runway is approximately 3.5 tiles long in isometric space
+        // Calculate runway endpoints based on direction
+        const runwayHalfLength = TILE_WIDTH * 1.5; // Half the runway length in screen pixels
+        
+        // Runway center is slightly offset from airport center toward the runway
+        const runwayCenterX = airportCenterX + (isFlipped ? 10 : -10);
+        const runwayCenterY = airportCenterY + 5;
+        
+        // Calculate runway start and end points
+        const runwayStartX = runwayCenterX - Math.cos(runwayAngle) * runwayHalfLength;
+        const runwayStartY = runwayCenterY - Math.sin(runwayAngle) * runwayHalfLength;
+        const runwayEndX = runwayCenterX + Math.cos(runwayAngle) * runwayHalfLength;
+        const runwayEndY = runwayCenterY + Math.sin(runwayAngle) * runwayHalfLength;
+        
+        airports.push({
+          x,
+          y,
+          isFlipped,
+          runwayAngle,
+          runwayCenterX,
+          runwayCenterY,
+          runwayStartX,
+          runwayStartY,
+          runwayEndX,
+          runwayEndY,
+        });
       }
     }
   }
