@@ -64,6 +64,56 @@ export const AIRPLANE_COLORS = ['#ffffff', '#1e40af', '#dc2626', '#059669', '#7c
 export const CONTRAIL_MAX_AGE = 3.0; // seconds
 export const CONTRAIL_SPAWN_INTERVAL = 0.02; // seconds between contrail particles
 
+// Runway dynamics - 3x3 airport runway is aligned NE (top-right of screen)
+// In isometric screen space: NE direction = angle pointing up-right
+// Runway heading for takeoff (toward NE): approximately -PI/4 + small adjustment for isometric
+export const RUNWAY_HEADING = -Math.PI / 4 - 0.15; // ~-60 degrees, aligned NE in isometric view
+export const RUNWAY_HEADING_OPPOSITE = RUNWAY_HEADING + Math.PI; // Opposite direction for landing from SW
+
+// Taxi speeds and times
+export const AIRPLANE_TAXI_SPEED = 12; // pixels/second while taxiing
+export const AIRPLANE_TAXI_TIME_MIN = 2.0; // minimum seconds taxiing to/from runway
+export const AIRPLANE_TAXI_TIME_MAX = 4.0; // maximum seconds taxiing
+
+// Takeoff roll dynamics
+export const AIRPLANE_TAKEOFF_ROLL_SPEED_START = 15; // initial speed on runway
+export const AIRPLANE_TAKEOFF_ROLL_SPEED_ROTATE = 80; // speed at which plane rotates (lifts nose)
+export const AIRPLANE_TAKEOFF_ROLL_ACCELERATION = 45; // pixels/second^2 during takeoff roll
+export const AIRPLANE_ROTATION_DURATION = 0.5; // seconds for nose-up rotation
+export const AIRPLANE_INITIAL_CLIMB_SPEED = 100; // speed during initial climb
+export const AIRPLANE_CLIMB_RATE = 0.35; // altitude units per second during climb
+
+// Landing approach dynamics  
+export const AIRPLANE_APPROACH_SPEED = 70; // speed during final approach
+export const AIRPLANE_FLARE_DISTANCE = 80; // pixels from runway threshold to begin flare
+export const AIRPLANE_FLARE_SPEED = 50; // speed during flare
+export const AIRPLANE_DESCENT_RATE = 0.20; // altitude units per second during descent
+export const AIRPLANE_FLARE_DESCENT_RATE = 0.5; // faster descent rate during flare
+export const AIRPLANE_APPROACH_TURN_RATE = 1.2; // radians per second max turn rate during approach
+export const AIRPLANE_APPROACH_ALTITUDE = 0.6; // altitude to begin final approach
+
+// Touchdown and rollout
+export const AIRPLANE_TOUCHDOWN_SPEED = 45; // speed at moment of touchdown
+export const AIRPLANE_ROLLOUT_DECELERATION = 35; // pixels/second^2 deceleration on runway
+export const AIRPLANE_ROLLOUT_END_SPEED = 12; // speed at end of rollout (transitions to taxi)
+
+// Cruising flight
+export const AIRPLANE_CRUISE_SPEED_MIN = 90; // minimum cruising speed
+export const AIRPLANE_CRUISE_SPEED_MAX = 130; // maximum cruising speed
+export const AIRPLANE_CRUISE_ALTITUDE = 1.0; // normal cruising altitude
+
+// Visual effects
+export const TIRE_SMOKE_MAX_AGE = 1.2; // seconds tire smoke lasts
+export const TIRE_SMOKE_SPAWN_RATE = 0.03; // seconds between tire smoke particles
+export const THRUST_PARTICLE_MAX_AGE = 0.4; // seconds thrust/heat effect lasts
+export const THRUST_PARTICLE_SPAWN_RATE = 0.05; // seconds between thrust particles
+
+// Runway offset from airport center (in screen pixels)
+// The runway in the 3x3 airport asset is slightly offset
+export const RUNWAY_THRESHOLD_OFFSET_X = -40; // offset from airport center to runway start
+export const RUNWAY_THRESHOLD_OFFSET_Y = 20; // offset from airport center to runway start
+export const RUNWAY_LENGTH = 180; // approximate runway length in pixels
+
 // Airplane sprite sheet configuration
 export const AIRPLANE_SPRITE_SRC = '/assets/sprites_red_water_new_planes.png';
 export const AIRPLANE_SPRITE_COLS = 5; // 5 columns per row

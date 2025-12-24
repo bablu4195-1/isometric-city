@@ -208,7 +208,7 @@ function getPlaneSprite(
 }
 
 /**
- * Draw airplanes with contrails using sprite sheet
+ * Draw airplanes with contrails, tire smoke, and thrust effects using sprite sheet
  */
 export function drawAirplanes(
   ctx: CanvasRenderingContext2D,
@@ -249,6 +249,62 @@ export function drawAirplanes(
       ctx.restore();
     }
 
+    // Draw tire smoke particles (touchdown effect)
+    if (plane.tireSmoke && plane.tireSmoke.length > 0) {
+      ctx.save();
+      for (const smoke of plane.tireSmoke) {
+        if (
+          smoke.x < viewBounds.viewLeft - 20 ||
+          smoke.x > viewBounds.viewRight + 20 ||
+          smoke.y < viewBounds.viewTop - 20 ||
+          smoke.y > viewBounds.viewBottom + 20
+        ) {
+          continue;
+        }
+
+        // Gray-brown tire smoke
+        const gray = 180 + Math.floor(smoke.age * 30);
+        ctx.fillStyle = `rgba(${gray}, ${gray - 20}, ${gray - 40}, ${smoke.opacity * 0.7})`;
+        ctx.beginPath();
+        ctx.arc(smoke.x, smoke.y, smoke.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Draw thrust/heat particles (takeoff effect)
+    if (plane.thrustParticles && plane.thrustParticles.length > 0 && !isMobile) {
+      ctx.save();
+      for (const particle of plane.thrustParticles) {
+        if (
+          particle.x < viewBounds.viewLeft - 20 ||
+          particle.x > viewBounds.viewRight + 20 ||
+          particle.y < viewBounds.viewTop - 20 ||
+          particle.y > viewBounds.viewBottom + 20
+        ) {
+          continue;
+        }
+
+        // Heat shimmer effect - slight distortion appearance
+        const size = 3 + particle.age * 6;
+        const shimmerOffset = Math.sin(particle.age * 20) * 2;
+        
+        // Yellowish-orange heat glow
+        const alpha = particle.opacity * 0.4;
+        ctx.fillStyle = `rgba(255, 200, 100, ${alpha * 0.5})`;
+        ctx.beginPath();
+        ctx.arc(particle.x + shimmerOffset, particle.y, size * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Inner brighter core
+        ctx.fillStyle = `rgba(255, 240, 200, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, size * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
     // Skip plane rendering if outside viewport
     if (
       plane.x < viewBounds.viewLeft - 80 ||
@@ -262,22 +318,64 @@ export function drawAirplanes(
     // Get direction from angle (with hysteresis to prevent flickering)
     const direction = angleToDirection(plane.angle, plane);
     
-    // Draw shadow (when low altitude)
+    // Determine if plane is on ground (taxi, takeoff roll, rollout, etc.)
+    const isOnGround = plane.altitude < 0.05;
+    const isLowAltitude = plane.altitude < 0.3;
+    const isTakingOff = plane.state === 'takeoff_roll' || plane.state === 'rotating' || plane.state === 'initial_climb';
+    const isLanding = plane.state === 'flare' || plane.state === 'touchdown' || plane.state === 'rollout';
+    
+    // Draw shadow (enhanced for ground operations)
     if (plane.altitude < 0.8) {
-      const shadowOffset = (1 - plane.altitude) * 18;
-      const shadowOpacity = 0.25 * (1 - plane.altitude);
+      // Shadow is sharper and closer when on ground
+      const shadowOffset = isOnGround ? 3 : (1 - plane.altitude) * 18;
+      const shadowOpacity = isOnGround ? 0.35 : 0.25 * (1 - plane.altitude);
       const baseScale = PLANE_SCALES[plane.planeType] || 0.6;
-      const shadowScale = (0.55 + plane.altitude * 0.35) * baseScale;
+      // Shadow scale: on ground it matches plane size more closely
+      const shadowScale = isOnGround 
+        ? baseScale * 0.9 
+        : (0.55 + plane.altitude * 0.35) * baseScale;
 
       ctx.save();
       ctx.translate(plane.x + shadowOffset, plane.y + shadowOffset * 0.5);
-      ctx.scale(shadowScale, shadowScale * 0.5);
+      
+      // Rotate shadow to match plane angle when on ground
+      if (isOnGround) {
+        ctx.rotate(plane.angle);
+      }
+      
+      ctx.scale(shadowScale, shadowScale * (isOnGround ? 0.4 : 0.5));
       ctx.fillStyle = `rgba(0, 0, 0, ${shadowOpacity})`;
       
       // Simple ellipse shadow
       ctx.beginPath();
       ctx.ellipse(0, 0, 50, 20, 0, 0, Math.PI * 2);
       ctx.fill();
+      
+      ctx.restore();
+    }
+
+    // Draw speed blur effect during takeoff roll and touchdown
+    if ((isTakingOff || isLanding) && plane.speed > 40 && !isMobile) {
+      const blurIntensity = Math.min(0.3, (plane.speed - 40) / 200);
+      const blurLength = Math.min(30, plane.speed * 0.3);
+      
+      ctx.save();
+      ctx.translate(plane.x, plane.y);
+      ctx.rotate(plane.angle);
+      
+      // Motion blur lines behind the plane
+      for (let i = 0; i < 5; i++) {
+        const yOffset = (i - 2) * 6;
+        const lineLength = blurLength * (0.6 + Math.random() * 0.4);
+        const alpha = blurIntensity * (0.5 + Math.random() * 0.5);
+        
+        ctx.strokeStyle = `rgba(200, 200, 200, ${alpha})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-20, yOffset);
+        ctx.lineTo(-20 - lineLength, yOffset);
+        ctx.stroke();
+      }
       
       ctx.restore();
     }
@@ -300,9 +398,17 @@ export function drawAirplanes(
         const rotationOffset = getRotationOffset(plane.angle, spriteInfo.baseAngle);
         ctx.rotate(rotationOffset);
         
+        // Apply pitch for takeoff rotation and landing flare (subtle visual effect)
+        const pitch = plane.pitch || 0;
+        if (Math.abs(pitch) > 0.01) {
+          // Pitch affects the vertical scale slightly
+          ctx.scale(1, 1 - Math.abs(pitch) * 0.1);
+        }
+        
         // Scale based on altitude and plane type
         const baseScale = PLANE_SCALES[plane.planeType] || 0.3;
-        const altitudeScale = 0.7 + plane.altitude * 0.5;
+        // Planes on ground are at full scale, flying planes appear larger due to altitude
+        const altitudeScale = isOnGround ? 0.85 : (0.7 + plane.altitude * 0.5);
         const totalScale = baseScale * altitudeScale;
         
         // Apply mirroring if needed (mirrorX = horizontal flip, mirrorY = vertical flip)
@@ -330,6 +436,11 @@ export function drawAirplanes(
         if (isNight) {
           drawNavigationLights(ctx, plane, navLightFlashTimer, isMobile, totalScale, spriteInfo.baseAngle, spriteInfo.mirrorX, spriteInfo.mirrorY);
         }
+        
+        // Draw landing lights during approach/landing at night
+        if (isNight && (plane.state === 'approach' || plane.state === 'flare' || isLanding) && !isMobile) {
+          drawLandingLights(ctx, plane);
+        }
       } else {
         // Fallback to simple drawing if sprite info not found
         drawFallbackAirplane(ctx, plane, hour, navLightFlashTimer, isMobile);
@@ -339,6 +450,37 @@ export function drawAirplanes(
       drawFallbackAirplane(ctx, plane, hour, navLightFlashTimer, isMobile);
     }
   }
+}
+
+/**
+ * Draw landing lights for planes on approach/landing at night
+ */
+function drawLandingLights(ctx: CanvasRenderingContext2D, plane: Airplane): void {
+  ctx.save();
+  
+  // Landing lights point forward and slightly down
+  const lightDistance = 60 + (1 - plane.altitude) * 40;
+  const lightX = plane.x + Math.cos(plane.angle) * lightDistance;
+  const lightY = plane.y + Math.sin(plane.angle) * lightDistance + 10;
+  
+  // Create a cone of light
+  const gradient = ctx.createRadialGradient(lightX, lightY, 0, lightX, lightY, 40);
+  gradient.addColorStop(0, 'rgba(255, 255, 240, 0.4)');
+  gradient.addColorStop(0.5, 'rgba(255, 255, 220, 0.15)');
+  gradient.addColorStop(1, 'rgba(255, 255, 200, 0)');
+  
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(lightX, lightY, 40, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Bright source point
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.beginPath();
+  ctx.arc(plane.x + Math.cos(plane.angle) * 15, plane.y + Math.sin(plane.angle) * 15, 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.restore();
 }
 
 /**
