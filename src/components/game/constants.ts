@@ -64,6 +64,12 @@ export const AIRPLANE_COLORS = ['#ffffff', '#1e40af', '#dc2626', '#059669', '#7c
 export const CONTRAIL_MAX_AGE = 3.0; // seconds
 export const CONTRAIL_SPAWN_INTERVAL = 0.02; // seconds between contrail particles
 
+// Airplane activity tuning
+export const AIRPLANE_SPAWN_INTERVAL_MIN = 0.8;
+export const AIRPLANE_SPAWN_INTERVAL_MAX = 2.5;
+// Bias toward departures so there is more taxiing visible near airports.
+export const AIRPLANE_TAKEOFF_PROBABILITY = 0.75;
+
 // Airplane dynamics (runway-aware takeoff/landing)
 export const AIRPLANE_TAXI_SPEED = 26; // px/sec on ground
 export const AIRPLANE_TAXI_TURN_RATE = 1.6; // rad/sec (snappy but not twitchy)

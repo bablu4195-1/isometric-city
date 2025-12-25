@@ -6,6 +6,9 @@ import {
   AIRPLANE_COLORS,
   CONTRAIL_MAX_AGE,
   CONTRAIL_SPAWN_INTERVAL,
+  AIRPLANE_SPAWN_INTERVAL_MIN,
+  AIRPLANE_SPAWN_INTERVAL_MAX,
+  AIRPLANE_TAKEOFF_PROBABILITY,
   AIRPLANE_TAXI_SPEED,
   AIRPLANE_TAXI_TURN_RATE,
   AIRPLANE_TAKEOFF_ROLL_SPEED_START,
@@ -284,8 +287,8 @@ export function useAircraftSystems(
       
       const runway = getAirportRunway(airport.x, airport.y);
       
-      // Decide if taking off or arriving from distance
-      const isTakingOff = Math.random() < 0.5;
+      // Decide if taking off or arriving from distance (bias toward takeoff for more taxiing activity)
+      const isTakingOff = Math.random() < AIRPLANE_TAKEOFF_PROBABILITY;
       
       if (isTakingOff) {
         // Start at the terminal/apron, then taxi to runway and take off along runway heading.
@@ -367,7 +370,9 @@ export function useAircraftSystems(
         });
       }
       
-      airplaneSpawnTimerRef.current = 2 + Math.random() * 5; // 2-7 seconds between spawns
+      airplaneSpawnTimerRef.current =
+        AIRPLANE_SPAWN_INTERVAL_MIN +
+        Math.random() * (AIRPLANE_SPAWN_INTERVAL_MAX - AIRPLANE_SPAWN_INTERVAL_MIN);
     }
 
     // Update existing airplanes
