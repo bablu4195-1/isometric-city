@@ -83,10 +83,14 @@ export const AIRPLANE_BRAKE_DECEL = 55; // px/sec^2 on rollout
 // Runway geometry (in screen-space, relative to the airport sprite)
 // The runway in the airport sprite is aligned toward the top-right of the screen (NE).
 export const AIRPORT_RUNWAY_BASE_HEADING = -Math.PI / 4; // toward top-right in screen coords
-export const AIRPORT_RUNWAY_LENGTH = 260; // px (screen space)
-export const AIRPORT_RUNWAY_LATERAL_OFFSET_X = 110; // px (runway is to the "left" of the terminal in the unflipped asset)
-export const AIRPORT_RUNWAY_LATERAL_OFFSET_Y = 28;  // px (runway sits slightly "forward" vs the terminal apron)
+// Keep runway endpoints inside the airport footprint so taxi doesn't leave the asset.
+export const AIRPORT_RUNWAY_LENGTH = 190; // px (screen space)
+export const AIRPORT_RUNWAY_LATERAL_OFFSET_X = 78; // px (runway is to the "left" of the terminal in the unflipped asset)
+export const AIRPORT_RUNWAY_LATERAL_OFFSET_Y = 18;  // px (runway sits slightly "forward" vs the terminal apron)
 export const AIRPORT_RUNWAY_APPROACH_DISTANCE = 520; // px back from touchdown
+
+// Clamp how far ground operations can stray from the gate point (screen-space radius)
+export const AIRPORT_GROUND_MAX_RADIUS = 170;
 
 // Ground roll particles (tire smoke / dust)
 export const GROUND_TRAIL_MAX_AGE = 1.1;

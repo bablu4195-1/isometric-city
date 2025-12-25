@@ -25,6 +25,7 @@ import {
   AIRPORT_RUNWAY_LATERAL_OFFSET_X,
   AIRPORT_RUNWAY_LATERAL_OFFSET_Y,
   AIRPORT_RUNWAY_APPROACH_DISTANCE,
+  AIRPORT_GROUND_MAX_RADIUS,
   GROUND_TRAIL_MAX_AGE,
   GROUND_TRAIL_SPAWN_INTERVAL,
   HELICOPTER_MIN_POPULATION,
@@ -156,6 +157,24 @@ export function useAircraftSystems(
       const endX = runwayCenterX + ux * halfLen;
       const endY = runwayCenterY + uy * halfLen;
 
+      // Taxi targets should never drift outside the airport footprint.
+      // We don't have exact polygon bounds for the sprite footprint here, so we clamp to a conservative radius
+      // around the gate/apron point (which is always inside the footprint).
+      const clampToGateRadius = (x: number, y: number) => {
+        const dx = x - gateX;
+        const dy = y - gateY;
+        const d = Math.hypot(dx, dy);
+        if (d <= AIRPORT_GROUND_MAX_RADIUS || d === 0) return { x, y };
+        const s = AIRPORT_GROUND_MAX_RADIUS / d;
+        return { x: gateX + dx * s, y: gateY + dy * s };
+      };
+
+      // Use an "inner threshold" as the taxi aim point (closer than the runway start),
+      // which prevents planes from taxiing beyond the airport edges.
+      const taxiAimX = runwayCenterX - ux * (AIRPORT_RUNWAY_LENGTH * 0.42);
+      const taxiAimY = runwayCenterY - uy * (AIRPORT_RUNWAY_LENGTH * 0.42);
+      const clampedTaxi = clampToGateRadius(taxiAimX, taxiAimY);
+
       return {
         gateX,
         gateY,
@@ -166,6 +185,8 @@ export function useAircraftSystems(
         endY,
         runwayCenterX,
         runwayCenterY,
+        taxiAimX: clampedTaxi.x,
+        taxiAimY: clampedTaxi.y,
       };
     };
 
@@ -273,8 +294,8 @@ export function useAircraftSystems(
           lifeTime: 28 + Math.random() * 22, // 28-50 seconds of activity
           color: AIRPLANE_COLORS[Math.floor(Math.random() * AIRPLANE_COLORS.length)],
           planeType: planeType,
-          targetX: runway.startX,
-          targetY: runway.startY,
+          targetX: runway.taxiAimX,
+          targetY: runway.taxiAimY,
         });
       } else {
         // Arriving from the edge of the map
@@ -381,8 +402,8 @@ export function useAircraftSystems(
       switch (plane.state) {
         case 'taxi_to_runway': {
           const runway = getAirportRunway(plane.airportX, plane.airportY);
-          const targetX = plane.targetX ?? runway.startX;
-          const targetY = plane.targetY ?? runway.startY;
+          const targetX = plane.targetX ?? runway.taxiAimX;
+          const targetY = plane.targetY ?? runway.taxiAimY;
 
           const desiredAngle = Math.atan2(targetY - plane.y, targetX - plane.x);
           plane.angle = turnToward(plane.angle, desiredAngle, AIRPLANE_TAXI_TURN_RATE, delta);
