@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability -- These canvas simulation systems intentionally mutate ref-backed entities for performance. */
 import { useCallback } from 'react';
 import { Firework, FactorySmog, WorldRenderState, TILE_WIDTH, TILE_HEIGHT } from './types';
 import { BuildingType } from '@/types/game';
