@@ -25,8 +25,8 @@ import {
   AIRPLANE_BRAKE_DECEL,
   AIRPORT_RUNWAY_BASE_HEADING,
   AIRPORT_RUNWAY_LENGTH,
-  AIRPORT_RUNWAY_OFFSET_ALONG,
-  AIRPORT_RUNWAY_OFFSET_PERP,
+  AIRPORT_RUNWAY_OFFSET_X,
+  AIRPORT_RUNWAY_OFFSET_Y,
   AIRPORT_RUNWAY_APPROACH_DISTANCE,
   AIRPORT_GROUND_MAX_RADIUS,
   GROUND_TRAIL_MAX_AGE,
@@ -147,18 +147,12 @@ export function useAircraftSystems(
       const isFlipped = computeAirportIsFlipped(airportX, airportY);
       const runwayDir = isFlipped ? Math.PI - AIRPORT_RUNWAY_BASE_HEADING : AIRPORT_RUNWAY_BASE_HEADING;
 
-      // Runway is offset from the gate in a runway-aligned coordinate frame.
-      // Using perp/along offsets ensures mirrored airports stay correct.
       const ux = Math.cos(runwayDir);
       const uy = Math.sin(runwayDir);
-      const px = Math.cos(runwayDir - Math.PI / 2);
-      const py = Math.sin(runwayDir - Math.PI / 2);
-
-      // In the unflipped sprite the runway sits on the "positive perp" side in this runway-frame.
-      // Flipping swaps sides.
-      const perpSign = isFlipped ? -1 : 1;
-      const runwayCenterX = gateX + ux * AIRPORT_RUNWAY_OFFSET_ALONG + px * AIRPORT_RUNWAY_OFFSET_PERP * perpSign;
-      const runwayCenterY = gateY + uy * AIRPORT_RUNWAY_OFFSET_ALONG + py * AIRPORT_RUNWAY_OFFSET_PERP * perpSign;
+      
+      // Runway center in screen space. Mirroring swaps X direction only.
+      const runwayCenterX = gateX + (isFlipped ? 1 : -1) * AIRPORT_RUNWAY_OFFSET_X;
+      const runwayCenterY = gateY + AIRPORT_RUNWAY_OFFSET_Y;
 
       const halfLen = AIRPORT_RUNWAY_LENGTH * 0.5;
 
