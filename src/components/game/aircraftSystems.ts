@@ -161,23 +161,31 @@ export function useAircraftSystems(
       const endX = runwayCenterX + ux * halfLen;
       const endY = runwayCenterY + uy * halfLen;
 
-      // Taxi targets should never drift outside the airport footprint.
-      // We don't have exact polygon bounds for the sprite footprint here, so we clamp to a conservative radius
-      // around the gate/apron point (which is always inside the footprint).
-      const clampToGateRadius = (x: number, y: number) => {
-        const dx = x - gateX;
-        const dy = y - gateY;
-        const d = Math.hypot(dx, dy);
-        if (d <= AIRPORT_GROUND_MAX_RADIUS || d === 0) return { x, y };
-        const s = AIRPORT_GROUND_MAX_RADIUS / d;
-        return { x: gateX + dx * s, y: gateY + dy * s };
+      // Taxi targets/positions should never drift outside the airport *footprint*.
+      // Clamp to the 4x4 isometric diamond footprint (slightly inset for safety).
+      const clampToAirportFootprint = (x: number, y: number) => {
+        // Airport is a 4x4 isometric diamond footprint.
+        // gridToScreen(origin) is the top-left of the footprint's bounding box.
+        const size = 4;
+        const inset = 0.80; // intentionally conservative (keeps taxi inside the visible asset)
+        const rX = (size * TILE_WIDTH) / 2 * inset;
+        const rY = (size * TILE_HEIGHT) / 2 * inset;
+        const cX = airportScreenX + (size * TILE_WIDTH) / 2;
+        const cY = airportScreenY + (size * TILE_HEIGHT) / 2;
+
+        const dx = x - cX;
+        const dy = y - cY;
+        const v = Math.abs(dx) / rX + Math.abs(dy) / rY;
+        if (v <= 1 || v === 0) return { x, y };
+        const s = 1 / v;
+        return { x: cX + dx * s, y: cY + dy * s };
       };
 
       // Use a runway lineup point that is guaranteed to be *inside* the runway (past the start/threshold),
       // so the taxi→takeoff transition never overshoots beyond the runway.
       const lineupX = startX + ux * 22;
       const lineupY = startY + uy * 22;
-      const clampedLineup = clampToGateRadius(lineupX, lineupY);
+      const clampedLineup = clampToAirportFootprint(lineupX, lineupY);
 
       // Add a short "turn point" near the gate so planes start turning early instead of
       // doing a long straight taxi before lining up.
@@ -188,7 +196,7 @@ export function useAircraftSystems(
       const lateralNy = gateToRunwayDy / gateToRunwayD;
       const taxiTurnX = gateX + lateralNx * 58;
       const taxiTurnY = gateY + lateralNy * 58;
-      const clampedTurn = clampToGateRadius(taxiTurnX, taxiTurnY);
+      const clampedTurn = clampToAirportFootprint(taxiTurnX, taxiTurnY);
 
       return {
         gateX,
@@ -204,7 +212,7 @@ export function useAircraftSystems(
         taxiLineupY: clampedLineup.y,
         taxiTurnX: clampedTurn.x,
         taxiTurnY: clampedTurn.y,
-        clampToGateRadius,
+        clampToAirportFootprint,
       };
     };
 
@@ -458,7 +466,7 @@ export function useAircraftSystems(
 
           // Hard clamp taxi motion to the airport footprint region.
           // This prevents even small overshoot steps from drifting outside the asset.
-          const clampedPos = runway.clampToGateRadius(plane.x, plane.y);
+          const clampedPos = runway.clampToAirportFootprint(plane.x, plane.y);
           plane.x = clampedPos.x;
           plane.y = clampedPos.y;
 
@@ -672,7 +680,7 @@ export function useAircraftSystems(
           plane.y += Math.sin(plane.angle) * plane.speed * delta * speedMultiplier;
 
           // Hard clamp taxi motion to the airport footprint region.
-          const clampedPos = runway.clampToGateRadius(plane.x, plane.y);
+          const clampedPos = runway.clampToAirportFootprint(plane.x, plane.y);
           plane.x = clampedPos.x;
           plane.y = clampedPos.y;
 
