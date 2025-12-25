@@ -165,7 +165,7 @@ export function SettingsPanel() {
                         fill
                         className="object-cover object-top"
                         style={{ imageRendering: 'pixelated' }}
-                        unoptimized
+                        sizes="40px"
                       />
                     </div>
                     <div className="flex-1 min-w-0">

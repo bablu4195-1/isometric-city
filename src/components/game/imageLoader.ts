@@ -8,6 +8,18 @@ const BACKGROUND_COLOR = { r: 255, g: 0, b: 0 };
 // Color distance threshold - pixels within this distance will be made transparent
 const COLOR_THRESHOLD = 155; // Adjust this value to be more/less aggressive
 
+function supportsWebpDataUrl(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    const dataUrl = canvas.toDataURL('image/webp');
+    return dataUrl.startsWith('data:image/webp');
+  } catch {
+    return false;
+  }
+}
+
+const CANVAS_OUTPUT_WEBP = typeof document !== 'undefined' ? supportsWebpDataUrl() : false;
+
 // Image cache for building sprites
 const imageCache = new Map<string, HTMLImageElement>();
 
@@ -126,7 +138,8 @@ export function filterBackgroundColor(img: HTMLImageElement, threshold: number =
         console.error('Failed to create filtered image:', error);
         reject(new Error('Failed to create filtered image'));
       };
-      filteredImg.src = canvas.toDataURL();
+      // Prefer WebP for the generated, filtered sprite sheet (smaller + faster to decode).
+      filteredImg.src = CANVAS_OUTPUT_WEBP ? canvas.toDataURL('image/webp', 0.92) : canvas.toDataURL();
     } catch (error) {
       reject(error);
     }

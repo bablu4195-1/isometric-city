@@ -65,7 +65,7 @@ export const CONTRAIL_MAX_AGE = 3.0; // seconds
 export const CONTRAIL_SPAWN_INTERVAL = 0.02; // seconds between contrail particles
 
 // Airplane sprite sheet configuration
-export const AIRPLANE_SPRITE_SRC = '/assets/sprites_red_water_new_planes.png';
+export const AIRPLANE_SPRITE_SRC = '/assets/sprites_red_water_new_planes.webp';
 export const AIRPLANE_SPRITE_COLS = 5; // 5 columns per row
 export const AIRPLANE_SPRITE_ROWS = 6; // 6 rows total
 // Plane types by row (0-indexed): 737, 777, 747, a380, seaplane, g650
@@ -143,7 +143,7 @@ export const ROTOR_WASH_MAX_AGE = 1.0; // seconds - shorter than plane contrails
 export const ROTOR_WASH_SPAWN_INTERVAL = 0.04; // seconds between rotor wash particles
 
 // Water asset path
-export const WATER_ASSET_PATH = '/assets/water.png';
+export const WATER_ASSET_PATH = '/assets/water.webp';
 
 // Boat system constants
 export const BOAT_COLORS = ['#ffffff', '#1e3a5f', '#8b4513', '#2f4f4f', '#c41e3a', '#1e90ff']; // Various boat hull colors

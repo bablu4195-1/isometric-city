@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "crop-screenshots": "bash scripts/crop-screenshots.sh"
+    "crop-screenshots": "bash scripts/crop-screenshots.sh",
+    "optimize-assets": "node scripts/optimize-public-assets.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.2",
@@ -30,6 +31,7 @@
     "react": "^19.2.1",
     "react-device-detect": "^2.2.3",
     "react-dom": "^19.2.1",
+    "sharp": "^0.34.4",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7"
   },
