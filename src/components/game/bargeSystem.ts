@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability */
 import { useCallback } from 'react';
 import { Barge, WorldRenderState, TILE_WIDTH, TILE_HEIGHT } from './types';
 import {
@@ -21,7 +22,7 @@ import {
   findOceanConnectedMarinas,
   findOceanSpawnPoints,
   findAdjacentWaterTileForMarina,
-  isOverWater,
+  isOverNavigableWater,
 } from './gridFinders';
 
 export interface BargeSystemRefs {
@@ -65,7 +66,7 @@ export function useBargeSystem(
   // Check if screen position is over water callback
   const isOverWaterCallback = useCallback((screenX: number, screenY: number): boolean => {
     const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
-    return isOverWater(currentGrid, currentGridSize, screenX, screenY);
+    return isOverNavigableWater(currentGrid, currentGridSize, screenX, screenY);
   }, [worldStateRef]);
 
   // Update barges - spawn from ocean edges, navigate to marinas, and return

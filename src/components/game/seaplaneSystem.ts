@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability */
 import { useCallback } from 'react';
 import { Seaplane, WorldRenderState, TILE_WIDTH, TILE_HEIGHT, WakeParticle } from './types';
 import {
@@ -25,7 +26,16 @@ import {
   WAKE_MAX_AGE,
   WAKE_SPAWN_INTERVAL,
 } from './constants';
-import { findBays, getRandomBayTile, isOverWater, BayInfo, findMarinasAndPiers, findAdjacentWaterTile, DockInfo } from './gridFinders';
+import {
+  findBays,
+  getRandomBayTile,
+  isBeachyWaterTile,
+  isOverNavigableWater,
+  BayInfo,
+  findMarinasAndPiers,
+  findAdjacentWaterTile,
+  DockInfo,
+} from './gridFinders';
 import { gridToScreen } from './utils';
 
 export interface SeaplaneSystemRefs {
@@ -84,7 +94,7 @@ export function useSeaplaneSystem(
   // Check if screen position is over water callback
   const isOverWaterCallback = useCallback((screenX: number, screenY: number): boolean => {
     const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
-    return isOverWater(currentGrid, currentGridSize, screenX, screenY);
+    return isOverNavigableWater(currentGrid, currentGridSize, screenX, screenY);
   }, [worldStateRef]);
 
   // Update seaplanes - spawn, move, and manage lifecycle
@@ -150,7 +160,12 @@ export function useSeaplaneSystem(
       let dockScreenX: number | null = null;
       let dockScreenY: number | null = null;
       let initialState: 'taxiing_to_dock' | 'taxiing_water' = 'taxiing_water';
-      let spawnTile = getRandomBayTile(bay);
+
+      // Prefer "deep" water tiles that won't have beaches drawn on them (reduces coast overlap).
+      // If none exist (tiny/narrow bays), fall back to any bay tile.
+      const deepBayTiles = bay.waterTiles.filter(t => !isBeachyWaterTile(currentGrid, currentGridSize, t.x, t.y));
+      const spawnBay: BayInfo = deepBayTiles.length > 0 ? { ...bay, waterTiles: deepBayTiles } : bay;
+      let spawnTile = getRandomBayTile(spawnBay);
       
       if (docksInBay.length > 0) {
         const chosenDock = docksInBay[Math.floor(Math.random() * docksInBay.length)];

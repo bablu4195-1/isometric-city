@@ -694,7 +694,11 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   }, [visualHour, isMobile]);
 
   // Draw seaplanes with wakes and contrails (uses extracted utility)
-  const drawSeaplanes = useCallback((ctx: CanvasRenderingContext2D) => {
+  // IMPORTANT: Split seaplanes into two layers:
+  // - Low-altitude (on-water) seaplanes render on the cars canvas so bridges/buildings draw above them
+  // - Airborne seaplanes render on the air canvas above buildings
+  const SEAPLANE_AIR_LAYER_ALTITUDE = 0.35;
+  const drawSeaplanesLayer = useCallback((ctx: CanvasRenderingContext2D, layer: 'water' | 'air') => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
     const canvas = ctx.canvas;
     const dpr = window.devicePixelRatio || 1;
@@ -703,6 +707,17 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     if (!currentGrid || currentGridSize <= 0 || seaplanesRef.current.length === 0) {
       return;
     }
+
+    // Filter seaplanes for the requested layer (avoid per-frame `.filter()` allocations)
+    const filtered: Seaplane[] = [];
+    for (let i = 0; i < seaplanesRef.current.length; i++) {
+      const s = seaplanesRef.current[i];
+      const inAirLayer = s.altitude >= SEAPLANE_AIR_LAYER_ALTITUDE;
+      if ((layer === 'air' && inAirLayer) || (layer === 'water' && !inAirLayer)) {
+        filtered.push(s);
+      }
+    }
+    if (filtered.length === 0) return;
 
     ctx.save();
     ctx.scale(dpr * currentZoom, dpr * currentZoom);
@@ -718,7 +733,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     };
 
     // Use extracted utility function for drawing
-    drawSeaplanesUtil(ctx, seaplanesRef.current, viewBounds, visualHour, navLightFlashTimerRef.current, isMobile);
+    drawSeaplanesUtil(ctx, filtered, viewBounds, visualHour, navLightFlashTimerRef.current, isMobile);
 
     ctx.restore();
   }, [visualHour, isMobile]);
@@ -4293,6 +4308,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         if (!skipSmallElements) {
           drawBoats(ctx); // Draw boats on water (skip when panning zoomed out on desktop)
         }
+        // Draw low-altitude seaplanes on the cars canvas so bridges can cover them
+        if (!skipSmallElements) {
+          drawSeaplanesLayer(ctx, 'water');
+        }
         drawBarges(ctx); // Draw ocean barges (larger, keep visible)
         drawTrainsCallback(ctx); // Draw trains on rail network
         if (!skipSmallElements) {
@@ -4310,7 +4329,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         
         if (!skipSmallElements) {
           drawHelicopters(airCtx); // Draw helicopters (skip when panning zoomed out on desktop)
-          drawSeaplanes(airCtx); // Draw seaplanes (skip when panning zoomed out on desktop)
+          drawSeaplanesLayer(airCtx, 'air'); // Draw airborne seaplanes above buildings
         }
         drawAirplanes(airCtx); // Draw airplanes above everything
         drawFireworks(airCtx); // Draw fireworks above everything (nighttime only)
@@ -4319,7 +4338,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, drawRecreationPedestrians, updateAirplanes, drawAirplanes, updateHelicopters, drawHelicopters, updateSeaplanes, drawSeaplanes, updateBoats, drawBoats, updateBarges, drawBarges, updateTrains, drawTrainsCallback, drawIncidentIndicators, updateFireworks, drawFireworks, updateSmog, drawSmog, visualHour, isMobile, grid, gridSize, speed]);
+  }, [canvasSize.width, canvasSize.height, updateCars, drawCars, spawnCrimeIncidents, updateCrimeIncidents, updateEmergencyVehicles, drawEmergencyVehicles, updatePedestrians, drawPedestrians, drawRecreationPedestrians, updateAirplanes, drawAirplanes, updateHelicopters, drawHelicopters, updateSeaplanes, drawSeaplanesLayer, updateBoats, drawBoats, updateBarges, drawBarges, updateTrains, drawTrainsCallback, drawIncidentIndicators, updateFireworks, drawFireworks, updateSmog, drawSmog, visualHour, isMobile, grid, gridSize, speed]);
   
   // Day/Night cycle lighting rendering - optimized for performance
   useEffect(() => {

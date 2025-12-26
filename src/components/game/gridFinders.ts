@@ -534,6 +534,107 @@ export function findAdjacentWaterTile(
 }
 
 /**
+ * Check if a tile is a marina/pier tile OR part of a marina (2x2) footprint.
+ * Matches the beach-exclusion logic in CanvasIsometricGrid so "coast/beach" water
+ * detection aligns with what's actually drawn.
+ */
+function isMarinaPierFootprintTile(
+  grid: Tile[][],
+  gridSize: number,
+  gridX: number,
+  gridY: number
+): boolean {
+  if (!grid || gridSize <= 0) return false;
+  if (gridX < 0 || gridX >= gridSize || gridY < 0 || gridY >= gridSize) return false;
+
+  const buildingType = grid[gridY][gridX].building.type;
+  if (buildingType === 'marina_docks_small' || buildingType === 'pier_large') return true;
+
+  // Marina is 2x2; other footprint tiles may be stored as 'empty'
+  if (buildingType === 'empty') {
+    for (let dy = 0; dy <= 1; dy++) {
+      for (let dx = 0; dx <= 1; dx++) {
+        const checkX = gridX - dx;
+        const checkY = gridY - dy;
+        if (checkX >= 0 && checkY >= 0 && checkX < gridSize && checkY < gridSize) {
+          const checkType = grid[checkY][checkX].building.type;
+          if (checkType === 'marina_docks_small') {
+            // Verify this tile is within the 2x2 footprint
+            if (gridX >= checkX && gridX < checkX + 2 && gridY >= checkY && gridY < checkY + 2) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+function isBridgeTile(grid: Tile[][], gridSize: number, x: number, y: number): boolean {
+  if (!grid || gridSize <= 0) return false;
+  if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return false;
+  return grid[y][x].building.type === 'bridge';
+}
+
+function isWaterTile(grid: Tile[][], gridSize: number, x: number, y: number): boolean {
+  if (!grid || gridSize <= 0) return false;
+  if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return false;
+  return grid[y][x].building.type === 'water';
+}
+
+/**
+ * Returns true if this water tile is "coast/beach" water (i.e. would receive a sand strip).
+ * This mirrors the `adjacentLand` computation used for `drawBeachOnWater` in CanvasIsometricGrid.
+ */
+export function isBeachyWaterTile(grid: Tile[][], gridSize: number, x: number, y: number): boolean {
+  if (!isWaterTile(grid, gridSize, x, y)) return false;
+
+  const landForBeach = (nx: number, ny: number): boolean => {
+    if (nx < 0 || ny < 0 || nx >= gridSize || ny >= gridSize) return false;
+    // "Land" for beach purposes excludes bridges and marina/pier footprints
+    return (
+      !isWaterTile(grid, gridSize, nx, ny) &&
+      !isMarinaPierFootprintTile(grid, gridSize, nx, ny) &&
+      !isBridgeTile(grid, gridSize, nx, ny)
+    );
+  };
+
+  // Same neighbor mapping used in CanvasIsometricGrid for beaches-on-water
+  const north = landForBeach(x - 1, y);
+  const east = landForBeach(x, y - 1);
+  const south = landForBeach(x + 1, y);
+  const west = landForBeach(x, y + 1);
+
+  return north || east || south || west;
+}
+
+/**
+ * Check if a screen position is over navigable water.
+ * "Navigable" here means water that is NOT a coast/beach water tile.
+ */
+export function isOverNavigableWater(
+  grid: Tile[][],
+  gridSize: number,
+  screenX: number,
+  screenY: number
+): boolean {
+  if (!grid || gridSize <= 0) return false;
+
+  // Convert screen to tile coordinates
+  const tileX = Math.floor(screenX / TILE_WIDTH + screenY / TILE_HEIGHT);
+  const tileY = Math.floor(screenY / TILE_HEIGHT - screenX / TILE_WIDTH);
+
+  if (tileX < 0 || tileX >= gridSize || tileY < 0 || tileY >= gridSize) {
+    return false;
+  }
+
+  if (!isWaterTile(grid, gridSize, tileX, tileY)) return false;
+  return !isBeachyWaterTile(grid, gridSize, tileX, tileY);
+}
+
+/**
  * Find water tile adjacent to a 2x2 marina for barge docking
  * Checks all tiles around the 2x2 footprint, not just the origin
  */
@@ -714,18 +815,23 @@ export function generateTourWaypoints(
 
   if (waterTiles.length < 3) return []; // Too small for a tour
 
+  // Prefer "deep" water tiles that won't have beaches drawn on them.
+  // This prevents boats from appearing on top of coastline sand strips.
+  const deepWaterTiles = waterTiles.filter(t => !isBeachyWaterTile(grid, gridSize, t.x, t.y));
+  const navigableTiles = deepWaterTiles.length >= 3 ? deepWaterTiles : waterTiles;
+
   // Determine number of waypoints based on body of water size (2-6 waypoints)
-  const numWaypoints = Math.min(6, Math.max(2, Math.floor(waterTiles.length / 10)));
+  const numWaypoints = Math.min(6, Math.max(2, Math.floor(navigableTiles.length / 10)));
 
   // Spread waypoints across the water body
   const waypoints: TourWaypoint[] = [];
   const usedIndices = new Set<number>();
 
   // Sort water tiles by distance from center to get outer tiles first
-  const centerX = waterTiles.reduce((sum, t) => sum + t.x, 0) / waterTiles.length;
-  const centerY = waterTiles.reduce((sum, t) => sum + t.y, 0) / waterTiles.length;
+  const centerX = navigableTiles.reduce((sum, t) => sum + t.x, 0) / navigableTiles.length;
+  const centerY = navigableTiles.reduce((sum, t) => sum + t.y, 0) / navigableTiles.length;
 
-  const tilesWithDist = waterTiles.map((tile, idx) => ({
+  const tilesWithDist = navigableTiles.map((tile, idx) => ({
     ...tile,
     idx,
     distFromCenter: Math.hypot(tile.x - centerX, tile.y - centerY)
@@ -760,10 +866,10 @@ export function generateTourWaypoints(
   }
 
   // If we didn't get enough waypoints, add some random ones
-  while (waypoints.length < numWaypoints && waypoints.length < waterTiles.length) {
-    const randomIdx = Math.floor(Math.random() * waterTiles.length);
+  while (waypoints.length < numWaypoints && waypoints.length < navigableTiles.length) {
+    const randomIdx = Math.floor(Math.random() * navigableTiles.length);
     if (!usedIndices.has(randomIdx)) {
-      const tile = waterTiles[randomIdx];
+      const tile = navigableTiles[randomIdx];
       const { screenX, screenY } = gridToScreen(tile.x, tile.y, 0, 0);
       waypoints.push({
         screenX: screenX + TILE_WIDTH / 2,

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability */
 import { useCallback } from 'react';
 import { Boat, TourWaypoint, WorldRenderState, TILE_WIDTH, TILE_HEIGHT } from './types';
 import {
@@ -11,7 +12,7 @@ import {
   BOAT_MIN_ZOOM_FAR,
 } from './constants';
 import { gridToScreen } from './utils';
-import { findMarinasAndPiers, findAdjacentWaterTile, isOverWater, generateTourWaypoints } from './gridFinders';
+import { findMarinasAndPiers, findAdjacentWaterTile, isOverNavigableWater, generateTourWaypoints } from './gridFinders';
 
 export interface BoatSystemRefs {
   boatsRef: React.MutableRefObject<Boat[]>;
@@ -47,7 +48,7 @@ export function useBoatSystem(
   // Check if screen position is over water callback
   const isOverWaterCallback = useCallback((screenX: number, screenY: number): boolean => {
     const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
-    return isOverWater(currentGrid, currentGridSize, screenX, screenY);
+    return isOverNavigableWater(currentGrid, currentGridSize, screenX, screenY);
   }, [worldStateRef]);
 
   // Generate tour waypoints callback
@@ -512,7 +513,7 @@ export function useBoatSystem(
     }
     
     ctx.restore();
-  }, [worldStateRef, boatsRef, visualHour]);
+  }, [worldStateRef, boatsRef, visualHour, isMobile]);
 
   return {
     updateBoats,
