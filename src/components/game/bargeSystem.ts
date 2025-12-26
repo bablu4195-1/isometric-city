@@ -15,6 +15,7 @@ import {
   BARGE_WAKE_SPAWN_INTERVAL,
   WAKE_MAX_AGE,
   WAKE_MIN_ZOOM_MOBILE,
+  MAP_VIEW_ZOOM_THRESHOLD,
 } from './constants';
 import { gridToScreen } from './utils';
 import {
@@ -76,7 +77,13 @@ export function useBargeSystem(
       return;
     }
 
-    // Clear barges if zoomed out too far
+    // Clear barges in map view mode (zoomed out beyond threshold - for large maps)
+    if (currentZoom < MAP_VIEW_ZOOM_THRESHOLD) {
+      bargesRef.current = [];
+      return;
+    }
+
+    // Clear barges if zoomed out too far (per-element threshold)
     if (currentZoom < BARGE_MIN_ZOOM) {
       bargesRef.current = [];
       return;
@@ -336,7 +343,12 @@ export function useBargeSystem(
     const canvas = ctx.canvas;
     const dpr = window.devicePixelRatio || 1;
     
-    // Don't draw barges if zoomed out
+    // Skip drawing barges in map view mode (zoomed out beyond threshold)
+    if (currentZoom < MAP_VIEW_ZOOM_THRESHOLD) {
+      return;
+    }
+    
+    // Don't draw barges if zoomed out (per-element threshold)
     if (currentZoom < BARGE_MIN_ZOOM) {
       return;
     }

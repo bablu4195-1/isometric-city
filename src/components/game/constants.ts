@@ -40,8 +40,13 @@ export const PEDESTRIAN_SPAWN_INTERVAL = 0.03;      // Seconds between spawn bat
 export const PEDESTRIAN_UPDATE_SKIP_DISTANCE = 30;  // Skip detailed updates for pedestrians this far from view
 
 // Zoom limits for camera
-export const ZOOM_MIN = 0.2;                      // Minimum zoom level (most zoomed out)
+export const ZOOM_MIN = 0.08;                     // Minimum zoom level (most zoomed out - for large maps/multi-city view)
 export const ZOOM_MAX = 7;                        // Maximum zoom level (most zoomed in)
+
+// Map view threshold - when zoom is below this, we're in "map view" mode
+// In map view mode, all vehicles/pedestrians/animated elements are hidden for performance
+// This applies to both desktop and mobile for consistent behavior on large maps
+export const MAP_VIEW_ZOOM_THRESHOLD = 0.25;      // Below this = map view (no vehicles/pedestrians rendered)
 
 // Zoom thresholds for rendering detail elements
 // Lower values = more zoomed out, higher values = more zoomed in required

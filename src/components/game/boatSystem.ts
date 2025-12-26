@@ -8,6 +8,7 @@ import {
   MAX_BOATS,
   WAKE_MAX_AGE,
   WAKE_SPAWN_INTERVAL,
+  MAP_VIEW_ZOOM_THRESHOLD,
 } from './constants';
 import { gridToScreen } from './utils';
 import { findMarinasAndPiers, findAdjacentWaterTile, isOverWater, generateTourWaypoints } from './gridFinders';
@@ -63,7 +64,13 @@ export function useBoatSystem(
       return;
     }
 
-    // Clear boats if zoomed out too far
+    // Clear boats in map view mode (zoomed out beyond threshold - for large maps)
+    if (currentZoom < MAP_VIEW_ZOOM_THRESHOLD) {
+      boatsRef.current = [];
+      return;
+    }
+
+    // Clear boats if zoomed out too far (per-element threshold)
     if (currentZoom < BOAT_MIN_ZOOM) {
       boatsRef.current = [];
       return;
@@ -350,7 +357,12 @@ export function useBoatSystem(
     const canvas = ctx.canvas;
     const dpr = window.devicePixelRatio || 1;
     
-    // Don't draw boats if zoomed out
+    // Skip drawing boats in map view mode (zoomed out beyond threshold)
+    if (currentZoom < MAP_VIEW_ZOOM_THRESHOLD) {
+      return;
+    }
+    
+    // Don't draw boats if zoomed out (per-element threshold)
     if (currentZoom < BOAT_MIN_ZOOM) {
       return;
     }

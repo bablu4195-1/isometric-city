@@ -40,6 +40,7 @@ import {
   SKIP_SMALL_ELEMENTS_ZOOM_THRESHOLD,
   ZOOM_MIN,
   ZOOM_MAX,
+  MAP_VIEW_ZOOM_THRESHOLD,
   WATER_ASSET_PATH,
   AIRPLANE_SPRITE_SRC,
 } from '@/components/game/constants';
@@ -718,9 +719,15 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
 
   // Update trains - spawn, move, and manage lifecycle
   const updateTrains = useCallback((delta: number) => {
-    const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed } = worldStateRef.current;
+    const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed, zoom: currentZoom } = worldStateRef.current;
 
     if (!currentGrid || currentGridSize <= 0 || currentSpeed === 0) {
+      return;
+    }
+    
+    // Clear trains in map view mode (zoomed out beyond threshold - for large maps)
+    if (currentZoom < MAP_VIEW_ZOOM_THRESHOLD) {
+      trainsRef.current = [];
       return;
     }
 
@@ -759,6 +766,11 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   // Draw trains on the rail network
   const drawTrainsCallback = useCallback((ctx: CanvasRenderingContext2D) => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize, canvasSize: size } = worldStateRef.current;
+    
+    // Skip drawing trains in map view mode (zoomed out beyond threshold)
+    if (currentZoom < MAP_VIEW_ZOOM_THRESHOLD) {
+      return;
+    }
 
     if (!currentGrid || currentGridSize <= 0 || trainsRef.current.length === 0) {
       return;

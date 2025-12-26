@@ -216,6 +216,39 @@ export interface Building {
   constructionProgress: number; // 0-100, building is under construction until 100
   abandoned: boolean; // Building is abandoned due to low demand, produces nothing
   flipped?: boolean; // Horizontally mirror the sprite (used for waterfront buildings to face water)
+  cityId?: string; // Optional city ID for multi-city support (buildings can belong to different cities)
+}
+
+// ============================================================================
+// CITY TYPES FOR MULTI-CITY SUPPORT
+// ============================================================================
+
+export interface City {
+  id: string;
+  name: string;
+  color: string; // Color used for city borders and identification
+  // Cached city statistics (updated periodically for performance)
+  cachedStats: {
+    population: number;
+    jobs: number;
+    buildingCount: number;
+    lastUpdated: number; // Timestamp of last cache update
+  };
+  // City boundaries (cached for efficient border rendering)
+  // Uses a Set internally but stored as array for serialization
+  boundaryTiles: { x: number; y: number }[];
+}
+
+// Cache for city-related computations (not serialized, rebuilt on load)
+export interface CityCache {
+  // Map of cityId -> Set of tile coordinates (as "x,y" strings) for O(1) lookup
+  cityTileSets: Map<string, Set<string>>;
+  // Map of tile coordinate string -> cityId for quick city lookup
+  tileToCityMap: Map<string, string>;
+  // Timestamp of last full cache rebuild
+  lastRebuild: number;
+  // Whether cache needs full rebuild
+  isDirty: boolean;
 }
 
 export interface Tile {
@@ -340,6 +373,8 @@ export interface GameState {
   adjacentCities: AdjacentCity[];
   waterBodies: WaterBody[];
   gameVersion: number; // Increments when a new game starts - used to clear transient state like vehicles
+  // Multi-city support: array of cities within this map (for large maps with multiple city centers)
+  cities?: City[];
 }
 
 // Saved city metadata for the multi-save system

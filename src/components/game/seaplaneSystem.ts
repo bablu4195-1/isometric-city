@@ -20,6 +20,7 @@ import {
   CONTRAIL_SPAWN_INTERVAL,
   WAKE_MAX_AGE,
   WAKE_SPAWN_INTERVAL,
+  MAP_VIEW_ZOOM_THRESHOLD,
 } from './constants';
 import { findBays, getRandomBayTile, isOverWater, BayInfo } from './gridFinders';
 
@@ -63,7 +64,13 @@ export function useSeaplaneSystem(
       return;
     }
 
-    // Clear seaplanes if zoomed out too far
+    // Clear seaplanes in map view mode (zoomed out beyond threshold - for large maps)
+    if (currentZoom < MAP_VIEW_ZOOM_THRESHOLD) {
+      seaplanesRef.current = [];
+      return;
+    }
+
+    // Clear seaplanes if zoomed out too far (per-element threshold)
     if (currentZoom < SEAPLANE_MIN_ZOOM) {
       seaplanesRef.current = [];
       return;
