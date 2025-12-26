@@ -151,7 +151,8 @@ export function useAircraftSystems(
       const uy = Math.sin(runwayDir);
       
       // Runway center in screen space. Mirroring swaps X direction only.
-      const runwayCenterX = gateX + (isFlipped ? 1 : -1) * AIRPORT_RUNWAY_OFFSET_X;
+      // NOTE: The airport sprite’s runway sits on the +X side when unflipped.
+      const runwayCenterX = gateX + (isFlipped ? -1 : 1) * AIRPORT_RUNWAY_OFFSET_X;
       const runwayCenterY = gateY + AIRPORT_RUNWAY_OFFSET_Y;
 
       const halfLen = AIRPORT_RUNWAY_LENGTH * 0.5;
