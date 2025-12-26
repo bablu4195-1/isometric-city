@@ -1690,8 +1690,9 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           { asphalt: ROAD_COLORS.ASPHALT, barrier: '#708090', accent: '#607080', support: '#405060' },
         ],
         suspension: [
-          { asphalt: '#3d3d3d', barrier: '#707070', accent: '#606060', support: '#909090', cable: '#DC143C' },
-          { asphalt: '#3d3d3d', barrier: '#606060', accent: '#555555', support: '#808080', cable: '#FF4500' },
+          { asphalt: '#3d3d3d', barrier: '#707070', accent: '#606060', support: '#909090', cable: '#DC143C' },  // Classic red
+          { asphalt: '#3d3d3d', barrier: '#606060', accent: '#555555', support: '#808080', cable: '#708090' },  // Steel grey
+          { asphalt: '#3d3d3d', barrier: '#656560', accent: '#555550', support: '#858580', cable: '#5a7a5a' },  // Weathered green/rust
         ],
       };
       
@@ -2184,10 +2185,14 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       // Only draw on start/end tiles or middle tower tiles
       if (position !== 'start' && position !== 'end' && !isMiddleTowerTile) return;
       
-      // Style
-      const cableColor = variant === 0 ? '#DC143C' : '#FF4500';
-      const supportColor = variant === 0 ? '#909090' : '#808080';
-      const baseColor = variant === 0 ? '#606060' : '#555555'; // Darker concrete base
+      // Style - 3 variants: red cables, grey cables, green/rust cables
+      const cableColors = ['#DC143C', '#708090', '#5a7a5a'];  // Red, steel grey, weathered green
+      const supportColors = ['#909090', '#808080', '#858580'];
+      const baseColors = ['#606060', '#555555', '#555550'];
+      const safeVariant = variant % 3;  // Ensure variant is in range
+      const cableColor = cableColors[safeVariant];
+      const supportColor = supportColors[safeVariant];
+      const baseColor = baseColors[safeVariant]; // Darker concrete base
       
       // Tower dimensions
       const towerHeight = suspTowerH + 8;

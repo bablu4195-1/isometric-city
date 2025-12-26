@@ -123,7 +123,7 @@ export const PLANE_SCALES: Record<string, number> = {
   '747': 0.196,
   'a380': 0.224,
   'g650': 0.112,
-  'seaplane': 0.112, // Scaled down 30%
+  'seaplane': 0.09, // Scaled down 20% more (total ~45% from original)
 };
 
 // Seaplane system constants
