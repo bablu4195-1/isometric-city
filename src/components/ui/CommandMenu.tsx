@@ -121,7 +121,7 @@ function buildMenuItems(): MenuItem[] {
   });
 
   // Parks (includes former recreation items)
-  const parksCategory: Tool[] = ['park', 'park_large', 'tennis', 'playground_small', 'playground_large', 'community_garden', 'pond_park', 'park_gate', 'greenhouse_garden', 'mini_golf_course', 'go_kart_track', 'amphitheater', 'roller_coaster_small', 'campground', 'cabin_house', 'mountain_lodge', 'mountain_trailhead'];
+  const parksCategory: Tool[] = ['tree', 'park', 'park_large', 'tennis', 'playground_small', 'playground_large', 'community_garden', 'pond_park', 'park_gate', 'greenhouse_garden', 'mini_golf_course', 'go_kart_track', 'amphitheater', 'roller_coaster_small', 'campground', 'cabin_house', 'mountain_lodge', 'mountain_trailhead'];
   parksCategory.forEach(tool => {
     const info = TOOL_INFO[tool];
     items.push({
