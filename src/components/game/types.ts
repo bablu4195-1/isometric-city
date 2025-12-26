@@ -66,7 +66,14 @@ export type Airplane = {
 };
 
 // Seaplane types for bay/water operations
-export type SeaplaneState = 'taxiing_water' | 'taking_off' | 'flying' | 'landing' | 'splashdown';
+export type SeaplaneState =
+  | 'taxiing_water'
+  | 'taxiing_to_dock'
+  | 'docked'
+  | 'taking_off'
+  | 'flying'
+  | 'landing'
+  | 'splashdown';
 
 export type Seaplane = {
   id: number;
@@ -99,10 +106,23 @@ export type Seaplane = {
   wake: WakeParticle[];
   // Wake spawn progress
   wakeSpawnProgress: number;
-  // Time until state change
-  lifeTime: number;
+  // Time remaining for current airborne leg (seconds)
+  airTimeRemaining: number;
+  // Remaining takeoff/landing legs before despawn
+  legsRemaining: number;
   // Time spent taxiing on water before takeoff
   taxiTime: number;
+  // Whether this cycle requires docking before the next takeoff
+  needsDockBeforeTakeoff: boolean;
+  // Dock target (marina/pier) and its adjacent water tile (screen space)
+  dockTileX: number | null;
+  dockTileY: number | null;
+  dockTargetScreenX: number | null;
+  dockTargetScreenY: number | null;
+  // Time remaining while docked (seconds)
+  dockTimeRemaining: number;
+  // Safety timer to abandon dock approach if stuck (seconds)
+  dockApproachTimeout: number;
   // Seaplane color/style
   color: string;
 };
