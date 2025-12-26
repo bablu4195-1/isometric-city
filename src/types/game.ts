@@ -322,6 +322,7 @@ export interface ServiceCoverage {
   education: number[][];
   power: boolean[][];
   water: boolean[][];
+  subway: number[][];
 }
 
 export interface Notification {

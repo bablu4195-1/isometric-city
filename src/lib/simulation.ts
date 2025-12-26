@@ -1105,6 +1105,7 @@ function createServiceCoverage(size: number): ServiceCoverage {
     education: createGrid(),
     power: createBoolGrid(),
     water: createBoolGrid(),
+    subway: createGrid(),
   };
 }
 

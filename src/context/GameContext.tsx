@@ -1034,8 +1034,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => {
       const { grid: newGrid, newSize } = expandGrid(prev.grid, prev.gridSize, 15);
       
-      // Create new service grids with expanded size (all initialized to 0)
-      const createServiceGrid = (): number[][] => {
+      // Create new service grids with expanded size (number grids initialized to 0)
+      const createNumberServiceGrid = (): number[][] => {
         const grid: number[][] = [];
         for (let y = 0; y < newSize; y++) {
           grid.push(new Array(newSize).fill(0));
@@ -1043,9 +1043,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         return grid;
       };
       
-      // Copy old service values to new positions (offset by 15)
-      const expandServiceGrid = (oldGrid: number[][]): number[][] => {
-        const newServiceGrid = createServiceGrid();
+      // Create new boolean service grids (power, water - initialized to false)
+      const createBooleanServiceGrid = (): boolean[][] => {
+        const grid: boolean[][] = [];
+        for (let y = 0; y < newSize; y++) {
+          grid.push(new Array(newSize).fill(false));
+        }
+        return grid;
+      };
+      
+      // Copy old number service values to new positions (offset by 15)
+      const expandNumberServiceGrid = (oldGrid: number[][]): number[][] => {
+        const newServiceGrid = createNumberServiceGrid();
         const offset = 15;
         // Safely iterate through the old grid
         if (oldGrid && Array.isArray(oldGrid)) {
@@ -1064,19 +1073,40 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         return newServiceGrid;
       };
       
+      // Copy old boolean service values to new positions (offset by 15)
+      const expandBooleanServiceGrid = (oldGrid: boolean[][]): boolean[][] => {
+        const newServiceGrid = createBooleanServiceGrid();
+        const offset = 15;
+        // Safely iterate through the old grid
+        if (oldGrid && Array.isArray(oldGrid)) {
+          for (let y = 0; y < prev.gridSize; y++) {
+            const row = oldGrid[y];
+            if (row && Array.isArray(row)) {
+              for (let x = 0; x < prev.gridSize; x++) {
+                const value = row[x];
+                if (typeof value === 'boolean') {
+                  newServiceGrid[y + offset][x + offset] = value;
+                }
+              }
+            }
+          }
+        }
+        return newServiceGrid;
+      };
+      
       return {
         ...prev,
         grid: newGrid,
         gridSize: newSize,
         // Expand all service grids
         services: {
-          power: expandServiceGrid(prev.services.power),
-          water: expandServiceGrid(prev.services.water),
-          fire: expandServiceGrid(prev.services.fire),
-          police: expandServiceGrid(prev.services.police),
-          health: expandServiceGrid(prev.services.health),
-          education: expandServiceGrid(prev.services.education),
-          subway: expandServiceGrid(prev.services.subway),
+          power: expandBooleanServiceGrid(prev.services.power),
+          water: expandBooleanServiceGrid(prev.services.water),
+          fire: expandNumberServiceGrid(prev.services.fire),
+          police: expandNumberServiceGrid(prev.services.police),
+          health: expandNumberServiceGrid(prev.services.health),
+          education: expandNumberServiceGrid(prev.services.education),
+          subway: expandNumberServiceGrid(prev.services.subway),
         },
         // Update bounds
         bounds: {
@@ -1105,8 +1135,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       success = true;
       const { grid: newGrid, newSize } = result;
       
-      // Create new service grids with shrunken size
-      const createServiceGrid = (): number[][] => {
+      // Create new number service grids with shrunken size
+      const createNumberServiceGrid = (): number[][] => {
         const grid: number[][] = [];
         for (let y = 0; y < newSize; y++) {
           grid.push(new Array(newSize).fill(0));
@@ -1114,9 +1144,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         return grid;
       };
       
-      // Copy old service values from interior positions (offset by 15)
-      const shrinkServiceGrid = (oldGrid: number[][]): number[][] => {
-        const newServiceGrid = createServiceGrid();
+      // Create new boolean service grids with shrunken size
+      const createBooleanServiceGrid = (): boolean[][] => {
+        const grid: boolean[][] = [];
+        for (let y = 0; y < newSize; y++) {
+          grid.push(new Array(newSize).fill(false));
+        }
+        return grid;
+      };
+      
+      // Copy old number service values from interior positions (offset by 15)
+      const shrinkNumberServiceGrid = (oldGrid: number[][]): number[][] => {
+        const newServiceGrid = createNumberServiceGrid();
         const offset = 15;
         // Safely iterate through the new grid
         if (oldGrid && Array.isArray(oldGrid)) {
@@ -1135,19 +1174,40 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         return newServiceGrid;
       };
       
+      // Copy old boolean service values from interior positions (offset by 15)
+      const shrinkBooleanServiceGrid = (oldGrid: boolean[][]): boolean[][] => {
+        const newServiceGrid = createBooleanServiceGrid();
+        const offset = 15;
+        // Safely iterate through the new grid
+        if (oldGrid && Array.isArray(oldGrid)) {
+          for (let y = 0; y < newSize; y++) {
+            const oldRow = oldGrid[y + offset];
+            if (oldRow && Array.isArray(oldRow)) {
+              for (let x = 0; x < newSize; x++) {
+                const value = oldRow[x + offset];
+                if (typeof value === 'boolean') {
+                  newServiceGrid[y][x] = value;
+                }
+              }
+            }
+          }
+        }
+        return newServiceGrid;
+      };
+      
       return {
         ...prev,
         grid: newGrid,
         gridSize: newSize,
         // Shrink all service grids
         services: {
-          power: shrinkServiceGrid(prev.services.power),
-          water: shrinkServiceGrid(prev.services.water),
-          fire: shrinkServiceGrid(prev.services.fire),
-          police: shrinkServiceGrid(prev.services.police),
-          health: shrinkServiceGrid(prev.services.health),
-          education: shrinkServiceGrid(prev.services.education),
-          subway: shrinkServiceGrid(prev.services.subway),
+          power: shrinkBooleanServiceGrid(prev.services.power),
+          water: shrinkBooleanServiceGrid(prev.services.water),
+          fire: shrinkNumberServiceGrid(prev.services.fire),
+          police: shrinkNumberServiceGrid(prev.services.police),
+          health: shrinkNumberServiceGrid(prev.services.health),
+          education: shrinkNumberServiceGrid(prev.services.education),
+          subway: shrinkNumberServiceGrid(prev.services.subway),
         },
         // Update bounds
         bounds: {
