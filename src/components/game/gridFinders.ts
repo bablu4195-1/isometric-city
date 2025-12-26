@@ -509,7 +509,8 @@ export function findOceanSpawnPoints(
 }
 
 /**
- * Find water tile adjacent to a marina/pier for boat positioning
+ * Find water tile adjacent to a marina/pier for boat positioning.
+ * Prefers open water tiles (not adjacent to bridges or other land).
  */
 export function findAdjacentWaterTile(
   grid: Tile[][],
@@ -521,6 +522,20 @@ export function findAdjacentWaterTile(
 
   // Check adjacent tiles for water (8 directions)
   const directions = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [-1, 1], [1, -1], [1, 1]];
+  
+  // First pass: look for open water tiles (not adjacent to bridges)
+  for (const [dx, dy] of directions) {
+    const nx = dockX + dx;
+    const ny = dockY + dy;
+    if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+      if (grid[ny][nx].building.type === 'water' && 
+          !isWaterTileAdjacentToBridge(grid, gridSize, nx, ny)) {
+        return { x: nx, y: ny };
+      }
+    }
+  }
+  
+  // Second pass: accept any water tile (fallback for very constrained areas)
   for (const [dx, dy] of directions) {
     const nx = dockX + dx;
     const ny = dockY + dy;
@@ -535,7 +550,8 @@ export function findAdjacentWaterTile(
 
 /**
  * Find water tile adjacent to a 2x2 marina for barge docking
- * Checks all tiles around the 2x2 footprint, not just the origin
+ * Checks all tiles around the 2x2 footprint, not just the origin.
+ * Prefers open water tiles (not adjacent to bridges).
  */
 export function findAdjacentWaterTileForMarina(
   grid: Tile[][],
@@ -564,6 +580,17 @@ export function findAdjacentWaterTileForMarina(
     { nx: marinaX + 2, ny: marinaY + 2 }, // Bottom-right corner
   ];
 
+  // First pass: look for open water tiles (not adjacent to bridges)
+  for (const pos of perimeterPositions) {
+    if (pos.nx >= 0 && pos.nx < gridSize && pos.ny >= 0 && pos.ny < gridSize) {
+      if (grid[pos.ny][pos.nx].building.type === 'water' &&
+          !isWaterTileAdjacentToBridge(grid, gridSize, pos.nx, pos.ny)) {
+        return { x: pos.nx, y: pos.ny };
+      }
+    }
+  }
+
+  // Second pass: accept any water tile (fallback for very constrained areas)
   for (const pos of perimeterPositions) {
     if (pos.nx >= 0 && pos.nx < gridSize && pos.ny >= 0 && pos.ny < gridSize) {
       if (grid[pos.ny][pos.nx].building.type === 'water') {
@@ -637,7 +664,55 @@ export function findSmogFactories(
 }
 
 /**
- * Check if a screen position is over water
+ * Check if a water tile at (x, y) is adjacent to a bridge tile
+ */
+export function isWaterTileAdjacentToBridge(
+  grid: Tile[][],
+  gridSize: number,
+  x: number,
+  y: number
+): boolean {
+  const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+  for (const [dx, dy] of directions) {
+    const nx = x + dx;
+    const ny = y + dy;
+    if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+      if (grid[ny][nx].building.type === 'bridge') {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Check if a water tile at (x, y) is adjacent to land (non-water, non-bridge tile)
+ * These are "coastal" tiles where beaches are drawn
+ */
+export function isWaterTileAdjacentToLand(
+  grid: Tile[][],
+  gridSize: number,
+  x: number,
+  y: number
+): boolean {
+  const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+  for (const [dx, dy] of directions) {
+    const nx = x + dx;
+    const ny = y + dy;
+    if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+      const adjType = grid[ny][nx].building.type;
+      // Check if adjacent tile is land (not water and not bridge)
+      if (adjType !== 'water' && adjType !== 'bridge') {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Check if a screen position is over water (open water, not adjacent to bridges or land)
+ * Used for boats, seaplanes, and barges to ensure they stay in open water
  */
 export function isOverWater(
   grid: Tile[][],
@@ -655,11 +730,27 @@ export function isOverWater(
     return false;
   }
 
-  return grid[tileY][tileX].building.type === 'water';
+  // Must be a water tile
+  if (grid[tileY][tileX].building.type !== 'water') {
+    return false;
+  }
+
+  // Exclude water tiles adjacent to bridges (boats/seaplanes shouldn't be under bridges)
+  if (isWaterTileAdjacentToBridge(grid, gridSize, tileX, tileY)) {
+    return false;
+  }
+
+  // Exclude water tiles adjacent to land (coastal tiles where beaches are drawn)
+  if (isWaterTileAdjacentToLand(grid, gridSize, tileX, tileY)) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
- * Find all connected water tiles from a starting water tile using BFS
+ * Find all connected open water tiles from a starting water tile using BFS.
+ * Excludes tiles adjacent to bridges or land (coastal tiles) for boat navigation.
  */
 export function findConnectedWaterTiles(
   grid: Tile[][],
@@ -671,12 +762,12 @@ export function findConnectedWaterTiles(
   if (!grid || gridSize <= 0) return [];
 
   const visited = new Set<string>();
-  const waterTiles: { x: number; y: number }[] = [];
+  const openWaterTiles: { x: number; y: number }[] = [];
   const queue: { x: number; y: number }[] = [{ x: startTileX, y: startTileY }];
 
   const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]; // 4-directional for cleaner water bodies
 
-  while (queue.length > 0 && waterTiles.length < maxTiles) {
+  while (queue.length > 0 && openWaterTiles.length < maxTiles) {
     const { x, y } = queue.shift()!;
     const key = `${x},${y}`;
 
@@ -686,7 +777,11 @@ export function findConnectedWaterTiles(
     if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) continue;
     if (grid[y][x].building.type !== 'water') continue;
 
-    waterTiles.push({ x, y });
+    // Skip tiles adjacent to bridges or land (boats shouldn't go there)
+    if (isWaterTileAdjacentToBridge(grid, gridSize, x, y)) continue;
+    if (isWaterTileAdjacentToLand(grid, gridSize, x, y)) continue;
+
+    openWaterTiles.push({ x, y });
 
     for (const [dx, dy] of directions) {
       const nx = x + dx;
@@ -697,7 +792,7 @@ export function findConnectedWaterTiles(
     }
   }
 
-  return waterTiles;
+  return openWaterTiles;
 }
 
 /**
@@ -816,13 +911,13 @@ export function findBays(
       }
 
       // BFS to find this water body
-      const bayTiles: { x: number; y: number }[] = [];
+      const allWaterTiles: { x: number; y: number }[] = [];
       const bayQueue: { x: number; y: number }[] = [{ x, y }];
       visitedAll.add(key);
 
       while (bayQueue.length > 0) {
         const tile = bayQueue.shift()!;
-        bayTiles.push(tile);
+        allWaterTiles.push(tile);
 
         for (const [dx, dy] of directions) {
           const nx = tile.x + dx;
@@ -838,17 +933,24 @@ export function findBays(
         }
       }
 
-      // Only add if bay is large enough
-      if (bayTiles.length >= minSize) {
-        // Calculate geometric center of bay
-        const geometricCenterX = bayTiles.reduce((sum, t) => sum + t.x, 0) / bayTiles.length;
-        const geometricCenterY = bayTiles.reduce((sum, t) => sum + t.y, 0) / bayTiles.length;
+      // Filter out water tiles that are adjacent to bridges or land (coastal tiles)
+      // Seaplanes should only operate in open water, not near bridges or shorelines
+      const openWaterTiles = allWaterTiles.filter(tile => 
+        !isWaterTileAdjacentToBridge(grid, gridSize, tile.x, tile.y) &&
+        !isWaterTileAdjacentToLand(grid, gridSize, tile.x, tile.y)
+      );
+
+      // Only add if bay has enough open water tiles
+      if (openWaterTiles.length >= minSize) {
+        // Calculate geometric center of open water tiles
+        const geometricCenterX = openWaterTiles.reduce((sum, t) => sum + t.x, 0) / openWaterTiles.length;
+        const geometricCenterY = openWaterTiles.reduce((sum, t) => sum + t.y, 0) / openWaterTiles.length;
         
-        // Find the actual water tile closest to the geometric center
-        // This ensures the center is always a valid water tile (not land in the middle of a bay)
-        let closestTile = bayTiles[0];
+        // Find the actual open water tile closest to the geometric center
+        // This ensures the center is always a valid open water tile
+        let closestTile = openWaterTiles[0];
         let closestDist = Infinity;
-        for (const tile of bayTiles) {
+        for (const tile of openWaterTiles) {
           const dist = Math.hypot(tile.x - geometricCenterX, tile.y - geometricCenterY);
           if (dist < closestDist) {
             closestDist = dist;
@@ -856,7 +958,7 @@ export function findBays(
           }
         }
         
-        // Convert to screen coordinates using the actual water tile
+        // Convert to screen coordinates using the actual open water tile
         const { screenX, screenY } = gridToScreen(closestTile.x, closestTile.y, 0, 0);
         
         bays.push({
@@ -864,8 +966,8 @@ export function findBays(
           centerY: closestTile.y,
           screenX: screenX + TILE_WIDTH / 2,
           screenY: screenY + TILE_HEIGHT / 2,
-          size: bayTiles.length,
-          waterTiles: bayTiles,
+          size: openWaterTiles.length,
+          waterTiles: openWaterTiles,
         });
       }
     }
