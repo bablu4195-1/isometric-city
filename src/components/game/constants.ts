@@ -40,7 +40,7 @@ export const PEDESTRIAN_SPAWN_INTERVAL = 0.03;      // Seconds between spawn bat
 export const PEDESTRIAN_UPDATE_SKIP_DISTANCE = 30;  // Skip detailed updates for pedestrians this far from view
 
 // Zoom limits for camera
-export const ZOOM_MIN = 0.08;                     // Minimum zoom level (most zoomed out - for large maps/multiple cities)
+export const ZOOM_MIN = 0.15;                     // Minimum zoom level (most zoomed out - for large maps/multiple cities)
 export const ZOOM_MAX = 7;                        // Maximum zoom level (most zoomed in)
 
 // Zoom thresholds for rendering detail elements
@@ -55,7 +55,7 @@ export const VEHICLE_FAR_ZOOM_THRESHOLD = 0.25;   // Below this zoom: hide ALL v
 export const TRAIN_MIN_ZOOM_FAR = 0.20;           // Trains visible slightly further out than cars
 export const BOAT_MIN_ZOOM_FAR = 0.20;            // Boats visible at moderate zoom
 export const HELICOPTER_MIN_ZOOM_FAR = 0.20;      // Helicopters visible at moderate zoom
-export const AIRPLANE_MIN_ZOOM_FAR = 0.15;        // Airplanes visible even when quite zoomed out
+export const AIRPLANE_MIN_ZOOM_FAR = 0;           // Airplanes always visible at all zoom levels
 export const TRAFFIC_LIGHT_MIN_ZOOM = 0.45;       // Traffic lights at intersections
 export const DIRECTION_ARROWS_MIN_ZOOM = 0.65;    // Directional arrows on merged roads
 export const MEDIAN_PLANTS_MIN_ZOOM = 0.55;       // Plants/shrubs on road medians
