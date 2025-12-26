@@ -224,7 +224,7 @@ export function drawAirplanes(
   const planeSprite = getCachedImage(AIRPLANE_SPRITE_CACHE_KEY, false);
 
   for (const plane of airplanes) {
-    // Draw contrails first (behind plane)
+    // Draw contrails first (behind plane) - only when at altitude
     if (plane.contrail.length > 0) {
       ctx.save();
       for (const particle of plane.contrail) {
@@ -248,6 +248,32 @@ export function drawAirplanes(
       }
       ctx.restore();
     }
+    
+    // Draw exhaust smoke (when on ground, taxiing or taking off)
+    if (plane.exhaust && plane.exhaust.length > 0) {
+      ctx.save();
+      for (const particle of plane.exhaust) {
+        // Skip if outside viewport
+        if (
+          particle.x < viewBounds.viewLeft - 20 ||
+          particle.x > viewBounds.viewRight + 20 ||
+          particle.y < viewBounds.viewTop - 20 ||
+          particle.y > viewBounds.viewBottom + 20
+        ) {
+          continue;
+        }
+
+        const size = particle.size;
+        const opacity = particle.opacity * 0.6;
+
+        // Dark grey exhaust smoke
+        ctx.fillStyle = `rgba(80, 80, 80, ${opacity})`;
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
 
     // Skip plane rendering if outside viewport
     if (
@@ -262,12 +288,14 @@ export function drawAirplanes(
     // Get direction from angle (with hysteresis to prevent flickering)
     const direction = angleToDirection(plane.angle, plane);
     
-    // Draw shadow (when low altitude)
-    if (plane.altitude < 0.8) {
-      const shadowOffset = (1 - plane.altitude) * 18;
-      const shadowOpacity = 0.25 * (1 - plane.altitude);
+    // Draw shadow - always visible, closer shadow when on ground
+    const isOnGround = plane.altitude < 0.1;
+    if (plane.altitude < 0.9) {
+      // Shadow is closer and darker when on ground, further and lighter when in air
+      const shadowOffset = isOnGround ? 3 : (1 - plane.altitude) * 18;
+      const shadowOpacity = isOnGround ? 0.35 : 0.25 * (1 - plane.altitude);
       const baseScale = PLANE_SCALES[plane.planeType] || 0.6;
-      const shadowScale = (0.55 + plane.altitude * 0.35) * baseScale;
+      const shadowScale = isOnGround ? baseScale * 0.55 : (0.55 + plane.altitude * 0.35) * baseScale;
 
       ctx.save();
       ctx.translate(plane.x + shadowOffset, plane.y + shadowOffset * 0.5);
@@ -301,8 +329,9 @@ export function drawAirplanes(
         ctx.rotate(rotationOffset);
         
         // Scale based on altitude and plane type
+        // Ground planes have a fixed scale, airborne planes scale with altitude
         const baseScale = PLANE_SCALES[plane.planeType] || 0.3;
-        const altitudeScale = 0.7 + plane.altitude * 0.5;
+        const altitudeScale = isOnGround ? 0.85 : (0.7 + plane.altitude * 0.5);
         const totalScale = baseScale * altitudeScale;
         
         // Apply mirroring if needed (mirrorX = horizontal flip, mirrorY = vertical flip)

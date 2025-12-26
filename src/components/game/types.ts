@@ -23,7 +23,17 @@ export type Car = {
 };
 
 // Airplane types for airport animation
-export type AirplaneState = 'flying' | 'landing' | 'taking_off' | 'taxiing';
+export type AirplaneState = 
+  | 'parked'              // Parked at gate/terminal
+  | 'taxiing_to_runway'   // Taxiing from gate to runway for takeoff
+  | 'waiting_for_takeoff' // Waiting at runway threshold
+  | 'taking_off'          // Accelerating down runway
+  | 'climbing'            // Just took off, gaining altitude
+  | 'flying'              // Cruising at altitude
+  | 'approaching'         // On approach to airport
+  | 'landing'             // On final approach, descending to runway
+  | 'rollout'             // Just landed, decelerating on runway
+  | 'taxiing_to_gate';    // Taxiing from runway to gate
 
 // Plane model types from the sprite sheet
 export type PlaneType = '737' | '777' | '747' | 'a380' | 'g650' | 'seaplane';
@@ -35,6 +45,15 @@ export type ContrailParticle = {
   opacity: number;
 };
 
+// Exhaust smoke particle for taxiing/takeoff planes
+export type ExhaustParticle = {
+  x: number;
+  y: number;
+  age: number;
+  opacity: number;
+  size: number;
+};
+
 export type Airplane = {
   id: number;
   // Screen position (isometric coordinates)
@@ -42,6 +61,8 @@ export type Airplane = {
   y: number;
   // Flight direction in radians
   angle: number;
+  // Target angle for smooth turning
+  targetAngle: number;
   // Current state
   state: AirplaneState;
   // Speed (pixels per second in screen space)
@@ -57,12 +78,29 @@ export type Airplane = {
   stateProgress: number;
   // Contrail particles
   contrail: ContrailParticle[];
+  // Exhaust smoke particles (for taxiing/takeoff)
+  exhaust: ExhaustParticle[];
   // Time until despawn (for flying planes)
   lifeTime: number;
+  // Time spent in current state (for parked/waiting)
+  stateTimer: number;
   // Plane color/style (legacy, for fallback rendering)
   color: string;
   // Plane model type from sprite sheet
   planeType: PlaneType;
+  // Runway direction for this airport (in radians, pointing toward takeoff direction)
+  runwayAngle: number;
+  // Gate position (screen coordinates)
+  gateX: number;
+  gateY: number;
+  // Runway threshold position (screen coordinates) - where planes start takeoff
+  runwayStartX: number;
+  runwayStartY: number;
+  // Runway end position (screen coordinates) - where planes lift off
+  runwayEndX: number;
+  runwayEndY: number;
+  // Is this plane departing (taking off) or arriving (landing)?
+  isDeparting: boolean;
 };
 
 // Seaplane types for bay/water operations

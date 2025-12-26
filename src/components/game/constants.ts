@@ -64,6 +64,34 @@ export const AIRPLANE_COLORS = ['#ffffff', '#1e40af', '#dc2626', '#059669', '#7c
 export const CONTRAIL_MAX_AGE = 3.0; // seconds
 export const CONTRAIL_SPAWN_INTERVAL = 0.02; // seconds between contrail particles
 
+// Airplane taxi/takeoff/landing constants
+export const AIRPLANE_TAXI_SPEED = 15; // pixels/second when taxiing
+export const AIRPLANE_TAKEOFF_SPEED_MIN = 25; // starting speed on runway
+export const AIRPLANE_TAKEOFF_SPEED_MAX = 100; // speed at liftoff
+export const AIRPLANE_LANDING_APPROACH_SPEED = 70; // speed during approach
+export const AIRPLANE_LANDING_TOUCHDOWN_SPEED = 60; // speed at touchdown
+export const AIRPLANE_ROLLOUT_DECEL = 40; // deceleration during rollout (px/s²)
+export const AIRPLANE_PARKED_TIME_MIN = 3; // minimum time parked at gate (seconds)
+export const AIRPLANE_PARKED_TIME_MAX = 8; // maximum time parked at gate (seconds)
+export const AIRPLANE_WAIT_TAKEOFF_TIME = 1.5; // time waiting at runway before takeoff
+export const AIRPLANE_CLIMB_RATE = 0.4; // altitude units per second during climb
+export const AIRPLANE_DESCENT_RATE = 0.2; // altitude units per second during descent
+export const AIRPLANE_APPROACH_ALTITUDE = 0.5; // altitude during approach before final descent
+export const AIRPLANE_TURN_RATE = 1.5; // radians per second for turning
+export const AIRPLANE_CRUISE_SPEED_MIN = 80; // minimum cruising speed
+export const AIRPLANE_CRUISE_SPEED_MAX = 120; // maximum cruising speed
+export const AIRPLANE_SPAWN_INTERVAL_MIN = 1.5; // seconds between spawns (faster spawning)
+export const AIRPLANE_SPAWN_INTERVAL_MAX = 4; // seconds between spawns
+export const AIRPLANE_FLIGHT_TIME_MIN = 25; // minimum flight time before landing
+export const AIRPLANE_FLIGHT_TIME_MAX = 45; // maximum flight time
+export const MAX_AIRPLANES_PER_AIRPORT = 6; // maximum planes per airport (including taxiing, parked, flying)
+export const MAX_GROUND_PLANES_PER_AIRPORT = 4; // maximum planes on ground per airport (parked + taxiing)
+
+// Exhaust smoke constants for taxiing/takeoff
+export const EXHAUST_MAX_AGE = 1.2; // seconds
+export const EXHAUST_SPAWN_INTERVAL = 0.08; // seconds between exhaust particles
+export const EXHAUST_SPAWN_INTERVAL_TAKEOFF = 0.04; // faster during takeoff
+
 // Airplane sprite sheet configuration
 export const AIRPLANE_SPRITE_SRC = '/assets/sprites_red_water_new_planes.png';
 export const AIRPLANE_SPRITE_COLS = 5; // 5 columns per row

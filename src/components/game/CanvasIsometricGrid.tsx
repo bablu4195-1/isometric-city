@@ -2513,6 +2513,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               // Buildings should face roads when possible, otherwise fall back to random
               const shouldRoadMirror = (() => {
                 if (isWaterfrontAsset) return false; // Waterfront buildings use water-facing logic
+                if (buildingType === 'airport') return false; // Airport should NEVER be mirrored - runway orientation is fixed
                 
                 const roadCheck = getRoadAdjacency(grid, tile.x, tile.y, buildingSize.width, buildingSize.height, gridSize);
                 if (roadCheck.hasRoad) {
