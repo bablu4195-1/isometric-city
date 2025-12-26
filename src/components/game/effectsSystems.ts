@@ -185,7 +185,16 @@ export function useEffectsSystems(
     // Update existing fireworks
     const updatedFireworks: Firework[] = [];
     
-    for (const firework of fireworksRef.current) {
+    for (const prevFirework of fireworksRef.current) {
+      // IMPORTANT: treat ref contents immutably (eslint react-hooks/immutability)
+      const firework: Firework = {
+        ...prevFirework,
+        particles: prevFirework.particles.map(p => ({
+          ...p,
+          trail: p.trail.map(tp => ({ ...tp })),
+        })),
+      };
+
       firework.age += delta;
       
       switch (firework.state) {
@@ -224,35 +233,37 @@ export function useEffectsSystems(
         case 'exploding': {
           // Update particles
           let allFaded = true;
-          for (const particle of firework.particles) {
-            // Add current position to trail before updating
-            particle.trail.push({ x: particle.x, y: particle.y, age: 0 });
-            // Limit trail length
-            while (particle.trail.length > 8) {
-              particle.trail.shift();
-            }
-            // Age trail particles
-            for (const tp of particle.trail) {
-              tp.age += delta;
-            }
-            // Remove old trail particles
-            particle.trail = particle.trail.filter(tp => tp.age < 0.3);
-            
-            particle.age += delta;
-            particle.x += particle.vx * delta * speedMultiplier;
-            particle.y += particle.vy * delta * speedMultiplier;
-            
-            // Apply gravity
-            particle.vy += 150 * delta;
-            
-            // Apply drag
-            particle.vx *= 0.98;
-            particle.vy *= 0.98;
-            
-            if (particle.age < particle.maxAge) {
-              allFaded = false;
-            }
-          }
+          firework.particles = firework.particles
+            .map(particle => {
+              // Add current position to trail before updating
+              const nextTrail = [{ x: particle.x, y: particle.y, age: 0 }, ...particle.trail]
+                .slice(0, 8)
+                .map(tp => ({ ...tp, age: tp.age + delta }))
+                .filter(tp => tp.age < 0.3);
+
+              const nextAge = particle.age + delta;
+              const nextX = particle.x + particle.vx * delta * speedMultiplier;
+              const nextY = particle.y + particle.vy * delta * speedMultiplier;
+
+              // Apply gravity + drag
+              const nextVy = (particle.vy + 150 * delta) * 0.98;
+              const nextVx = particle.vx * 0.98;
+
+              if (nextAge < particle.maxAge) {
+                allFaded = false;
+              }
+
+              return {
+                ...particle,
+                age: nextAge,
+                x: nextX,
+                y: nextY,
+                vx: nextVx,
+                vy: nextVy,
+                trail: nextTrail,
+              };
+            })
+            .filter(p => p.age < p.maxAge);
           
           if (allFaded) {
             firework.state = 'fading';
@@ -426,10 +437,13 @@ export function useEffectsSystems(
         const chimneyOffsetY = factory.type === 'factory_large' ? -TILE_HEIGHT * 1.2 : -TILE_HEIGHT * 0.7;
         
         if (existing && existing.buildingType === factory.type) {
-          // Update screen position but keep particles
-          existing.screenX = screenX + chimneyOffsetX;
-          existing.screenY = screenY + chimneyOffsetY;
-          return existing;
+          // Preserve particles/spawnTimer immutably, update screen position
+          return {
+            ...existing,
+            screenX: screenX + chimneyOffsetX,
+            screenY: screenY + chimneyOffsetY,
+            particles: existing.particles.map(p => ({ ...p })),
+          };
         }
         
         return {
@@ -445,32 +459,33 @@ export function useEffectsSystems(
     }
     
     // Update each factory's smog
-    for (const smog of factorySmogRef.current) {
-      // Update spawn timer with mobile multiplier
-      const baseSpawnInterval = smog.buildingType === 'factory_large' 
-        ? SMOG_SPAWN_INTERVAL_LARGE 
+    const updatedSmog: FactorySmog[] = [];
+    for (const prevSmog of factorySmogRef.current) {
+      const baseSpawnInterval = prevSmog.buildingType === 'factory_large'
+        ? SMOG_SPAWN_INTERVAL_LARGE
         : SMOG_SPAWN_INTERVAL_MEDIUM;
       const spawnInterval = baseSpawnInterval * spawnMultiplier;
-      
-      smog.spawnTimer += adjustedDelta;
-      
+
+      let spawnTimer = prevSmog.spawnTimer + adjustedDelta;
+      const particles = prevSmog.particles.map(p => ({ ...p }));
+
       // Spawn new particles (only if below particle limit)
-      while (smog.spawnTimer >= spawnInterval && smog.particles.length < maxParticles) {
-        smog.spawnTimer -= spawnInterval;
-        
+      while (spawnTimer >= spawnInterval && particles.length < maxParticles) {
+        spawnTimer -= spawnInterval;
+
         // Calculate spawn position with some randomness around the chimney
-        const spawnX = smog.screenX + (Math.random() - 0.5) * 8;
-        const spawnY = smog.screenY + (Math.random() - 0.5) * 4;
-        
+        const spawnX = prevSmog.screenX + (Math.random() - 0.5) * 8;
+        const spawnY = prevSmog.screenY + (Math.random() - 0.5) * 4;
+
         // Random initial velocity with upward and slight horizontal drift
         const vx = (Math.random() - 0.5) * SMOG_DRIFT_SPEED * 2;
         const vy = -SMOG_RISE_SPEED * (0.8 + Math.random() * 0.4);
-        
+
         // Random particle properties
         const size = SMOG_PARTICLE_SIZE_MIN + Math.random() * (SMOG_PARTICLE_SIZE_MAX - SMOG_PARTICLE_SIZE_MIN);
         const maxAge = particleMaxAge * (0.7 + Math.random() * 0.6);
-        
-        smog.particles.push({
+
+        particles.push({
           x: spawnX,
           y: spawnY,
           vx,
@@ -481,36 +496,35 @@ export function useEffectsSystems(
           opacity: SMOG_BASE_OPACITY * (0.8 + Math.random() * 0.4),
         });
       }
-      
+
       // Reset spawn timer if we hit the particle limit to prevent buildup
-      if (smog.particles.length >= maxParticles) {
-        smog.spawnTimer = 0;
+      if (particles.length >= maxParticles) {
+        spawnTimer = 0;
       }
-      
-      // Update existing particles
-      smog.particles = smog.particles.filter(particle => {
-        particle.age += adjustedDelta;
-        
-        if (particle.age >= particle.maxAge) {
-          return false; // Remove old particles
-        }
-        
-        // Update position with drift
-        particle.x += particle.vx * adjustedDelta;
-        particle.y += particle.vy * adjustedDelta;
-        
-        // Slow down horizontal drift over time
-        particle.vx *= 0.995;
-        
-        // Slow down vertical rise as particle ages
-        particle.vy *= 0.998;
-        
-        // Grow particle size over time
-        particle.size += SMOG_PARTICLE_GROWTH * adjustedDelta;
-        
-        return true;
+
+      const nextParticles = particles
+        .map(particle => {
+          const age = particle.age + adjustedDelta;
+          if (age >= particle.maxAge) return null;
+
+          const x = particle.x + particle.vx * adjustedDelta;
+          const y = particle.y + particle.vy * adjustedDelta;
+          const vx = particle.vx * 0.995;
+          const vy = particle.vy * 0.998;
+          const size = particle.size + SMOG_PARTICLE_GROWTH * adjustedDelta;
+
+          return { ...particle, age, x, y, vx, vy, size };
+        })
+        .filter((p): p is NonNullable<typeof p> => p !== null);
+
+      updatedSmog.push({
+        ...prevSmog,
+        spawnTimer,
+        particles: nextParticles,
       });
     }
+
+    factorySmogRef.current = updatedSmog;
   }, [worldStateRef, gridVersionRef, factorySmogRef, smogLastGridVersionRef, findSmogFactoriesCallback, isMobile]);
 
   // Draw smog particles

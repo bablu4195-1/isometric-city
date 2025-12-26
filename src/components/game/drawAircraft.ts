@@ -19,7 +19,9 @@ import { getCachedImage } from './imageLoader';
 const AIRPLANE_SPRITE_CACHE_KEY = '/assets/sprites_red_water_new_planes.png';
 
 // Cache for last direction to prevent rapid flipping (hysteresis)
-const lastDirectionCache = new WeakMap<any, string>();
+// NOTE: Use a Map keyed by a stable string (e.g. "airplane:12") so we can update
+// simulation objects immutably without losing hysteresis between frames.
+const lastDirectionCache = new Map<string, string>();
 
 // Helper for boundary angles
 const boundaryOrder: Record<string, number[]> = {
@@ -37,7 +39,7 @@ const boundaryOrder: Record<string, number[]> = {
  * Convert an angle (radians) to one of 8 compass directions
  * Uses hysteresis to prevent rapid direction flips
  */
-function angleToDirection(angle: number, cacheKey?: any): string {
+function angleToDirection(angle: number, cacheKey?: string): string {
   // Normalize angle to 0-2PI
   let normalizedAngle = angle % (Math.PI * 2);
   if (normalizedAngle < 0) normalizedAngle += Math.PI * 2;
@@ -260,7 +262,7 @@ export function drawAirplanes(
     }
 
     // Get direction from angle (with hysteresis to prevent flickering)
-    const direction = angleToDirection(plane.angle, plane);
+    const direction = angleToDirection(plane.angle, `airplane:${plane.id}`);
     
     // Draw shadow (when low altitude)
     if (plane.altitude < 0.8) {
@@ -1011,7 +1013,7 @@ export function drawSeaplanes(
     }
 
     // Get direction from angle (with hysteresis to prevent flickering)
-    const direction = angleToDirection(seaplane.angle, seaplane);
+    const direction = angleToDirection(seaplane.angle, `seaplane:${seaplane.id}`);
     
     // Draw shadow (when flying at altitude)
     if (seaplane.altitude > 0.1 && seaplane.altitude < 0.8) {

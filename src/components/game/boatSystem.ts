@@ -144,7 +144,13 @@ export function useBoatSystem(
     // Update existing boats
     const updatedBoats: Boat[] = [];
     
-    for (const boat of boatsRef.current) {
+    for (const prevBoat of boatsRef.current) {
+      // IMPORTANT: treat ref contents immutably (eslint react-hooks/immutability)
+      const boat: Boat = {
+        ...prevBoat,
+        wake: [...prevBoat.wake],
+      };
+
       boat.age += delta;
       
       // Update wake particles (similar to contrails) - shorter on mobile
@@ -510,7 +516,7 @@ export function useBoatSystem(
     }
     
     ctx.restore();
-  }, [worldStateRef, boatsRef, visualHour]);
+  }, [worldStateRef, boatsRef, visualHour, isMobile]);
 
   return {
     updateBoats,

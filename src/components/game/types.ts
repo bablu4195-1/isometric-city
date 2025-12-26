@@ -23,7 +23,17 @@ export type Car = {
 };
 
 // Airplane types for airport animation
-export type AirplaneState = 'flying' | 'landing' | 'taking_off' | 'taxiing';
+// Note: Airplanes now have a fuller ground/flight lifecycle (park/taxi/takeoff/approach/landing/taxi).
+export type AirplaneState =
+  | 'parked'
+  | 'taxi_to_runway'
+  | 'lineup'
+  | 'takeoff_roll'
+  | 'taking_off'
+  | 'flying'
+  | 'approach'
+  | 'landing_roll'
+  | 'taxi_to_gate';
 
 // Plane model types from the sprite sheet
 export type PlaneType = '737' | '777' | '747' | 'a380' | 'g650' | 'seaplane';
@@ -53,6 +63,13 @@ export type Airplane = {
   // Airport tile coordinates (for landing/takeoff reference)
   airportX: number;
   airportY: number;
+  // Generic target point (used for taxiing and approach alignment)
+  targetX: number;
+  targetY: number;
+  // Gate index within the airport (for parking/taxiing)
+  gateIndex: number;
+  // Timer used for parked/lineup holds (seconds)
+  phaseTimer: number;
   // Progress for landing/takeoff (0-1)
   stateProgress: number;
   // Contrail particles

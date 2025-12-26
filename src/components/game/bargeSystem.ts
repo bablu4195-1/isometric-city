@@ -148,7 +148,13 @@ export function useBargeSystem(
     // Update existing barges
     const updatedBarges: Barge[] = [];
     
-    for (const barge of bargesRef.current) {
+    for (const prevBarge of bargesRef.current) {
+      // IMPORTANT: treat ref contents immutably (eslint react-hooks/immutability)
+      const barge: Barge = {
+        ...prevBarge,
+        wake: [...prevBarge.wake],
+      };
+
       barge.age += delta;
       
       // Update wake particles
