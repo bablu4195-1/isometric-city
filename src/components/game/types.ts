@@ -23,7 +23,19 @@ export type Car = {
 };
 
 // Airplane types for airport animation
-export type AirplaneState = 'flying' | 'landing' | 'taking_off' | 'taxiing';
+// Notes:
+// - The airport runway is visually aligned toward the top-right of the screen.
+// - Planes now do full ground ops: park → taxi → takeoff / approach → land → taxi → park.
+export type AirplaneState =
+  | 'parked'
+  | 'taxi_out'
+  | 'holding_short'
+  | 'takeoff_roll'
+  | 'climb'
+  | 'cruise'
+  | 'approach'
+  | 'landing_roll'
+  | 'taxi_in';
 
 // Plane model types from the sprite sheet
 export type PlaneType = '737' | '777' | '747' | 'a380' | 'g650' | 'seaplane';
@@ -63,6 +75,11 @@ export type Airplane = {
   color: string;
   // Plane model type from sprite sheet
   planeType: PlaneType;
+  // Ground routing (taxi) - list of waypoints in screen space
+  taxiRoute?: { x: number; y: number }[];
+  taxiRouteIndex?: number;
+  // Generic timer used for parked/holding phases (seconds)
+  phaseTimer?: number;
 };
 
 // Seaplane types for bay/water operations

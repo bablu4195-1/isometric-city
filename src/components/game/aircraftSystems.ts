@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability */
 import { useCallback } from 'react';
 import { Airplane, Helicopter, WorldRenderState, TILE_WIDTH, TILE_HEIGHT, PlaneType } from './types';
 import {
@@ -13,6 +14,108 @@ import {
 } from './constants';
 import { gridToScreen } from './utils';
 import { findAirports, findHeliports } from './gridFinders';
+
+type Point = { x: number; y: number };
+
+const AIRPORT_FOOTPRINT_SIZE = 3; // Airport asset footprint (3x3)
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function normalizeAngle(angle: number): number {
+  let a = angle % (Math.PI * 2);
+  if (a < 0) a += Math.PI * 2;
+  return a;
+}
+
+function shortestAngleDelta(from: number, to: number): number {
+  let d = normalizeAngle(to) - normalizeAngle(from);
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
+function normalizeVec(x: number, y: number): { x: number; y: number } {
+  const len = Math.hypot(x, y) || 1;
+  return { x: x / len, y: y / len };
+}
+
+function pointInPolygon(point: Point, polygon: Point[]): boolean {
+  // Ray-casting algorithm (works for convex + concave)
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x, yi = polygon[i].y;
+    const xj = polygon[j].x, yj = polygon[j].y;
+    const intersect =
+      yi > point.y !== yj > point.y &&
+      point.x < ((xj - xi) * (point.y - yi)) / (yj - yi + 1e-9) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function tileCenter(tileX: number, tileY: number): Point {
+  const { screenX, screenY } = gridToScreen(tileX, tileY, 0, 0);
+  return { x: screenX + TILE_WIDTH / 2, y: screenY + TILE_HEIGHT / 2 };
+}
+
+function getAirportGeometry(airportX: number, airportY: number) {
+  const size = AIRPORT_FOOTPRINT_SIZE;
+  const top = tileCenter(airportX, airportY);
+  const right = tileCenter(airportX + (size - 1), airportY);
+  const bottom = tileCenter(airportX + (size - 1), airportY + (size - 1));
+  const left = tileCenter(airportX, airportY + (size - 1));
+  const polygon: Point[] = [top, right, bottom, left];
+  const center = tileCenter(airportX + 1, airportY + 1);
+
+  // Runway axis is aligned toward the top-right of the screen in isometric space.
+  // That corresponds to the "east" screen vector: (+TILE_WIDTH/2, -TILE_HEIGHT/2).
+  const runwayAxis = normalizeVec(TILE_WIDTH / 2, -TILE_HEIGHT / 2);
+  const runwayPerp = { x: runwayAxis.y, y: -runwayAxis.x };
+
+  // Pick runway endpoints inside the airport polygon. Start near the "bottom-left" end, end near "top-right".
+  let runwayHalfLength = TILE_WIDTH * 1.35;
+  let runwayStart: Point = {
+    x: center.x - runwayAxis.x * runwayHalfLength,
+    y: center.y - runwayAxis.y * runwayHalfLength,
+  };
+  let runwayEnd: Point = {
+    x: center.x + runwayAxis.x * runwayHalfLength,
+    y: center.y + runwayAxis.y * runwayHalfLength,
+  };
+  for (let i = 0; i < 10; i++) {
+    if (pointInPolygon(runwayStart, polygon) && pointInPolygon(runwayEnd, polygon)) break;
+    runwayHalfLength *= 0.9;
+    runwayStart = {
+      x: center.x - runwayAxis.x * runwayHalfLength,
+      y: center.y - runwayAxis.y * runwayHalfLength,
+    };
+    runwayEnd = {
+      x: center.x + runwayAxis.x * runwayHalfLength,
+      y: center.y + runwayAxis.y * runwayHalfLength,
+    };
+  }
+
+  // Gate positions: slightly offset from center, kept within bounds.
+  const gates: Point[] = [
+    { x: center.x - runwayAxis.x * 42 - runwayPerp.x * 26, y: center.y - runwayAxis.y * 42 - runwayPerp.y * 26 },
+    { x: center.x - runwayAxis.x * 28 - runwayPerp.x * 8, y: center.y - runwayAxis.y * 28 - runwayPerp.y * 8 },
+    { x: center.x - runwayAxis.x * 18 + runwayPerp.x * 16, y: center.y - runwayAxis.y * 18 + runwayPerp.y * 16 },
+    { x: center.x - runwayAxis.x * 8 + runwayPerp.x * 32, y: center.y - runwayAxis.y * 8 + runwayPerp.y * 32 },
+  ].filter(p => pointInPolygon(p, polygon));
+
+  const holdShort: Point = {
+    x: runwayStart.x + runwayAxis.x * 22,
+    y: runwayStart.y + runwayAxis.y * 22,
+  };
+
+  return { polygon, center, runwayAxis, runwayPerp, runwayStart, runwayEnd, holdShort, gates };
+}
 
 export interface AircraftSystemRefs {
   airplanesRef: React.MutableRefObject<Airplane[]>;
@@ -90,8 +193,11 @@ export function useAircraftSystems(
       return;
     }
 
-    // Calculate max airplanes based on population (1 per 2k population, min 25, max 80)
-    const maxAirplanes = Math.min(80, Math.max(25, Math.floor(totalPopulation / 2000) * 3));
+    // Target airplanes based on population and airport count.
+    // Keep a visible amount of ground activity even for smaller cities.
+    const populationBased = Math.floor(totalPopulation / 1500) * 3;
+    const airportBased = airports.length * 10;
+    const maxAirplanes = Math.min(90, Math.max(18, Math.min(populationBased, airportBased)));
     
     // Speed multiplier based on game speed
     const speedMultiplier = currentSpeed === 1 ? 1 : currentSpeed === 2 ? 1.5 : 2;
@@ -99,97 +205,90 @@ export function useAircraftSystems(
     // Spawn timer
     airplaneSpawnTimerRef.current -= delta;
     if (airplanesRef.current.length < maxAirplanes && airplaneSpawnTimerRef.current <= 0) {
-      // Pick a random airport
       const airport = airports[Math.floor(Math.random() * airports.length)];
-      
-      // Convert airport tile to screen coordinates
-      const { screenX: airportScreenX, screenY: airportScreenY } = gridToScreen(airport.x, airport.y, 0, 0);
-      const airportCenterX = airportScreenX + TILE_WIDTH * 2; // Center of 4x4 airport
-      const airportCenterY = airportScreenY + TILE_HEIGHT * 2;
-      
-      // Decide if taking off or arriving from distance
-      const isTakingOff = Math.random() < 0.5;
-      
-      if (isTakingOff) {
-        // Taking off from airport
-        const angle = Math.random() * Math.PI * 2; // Random direction
-        const planeType = PLANE_TYPES[Math.floor(Math.random() * PLANE_TYPES.length)] as PlaneType;
+      const geom = getAirportGeometry(airport.x, airport.y);
+
+      const planeType = PLANE_TYPES[Math.floor(Math.random() * PLANE_TYPES.length)] as PlaneType;
+      const basePlane = {
+        id: airplaneIdRef.current++,
+        x: geom.center.x,
+        y: geom.center.y,
+        angle: 0,
+        speed: 0,
+        altitude: 0,
+        targetAltitude: 0,
+        airportX: airport.x,
+        airportY: airport.y,
+        stateProgress: 0,
+        contrail: [],
+        lifeTime: 20 + Math.random() * 35,
+        color: AIRPLANE_COLORS[Math.floor(Math.random() * AIRPLANE_COLORS.length)],
+        planeType,
+        taxiRoute: undefined as Airplane['taxiRoute'],
+        taxiRouteIndex: 0,
+        phaseTimer: 0,
+      };
+
+      const parkedCount = airplanesRef.current.filter(p => p.state === 'parked' || p.state === 'taxi_out' || p.state === 'taxi_in' || p.state === 'holding_short' || p.state === 'takeoff_roll' || p.state === 'landing_roll').length;
+      const airborneCount = airplanesRef.current.length - parkedCount;
+
+      // Bias toward keeping visible ground ops: taxi/park/takeoff/landing.
+      const wantMoreGround = parkedCount < airports.length * 5;
+      const wantMoreArrivals = airplanesRef.current.filter(p => p.state === 'approach' || p.state === 'landing_roll').length < airports.length * 2;
+
+      const spawnArrival = !wantMoreGround && (wantMoreArrivals || Math.random() < 0.45);
+      if (spawnArrival) {
+        // Spawn inbound on a stable approach aligned with runway (from top-right).
+        const approachStartDist = TILE_WIDTH * (8 + Math.random() * 4);
+        const approachX = geom.runwayEnd.x + geom.runwayAxis.x * approachStartDist;
+        const approachY = geom.runwayEnd.y + geom.runwayAxis.y * approachStartDist;
+        const landingHeading = Math.atan2(-geom.runwayAxis.y, -geom.runwayAxis.x);
+
         airplanesRef.current.push({
-          id: airplaneIdRef.current++,
-          x: airportCenterX,
-          y: airportCenterY,
-          angle: angle,
-          state: 'taking_off',
-          speed: 30 + Math.random() * 20, // Slow during takeoff
-          altitude: 0,
-          targetAltitude: 1,
-          airportX: airport.x,
-          airportY: airport.y,
-          stateProgress: 0,
-          contrail: [],
-          lifeTime: 30 + Math.random() * 20, // 30-50 seconds of flight
-          color: AIRPLANE_COLORS[Math.floor(Math.random() * AIRPLANE_COLORS.length)],
-          planeType: planeType,
+          ...basePlane,
+          x: approachX,
+          y: approachY,
+          angle: landingHeading,
+          state: 'approach',
+          speed: 120 + Math.random() * 30,
+          altitude: 1,
+          targetAltitude: 0,
+          lifeTime: 18 + Math.random() * 18,
         });
       } else {
-        // Arriving from the edge of the map
-        const edge = Math.floor(Math.random() * 4);
-        let startX: number, startY: number;
-        
-        // Calculate map bounds in screen space
-        const mapCenterX = 0;
-        const mapCenterY = currentGridSize * TILE_HEIGHT / 2;
-        const mapExtent = currentGridSize * TILE_WIDTH;
-        
-        switch (edge) {
-          case 0: // From top
-            startX = mapCenterX + (Math.random() - 0.5) * mapExtent;
-            startY = mapCenterY - mapExtent / 2 - 200;
-            break;
-          case 1: // From right
-            startX = mapCenterX + mapExtent / 2 + 200;
-            startY = mapCenterY + (Math.random() - 0.5) * mapExtent / 2;
-            break;
-          case 2: // From bottom
-            startX = mapCenterX + (Math.random() - 0.5) * mapExtent;
-            startY = mapCenterY + mapExtent / 2 + 200;
-            break;
-          default: // From left
-            startX = mapCenterX - mapExtent / 2 - 200;
-            startY = mapCenterY + (Math.random() - 0.5) * mapExtent / 2;
-            break;
-        }
-        
-        // Calculate angle to airport
-        const angleToAirport = Math.atan2(airportCenterY - startY, airportCenterX - startX);
-        const planeType = PLANE_TYPES[Math.floor(Math.random() * PLANE_TYPES.length)] as PlaneType;
-        
+        // Spawn parked at a gate, then taxi out to runway.
+        const gate = geom.gates[Math.floor(Math.random() * Math.max(1, geom.gates.length))] || geom.center;
+        const taxiRoute: Point[] = [gate, geom.holdShort, geom.runwayStart];
+        const taxiHeading = Math.atan2(taxiRoute[1].y - taxiRoute[0].y, taxiRoute[1].x - taxiRoute[0].x);
+
         airplanesRef.current.push({
-          id: airplaneIdRef.current++,
-          x: startX,
-          y: startY,
-          angle: angleToAirport,
-          state: 'flying',
-          speed: 80 + Math.random() * 40, // Faster when cruising
-          altitude: 1,
-          targetAltitude: 1,
-          airportX: airport.x,
-          airportY: airport.y,
-          stateProgress: 0,
-          contrail: [],
-          lifeTime: 30 + Math.random() * 20,
-          color: AIRPLANE_COLORS[Math.floor(Math.random() * AIRPLANE_COLORS.length)],
-          planeType: planeType,
+          ...basePlane,
+          x: gate.x,
+          y: gate.y,
+          angle: taxiHeading,
+          state: 'parked',
+          speed: 0,
+          altitude: 0,
+          targetAltitude: 0,
+          taxiRoute,
+          taxiRouteIndex: 0,
+          phaseTimer: 1.5 + Math.random() * 5.5,
+          // Keep some ground units around longer so the airport feels alive.
+          lifeTime: 40 + Math.random() * 40,
         });
       }
-      
-      airplaneSpawnTimerRef.current = 2 + Math.random() * 5; // 2-7 seconds between spawns
+
+      // Faster cadence so there are almost always active planes
+      const congestionFactor = clamp(airplanesRef.current.length / Math.max(1, maxAirplanes), 0, 1);
+      airplaneSpawnTimerRef.current = lerp(0.75, 2.25, congestionFactor) + Math.random() * 0.6;
     }
 
     // Update existing airplanes
     const updatedAirplanes: Airplane[] = [];
     
     for (const plane of airplanesRef.current) {
+      const geom = getAirportGeometry(plane.airportX, plane.airportY);
+
       // Update contrail particles - shorter duration on mobile for performance
       const contrailMaxAge = isMobile ? 0.8 : CONTRAIL_MAX_AGE;
       const contrailSpawnInterval = isMobile ? 0.06 : CONTRAIL_SPAWN_INTERVAL;
@@ -213,71 +312,226 @@ export function useAircraftSystems(
       
       // Update based on state
       switch (plane.state) {
-        case 'taking_off': {
-          // Move forward and climb
+        case 'parked': {
+          plane.altitude = 0;
+          plane.speed = 0;
+          plane.phaseTimer = (plane.phaseTimer ?? 0) - delta * speedMultiplier;
+          if ((plane.phaseTimer ?? 0) <= 0) {
+            // Begin taxi to runway
+            if (!plane.taxiRoute || plane.taxiRoute.length < 2) {
+              const gate = geom.gates[Math.floor(Math.random() * Math.max(1, geom.gates.length))] || geom.center;
+              plane.taxiRoute = [gate, geom.holdShort, geom.runwayStart];
+              plane.taxiRouteIndex = 0;
+              plane.x = gate.x;
+              plane.y = gate.y;
+            }
+            plane.state = 'taxi_out';
+          }
+          break;
+        }
+
+        case 'taxi_out':
+        case 'taxi_in': {
+          const route = plane.taxiRoute;
+          if (!route || route.length < 2) {
+            plane.state = 'parked';
+            plane.phaseTimer = 1 + Math.random() * 2;
+            break;
+          }
+          const rawIdx = plane.taxiRouteIndex ?? 0;
+          if (rawIdx >= route.length) {
+            // Route already completed
+            if (plane.state === 'taxi_out') {
+              plane.state = 'holding_short';
+              plane.phaseTimer = 0.8 + Math.random() * 1.8;
+            } else {
+              plane.state = 'parked';
+              plane.phaseTimer = 2.0 + Math.random() * 6.0;
+            }
+            break;
+          }
+          const idx = clamp(rawIdx, 0, route.length - 1);
+          const target = route[idx];
+          const dx = target.x - plane.x;
+          const dy = target.y - plane.y;
+          const dist = Math.hypot(dx, dy);
+
+          const taxiSpeed = (plane.state === 'taxi_in' ? 22 : 26) + (plane.planeType === 'g650' ? 6 : 0);
+          plane.speed = taxiSpeed;
+
+          const desiredAngle = Math.atan2(dy, dx);
+          const turnRate = 2.6; // radians/sec
+          plane.angle += clamp(shortestAngleDelta(plane.angle, desiredAngle), -turnRate * delta, turnRate * delta);
+
+          if (dist < 6) {
+            plane.taxiRouteIndex = idx + 1;
+            // Completed route?
+            if ((plane.taxiRouteIndex ?? 0) >= route.length) {
+              if (plane.state === 'taxi_out') {
+                plane.state = 'holding_short';
+                plane.phaseTimer = 0.8 + Math.random() * 1.8;
+              } else {
+                plane.state = 'parked';
+                plane.phaseTimer = 2.0 + Math.random() * 6.0;
+              }
+            }
+          } else {
+            const step = Math.min(dist, taxiSpeed * delta * speedMultiplier);
+            const nx = dx / (dist || 1);
+            const ny = dy / (dist || 1);
+            const nextX = plane.x + nx * step;
+            const nextY = plane.y + ny * step;
+
+            // Safety: do not taxi outside airport boundaries.
+            if (pointInPolygon({ x: nextX, y: nextY }, geom.polygon)) {
+              plane.x = nextX;
+              plane.y = nextY;
+            } else {
+              // If we somehow got outside, steer gently back toward center and pause movement.
+              const toCenter = Math.atan2(geom.center.y - plane.y, geom.center.x - plane.x);
+              plane.angle += clamp(shortestAngleDelta(plane.angle, toCenter), -turnRate * delta, turnRate * delta);
+            }
+          }
+          break;
+        }
+
+        case 'holding_short': {
+          plane.altitude = 0;
+          plane.speed = 0;
+          plane.phaseTimer = (plane.phaseTimer ?? 0) - delta * speedMultiplier;
+          const takeoffHeading = Math.atan2(geom.runwayAxis.y, geom.runwayAxis.x);
+          plane.angle += clamp(shortestAngleDelta(plane.angle, takeoffHeading), -3.5 * delta, 3.5 * delta);
+          if ((plane.phaseTimer ?? 0) <= 0) {
+            plane.state = 'takeoff_roll';
+            plane.speed = 34;
+            // Snap to runway start to avoid edge-case drift
+            plane.x = geom.runwayStart.x;
+            plane.y = geom.runwayStart.y;
+          }
+          break;
+        }
+
+        case 'takeoff_roll': {
+          plane.altitude = 0;
+          const takeoffHeading = Math.atan2(geom.runwayAxis.y, geom.runwayAxis.x);
+          plane.angle += clamp(shortestAngleDelta(plane.angle, takeoffHeading), -3.0 * delta, 3.0 * delta);
+
+          // Accelerate hard on runway
+          plane.speed = Math.min(150, plane.speed + delta * 85 * speedMultiplier);
+
+          const nextX = plane.x + geom.runwayAxis.x * plane.speed * delta * speedMultiplier;
+          const nextY = plane.y + geom.runwayAxis.y * plane.speed * delta * speedMultiplier;
+
+          // Stay on runway within bounds until rotation point.
+          if (pointInPolygon({ x: nextX, y: nextY }, geom.polygon)) {
+            plane.x = nextX;
+            plane.y = nextY;
+          } else {
+            // If we hit the boundary, transition to climb anyway (we're "past" the runway).
+            plane.x = nextX;
+            plane.y = nextY;
+          }
+
+          const distToRunwayEnd = Math.hypot(plane.x - geom.runwayEnd.x, plane.y - geom.runwayEnd.y);
+          if (distToRunwayEnd < 18 || plane.speed > 135) {
+            plane.state = 'climb';
+            plane.targetAltitude = 1;
+          }
+          break;
+        }
+
+        case 'climb': {
+          const takeoffHeading = Math.atan2(geom.runwayAxis.y, geom.runwayAxis.x);
+          plane.angle += clamp(shortestAngleDelta(plane.angle, takeoffHeading), -1.8 * delta, 1.8 * delta);
+          plane.speed = Math.min(200, plane.speed + delta * 22 * speedMultiplier);
+          plane.altitude = Math.min(1, plane.altitude + delta * 0.55 * speedMultiplier);
+
           plane.x += Math.cos(plane.angle) * plane.speed * delta * speedMultiplier;
           plane.y += Math.sin(plane.angle) * plane.speed * delta * speedMultiplier;
-          plane.altitude = Math.min(1, plane.altitude + delta * 0.3); // Climb rate
-          plane.speed = Math.min(120, plane.speed + delta * 20); // Accelerate
-          
+
           if (plane.altitude >= 1) {
-            plane.state = 'flying';
+            plane.state = 'cruise';
+            // Small drift variation so cruising doesn't look too uniform.
+            plane.angle = takeoffHeading + (Math.random() - 0.5) * 0.35;
+            plane.speed = 150 + Math.random() * 70;
           }
           break;
         }
-        
-        case 'flying': {
-          // Move forward at cruising speed
+
+        case 'cruise': {
           plane.x += Math.cos(plane.angle) * plane.speed * delta * speedMultiplier;
           plane.y += Math.sin(plane.angle) * plane.speed * delta * speedMultiplier;
-          
-          plane.lifeTime -= delta;
-          
-          // Check if near airport and should land
-          const { screenX: airportScreenX, screenY: airportScreenY } = gridToScreen(plane.airportX, plane.airportY, 0, 0);
-          const airportCenterX = airportScreenX + TILE_WIDTH * 2;
-          const airportCenterY = airportScreenY + TILE_HEIGHT * 2;
-          const distToAirport = Math.hypot(plane.x - airportCenterX, plane.y - airportCenterY);
-          
-          // Start landing approach when close enough and lifetime is low
-          if (distToAirport < 400 && plane.lifeTime < 10) {
-            plane.state = 'landing';
-            plane.targetAltitude = 0;
-            // Adjust angle to point at airport
-            plane.angle = Math.atan2(airportCenterY - plane.y, airportCenterX - plane.x);
-          } else if (plane.lifeTime <= 0) {
-            // Despawn if too far from airport and out of time
+          plane.lifeTime -= delta * speedMultiplier;
+          if (plane.lifeTime <= 0) {
             continue;
+          }
+          // Gentle course corrections
+          if (Math.random() < 0.01) {
+            plane.angle += (Math.random() - 0.5) * 0.15;
           }
           break;
         }
-        
-        case 'landing': {
-          // Descend and slow down while approaching airport
-          const { screenX: airportScreenX, screenY: airportScreenY } = gridToScreen(plane.airportX, plane.airportY, 0, 0);
-          const airportCenterX = airportScreenX + TILE_WIDTH * 2;
-          const airportCenterY = airportScreenY + TILE_HEIGHT * 2;
-          
-          // Adjust angle to point at airport
-          const angleToAirport = Math.atan2(airportCenterY - plane.y, airportCenterX - plane.x);
-          plane.angle = angleToAirport;
-          
+
+        case 'approach': {
+          // Align to runway inbound (from runwayEnd toward runwayStart).
+          const landingHeading = Math.atan2(-geom.runwayAxis.y, -geom.runwayAxis.x);
+          const desiredToThreshold = Math.atan2(geom.runwayEnd.y - plane.y, geom.runwayEnd.x - plane.x);
+          // Blend between directly-to-threshold and runway heading for a stable lined-up approach.
+          const distToThreshold = Math.hypot(plane.x - geom.runwayEnd.x, plane.y - geom.runwayEnd.y);
+          const alignT = clamp(1 - distToThreshold / (TILE_WIDTH * 6), 0, 1);
+          const desiredAngle = normalizeAngle(lerp(desiredToThreshold, landingHeading, alignT));
+          plane.angle += clamp(shortestAngleDelta(plane.angle, desiredAngle), -1.6 * delta, 1.6 * delta);
+
+          // Descend and slow
+          plane.altitude = Math.max(0.12, plane.altitude - delta * 0.28 * speedMultiplier);
+          plane.speed = Math.max(95, plane.speed - delta * 18 * speedMultiplier);
+
           plane.x += Math.cos(plane.angle) * plane.speed * delta * speedMultiplier;
           plane.y += Math.sin(plane.angle) * plane.speed * delta * speedMultiplier;
-          plane.altitude = Math.max(0, plane.altitude - delta * 0.25); // Descend
-          plane.speed = Math.max(30, plane.speed - delta * 15); // Decelerate
-          
-          const distToAirport = Math.hypot(plane.x - airportCenterX, plane.y - airportCenterY);
-          if (distToAirport < 50 || plane.altitude <= 0) {
-            // Landed - remove plane
-            continue;
+
+          // Touchdown trigger near runway end
+          if (distToThreshold < 26 || plane.altitude <= 0.18) {
+            plane.state = 'landing_roll';
+            plane.altitude = 0;
+            plane.speed = Math.max(70, plane.speed);
+            plane.angle = landingHeading;
+            // Snap to threshold for clean rollout visuals
+            plane.x = geom.runwayEnd.x;
+            plane.y = geom.runwayEnd.y;
           }
           break;
         }
-        
-        case 'taxiing':
-          // Not implemented - planes just land and disappear
-          continue;
+
+        case 'landing_roll': {
+          plane.altitude = 0;
+          const landingHeading = Math.atan2(-geom.runwayAxis.y, -geom.runwayAxis.x);
+          plane.angle += clamp(shortestAngleDelta(plane.angle, landingHeading), -2.0 * delta, 2.0 * delta);
+          plane.speed = Math.max(18, plane.speed - delta * 55 * speedMultiplier);
+
+          const nextX = plane.x + Math.cos(plane.angle) * plane.speed * delta * speedMultiplier;
+          const nextY = plane.y + Math.sin(plane.angle) * plane.speed * delta * speedMultiplier;
+
+          if (pointInPolygon({ x: nextX, y: nextY }, geom.polygon)) {
+            plane.x = nextX;
+            plane.y = nextY;
+          } else {
+            plane.x = nextX;
+            plane.y = nextY;
+          }
+
+          const distToRunwayStart = Math.hypot(plane.x - geom.runwayStart.x, plane.y - geom.runwayStart.y);
+          if (distToRunwayStart < 22 || plane.speed <= 22) {
+            // Taxi back to a gate (always within airport bounds)
+            const gate = geom.gates[Math.floor(Math.random() * Math.max(1, geom.gates.length))] || geom.center;
+            plane.taxiRoute = [geom.runwayStart, gate];
+            plane.taxiRouteIndex = 0;
+            plane.state = 'taxi_in';
+            plane.speed = 0;
+            plane.x = geom.runwayStart.x;
+            plane.y = geom.runwayStart.y;
+          }
+          break;
+        }
       }
       
       updatedAirplanes.push(plane);

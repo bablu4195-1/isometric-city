@@ -297,7 +297,8 @@ export function findHeliports(
       if (buildingType === 'hospital') {
         heliports.push({ x, y, type: 'hospital', size: 2 });
       } else if (buildingType === 'airport') {
-        heliports.push({ x, y, type: 'airport', size: 4 });
+        // Airport footprint is 3x3
+        heliports.push({ x, y, type: 'airport', size: 3 });
       } else if (buildingType === 'police_station') {
         heliports.push({ x, y, type: 'police', size: 1 });
       } else if (buildingType === 'mall') {

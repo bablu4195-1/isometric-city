@@ -1730,6 +1730,49 @@ export function simulateTick(state: GameState): GameState {
     for (let x = 0; x < size; x++) {
       const originalTile = state.grid[y][x];
       const originalBuilding = originalTile.building;
+
+      // ---------------------------------------------------------------------
+      // Legacy migration: airport footprint used to be 4x4. The current airport
+      // asset + placement rules are 3x3. If we detect old "empty" tiles that
+      // belong to the removed 4th row/col, convert them back to grass so the
+      // player doesn't get stuck with permanent unbuildable "empty" tiles.
+      // This runs as part of the normal per-tile loop and only does work on
+      // airport origin tiles.
+      // ---------------------------------------------------------------------
+      if (originalBuilding.type === 'airport') {
+        const legacySize = 4;
+        const newSize = 3;
+        // Clear the removed 4th column (dx = 3) for dy 0..3
+        for (let dy = 0; dy < legacySize; dy++) {
+          const cx = x + (legacySize - 1);
+          const cy = y + dy;
+          if (cx >= 0 && cx < size && cy >= 0 && cy < size) {
+            const t = state.grid[cy][cx];
+            if (t?.building.type === 'empty') {
+              const mt = getModifiableTile(cx, cy);
+              mt.zone = 'none';
+              mt.building = createBuilding('grass');
+              mt.hasSubway = false;
+              mt.hasRailOverlay = false;
+            }
+          }
+        }
+        // Clear the removed 4th row (dy = 3) for dx 0..2
+        for (let dx = 0; dx < newSize; dx++) {
+          const cx = x + dx;
+          const cy = y + (legacySize - 1);
+          if (cx >= 0 && cx < size && cy >= 0 && cy < size) {
+            const t = state.grid[cy][cx];
+            if (t?.building.type === 'empty') {
+              const mt = getModifiableTile(cx, cy);
+              mt.zone = 'none';
+              mt.building = createBuilding('grass');
+              mt.hasSubway = false;
+              mt.hasRailOverlay = false;
+            }
+          }
+        }
+      }
       
       // Fast path: skip tiles that definitely won't change
       // Water tiles are completely static
@@ -1981,7 +2024,8 @@ const BUILDING_SIZES: Partial<Record<BuildingType, { width: number; height: numb
   stadium: { width: 3, height: 3 },
   museum: { width: 3, height: 3 },
   university: { width: 3, height: 3 },
-  airport: { width: 4, height: 4 },
+  // Airport asset is 3x3 (runway aligned toward top-right)
+  airport: { width: 3, height: 3 },
   space_program: { width: 3, height: 3 },
   park_large: { width: 3, height: 3 },
   mansion: { width: 2, height: 2 },
