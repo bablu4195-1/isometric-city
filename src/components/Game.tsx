@@ -6,6 +6,7 @@ import { Tool } from '@/types/game';
 import { useMobile } from '@/hooks/useMobile';
 import { MobileToolbar } from '@/components/mobile/MobileToolbar';
 import { MobileTopBar } from '@/components/mobile/MobileTopBar';
+import { msg, useMessages } from 'gt-next';
 
 // Import shadcn components
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -31,9 +32,10 @@ import { TopBar, StatsPanel } from '@/components/game/TopBar';
 import { CanvasIsometricGrid } from '@/components/game/CanvasIsometricGrid';
 
 // Cargo type names for notifications
-const CARGO_TYPE_NAMES = ['containers', 'bulk materials', 'oil'];
+const CARGO_TYPE_NAMES = [msg('containers'), msg('bulk materials'), msg('oil')];
 
 export default function Game({ onExit }: { onExit?: () => void }) {
+  const m = useMessages();
   const { state, setTool, setActivePanel, addMoney, addNotification, setSpeed } = useGame();
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
@@ -171,8 +173,8 @@ export default function Game({ onExit }: { onExit?: () => void }) {
       case 'konami':
         addMoney(triggeredCheat.amount);
         addNotification(
-          'Retro Cheat Activated!',
-          'Your accountants are confused but not complaining. You received $50,000!',
+          m(msg('Retro Cheat Activated!')),
+          m(msg('Your accountants are confused but not complaining. You received $50,000!')),
           'trophy'
         );
         clearTriggeredCheat();
@@ -181,8 +183,8 @@ export default function Game({ onExit }: { onExit?: () => void }) {
       case 'motherlode':
         addMoney(triggeredCheat.amount);
         addNotification(
-          'Motherlode!',
-          'Your treasury just got a lot heavier. You received $1,000,000!',
+          m(msg('Motherlode!')),
+          m(msg('Your treasury just got a lot heavier. You received $1,000,000!')),
           'trophy'
         );
         clearTriggeredCheat();
@@ -202,17 +204,17 @@ export default function Game({ onExit }: { onExit?: () => void }) {
   const handleBargeDelivery = useCallback((cargoValue: number, cargoType: number) => {
     addMoney(cargoValue);
     bargeDeliveryCountRef.current++;
-    
+
     // Show a notification every 5 deliveries to avoid spam
     if (bargeDeliveryCountRef.current % 5 === 1) {
-      const cargoName = CARGO_TYPE_NAMES[cargoType] || 'cargo';
+      const cargoName = m(CARGO_TYPE_NAMES[cargoType] || msg('cargo'));
       addNotification(
-        'Cargo Delivered',
-        `A shipment of ${cargoName} has arrived at the marina. +$${cargoValue} trade revenue.`,
+        m(msg('Cargo Delivered')),
+        m(msg('A shipment of {cargoName} has arrived at the marina. +${cargoValue} trade revenue.', { cargoName, cargoValue })),
         'ship'
       );
     }
-  }, [addMoney, addNotification]);
+  }, [addMoney, addNotification, m]);
 
   // Mobile layout
   if (isMobile) {
