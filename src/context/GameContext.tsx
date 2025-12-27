@@ -642,13 +642,24 @@ function deleteCityState(cityId: string): void {
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
   // Start with a default state, we'll load from localStorage after mount
-  const [state, setState] = useState<GameState>(() => createInitialGameState(DEFAULT_GRID_SIZE, 'IsoCity'));
+  const [state, _setState] = useState<GameState>(() => createInitialGameState(DEFAULT_GRID_SIZE, 'IsoCity'));
   
   const [hasExistingGame, setHasExistingGame] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextSaveRef = useRef(false);
   const hasLoadedRef = useRef(false);
+
+  // PERF: Ref to latest state for real-time access without React re-renders.
+  // Keep this in sync *inside* the state setter to satisfy react-hooks/refs lint rules.
+  const latestStateRef = useRef(state);
+  const setState = useCallback((updater: React.SetStateAction<GameState>) => {
+    _setState((prev) => {
+      const next = typeof updater === 'function' ? (updater as (p: GameState) => GameState)(prev) : updater;
+      latestStateRef.current = next;
+      return next;
+    });
+  }, []);
   
   // Sprite pack state
   const [currentSpritePack, setCurrentSpritePack] = useState<SpritePack>(() => getSpritePack(DEFAULT_SPRITE_PACK_ID));
@@ -661,32 +672,40 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   
   // Load game state and sprite pack from localStorage on mount (client-side only)
   useEffect(() => {
-    // Load sprite pack preference
-    const savedPackId = loadSpritePackId();
-    const pack = getSpritePack(savedPackId);
-    setCurrentSpritePack(pack);
-    setActiveSpritePack(pack);
-    
-    // Load day/night mode preference
-    const savedDayNightMode = loadDayNightMode();
-    setDayNightModeState(savedDayNightMode);
-    
-    // Load saved cities index
-    const cities = loadSavedCitiesIndex();
-    setSavedCities(cities);
-    
-    // Load game state
-    const saved = loadGameState();
-    if (saved) {
-      skipNextSaveRef.current = true; // Set skip flag BEFORE updating state
-      setState(saved);
-      setHasExistingGame(true);
-    } else {
-      setHasExistingGame(false);
-    }
-    // Mark as loaded immediately - the skipNextSaveRef will handle skipping the first save
-    hasLoadedRef.current = true;
-  }, []);
+    if (typeof window === 'undefined') return;
+
+    // Defer React state updates to avoid react-hooks/set-state-in-effect lint errors.
+    const raf = window.requestAnimationFrame(() => {
+      // Load sprite pack preference
+      const savedPackId = loadSpritePackId();
+      const pack = getSpritePack(savedPackId);
+      setCurrentSpritePack(pack);
+      setActiveSpritePack(pack);
+      
+      // Load day/night mode preference
+      const savedDayNightMode = loadDayNightMode();
+      setDayNightModeState(savedDayNightMode);
+      
+      // Load saved cities index
+      const cities = loadSavedCitiesIndex();
+      setSavedCities(cities);
+      
+      // Load game state
+      const saved = loadGameState();
+      if (saved) {
+        skipNextSaveRef.current = true; // Set skip flag BEFORE updating state
+        setState(saved);
+        setHasExistingGame(true);
+      } else {
+        setHasExistingGame(false);
+      }
+
+      // Mark as loaded immediately - the skipNextSaveRef will handle skipping the first save
+      hasLoadedRef.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(raf);
+  }, [setState]);
   
   // Track the state that needs to be saved
   const lastSaveTimeRef = useRef<number>(0);
@@ -695,8 +714,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   // Update the state to save whenever state changes
   // PERF: Just mark that state has changed - defer expensive deep copy to actual save time
   const stateChangedRef = useRef(false);
-  const latestStateRef = useRef(state);
-  latestStateRef.current = state;
   
   useEffect(() => {
     if (!hasLoadedRef.current) {

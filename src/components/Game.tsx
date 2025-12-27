@@ -12,6 +12,8 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useCheatCodes } from '@/hooks/useCheatCodes';
 import { VinnieDialog } from '@/components/VinnieDialog';
 import { CommandMenu } from '@/components/ui/CommandMenu';
+import { TipToast } from '@/components/ui/TipToast';
+import { useToastTips } from '@/hooks/useToastTips';
 
 // Import game components
 import { OverlayMode } from '@/components/game/types';
@@ -31,7 +33,7 @@ import { CanvasIsometricGrid } from '@/components/game/CanvasIsometricGrid';
 // Cargo type names for notifications
 const CARGO_TYPE_NAMES = ['containers', 'bulk materials', 'oil'];
 
-export default function Game({ onExit }: { onExit?: () => void }) {
+export default function Game({ onExitAction }: { onExitAction?: () => void }) {
   const { state, setTool, setActivePanel, addMoney, addNotification, setSpeed } = useGame();
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
@@ -40,6 +42,8 @@ export default function Game({ onExit }: { onExit?: () => void }) {
   const isInitialMount = useRef(true);
   const { isMobileDevice, isSmallScreen } = useMobile();
   const isMobile = isMobileDevice || isSmallScreen;
+
+  const { activeTip, continueTip, skipAllTips } = useToastTips(state);
   
   // Cheat code system
   const {
@@ -214,7 +218,7 @@ export default function Game({ onExit }: { onExit?: () => void }) {
             selectedTile={selectedTile && state.selectedTool === 'select' ? state.grid[selectedTile.y][selectedTile.x] : null}
             services={state.services}
             onCloseTile={() => setSelectedTile(null)}
-            onExit={onExit}
+            onExitAction={onExitAction}
           />
           
           {/* Main canvas area - fills remaining space, with padding for top/bottom bars */}
@@ -242,6 +246,15 @@ export default function Game({ onExit }: { onExit?: () => void }) {
           {state.activePanel === 'settings' && <SettingsPanel />}
           
           <VinnieDialog open={showVinnieDialog} onOpenChange={setShowVinnieDialog} />
+          {activeTip && (
+            <TipToast
+              open={true}
+              title={activeTip.title}
+              description={activeTip.description}
+              onContinueAction={continueTip}
+              onSkipAllAction={skipAllTips}
+            />
+          )}
         </div>
       </TooltipProvider>
     );
@@ -251,8 +264,8 @@ export default function Game({ onExit }: { onExit?: () => void }) {
   return (
     <TooltipProvider>
       <div className="w-full h-full min-h-[720px] overflow-hidden bg-background flex">
-        <Sidebar onExit={onExit} />
-        
+        <Sidebar onExitAction={onExitAction} />
+
         <div className="flex-1 flex flex-col ml-56">
           <TopBar />
           <StatsPanel />
@@ -278,6 +291,15 @@ export default function Game({ onExit }: { onExit?: () => void }) {
         
         <VinnieDialog open={showVinnieDialog} onOpenChange={setShowVinnieDialog} />
         <CommandMenu />
+        {activeTip && (
+          <TipToast
+            open={true}
+            title={activeTip.title}
+            description={activeTip.description}
+            onContinueAction={continueTip}
+            onSkipAllAction={skipAllTips}
+          />
+        )}
       </div>
     </TooltipProvider>
   );

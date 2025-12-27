@@ -300,7 +300,7 @@ export default function HomePage() {
     return (
       <GameProvider>
         <main className="h-screen w-screen overflow-hidden">
-          <Game onExit={handleExitGame} />
+          <Game onExitAction={handleExitGame} />
         </main>
       </GameProvider>
     );

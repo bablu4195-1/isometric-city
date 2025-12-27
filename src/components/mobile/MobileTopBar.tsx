@@ -109,12 +109,12 @@ export function MobileTopBar({
   selectedTile, 
   services, 
   onCloseTile,
-  onExit,
+  onExitAction,
 }: { 
   selectedTile: Tile | null;
   services: { police: number[][]; fire: number[][]; health: number[][]; education: number[][]; power: boolean[][]; water: boolean[][] };
   onCloseTile: () => void;
-  onExit?: () => void;
+  onExitAction?: () => void;
 }) {
   const { state, setSpeed, setTaxRate, visualHour, saveCity } = useGame();
   const { stats, year, month, speed, taxRate, cityName } = state;
@@ -126,13 +126,13 @@ export function MobileTopBar({
   const handleSaveAndExit = useCallback(() => {
     saveCity();
     setShowExitDialog(false);
-    onExit?.();
-  }, [saveCity, onExit]);
+    onExitAction?.();
+  }, [saveCity, onExitAction]);
 
   const handleExitWithoutSaving = useCallback(() => {
     setShowExitDialog(false);
-    onExit?.();
-  }, [onExit]);
+    onExitAction?.();
+  }, [onExitAction]);
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -222,7 +222,7 @@ export function MobileTopBar({
             <div className="flex items-center gap-0">
               <LanguageSelector useDrawer iconSize={12} />
 
-              {onExit && (
+              {onExitAction && (
                 <button
                   onClick={() => setShowExitDialog(true)}
                   className="h-6 w-5 p-0 m-0 flex items-center justify-center text-muted-foreground hover:text-foreground"

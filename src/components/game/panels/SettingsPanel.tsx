@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { SpriteTestPanel } from './SpriteTestPanel';
 import { SavedCityMeta } from '@/types/game';
 import { LocaleSelector } from 'gt-next';
+import { getTipsEnabled, onTipsEnabledChange, setTipsEnabled } from '@/lib/tips';
 
 // Translatable UI labels
 const UI_LABELS = {
@@ -21,6 +22,8 @@ const UI_LABELS = {
   gameSettings: msg('Game Settings'),
   disasters: msg('Disasters'),
   disastersDesc: msg('Enable random fires and disasters'),
+  tips: msg('Tips'),
+  tipsDesc: msg('Show occasional gameplay tips as you build'),
   spritePack: msg('Sprite Pack'),
   spritePackDesc: msg('Choose building artwork style'),
   language: msg('Language'),
@@ -144,11 +147,16 @@ export function SettingsPanel() {
   const [importError, setImportError] = useState(false);
   const [importSuccess, setImportSuccess] = useState(false);
   const [savedCityInfo, setSavedCityInfo] = useState(getSavedCityInfo());
+  const [tipsEnabled, setTipsEnabledState] = useState(() => getTipsEnabled());
   
   // Refresh saved city info when panel opens
   React.useEffect(() => {
     setSavedCityInfo(getSavedCityInfo());
   }, [getSavedCityInfo]);
+
+  useEffect(() => {
+    return onTipsEnabledChange(setTipsEnabledState);
+  }, []);
   
   // Initialize showSpriteTest from query parameter
   const spriteTestFromUrl = searchParams?.get('spriteTest') === 'true';
@@ -230,6 +238,17 @@ export function SettingsPanel() {
               <Switch
                 checked={disastersEnabled}
                 onCheckedChange={setDisastersEnabled}
+              />
+            </div>
+
+            <div className="flex items-center justify-between py-2 gap-4">
+              <div className="flex-1 min-w-0">
+                <Label>{m(UI_LABELS.tips)}</Label>
+                <p className="text-muted-foreground text-xs">{m(UI_LABELS.tipsDesc)}</p>
+              </div>
+              <Switch
+                checked={tipsEnabled}
+                onCheckedChange={(checked) => setTipsEnabled(checked)}
               />
             </div>
             

@@ -203,7 +203,10 @@ export function useSeaplaneSystem(
     // Update existing seaplanes
     const updatedSeaplanes: Seaplane[] = [];
     
-    for (const seaplane of seaplanesRef.current) {
+    for (const existingSeaplane of seaplanesRef.current) {
+      // NOTE: Don't mutate objects stored in refs directly (eslint react-hooks/immutability).
+      const seaplane: Seaplane = { ...existingSeaplane, contrail: existingSeaplane.contrail, wake: existingSeaplane.wake };
+
       // Update contrail particles when at altitude
       const contrailMaxAge = isMobile ? 0.8 : CONTRAIL_MAX_AGE;
       const contrailSpawnInterval = isMobile ? 0.06 : CONTRAIL_SPAWN_INTERVAL;

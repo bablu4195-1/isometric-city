@@ -146,7 +146,10 @@ export function useBoatSystem(
     // Update existing boats
     const updatedBoats: Boat[] = [];
     
-    for (const boat of boatsRef.current) {
+    for (const existingBoat of boatsRef.current) {
+      // NOTE: Don't mutate objects stored in refs directly (eslint react-hooks/immutability).
+      const boat: Boat = { ...existingBoat, wake: existingBoat.wake };
+
       boat.age += delta;
       
       // Update wake particles (similar to contrails) - shorter on mobile
@@ -331,12 +334,15 @@ export function useBoatSystem(
 
           // Add single wake particle behind the boat
           const behindBoat = -6; // Position behind the boat
-          boat.wake.push({
-            x: boat.x + Math.cos(boat.angle) * behindBoat,
-            y: boat.y + Math.sin(boat.angle) * behindBoat,
-            age: 0,
-            opacity: 1
-          });
+          boat.wake = [
+            ...boat.wake,
+            {
+              x: boat.x + Math.cos(boat.angle) * behindBoat,
+              y: boat.y + Math.sin(boat.angle) * behindBoat,
+              age: 0,
+              opacity: 1,
+            },
+          ];
         }
       }
       
@@ -512,7 +518,7 @@ export function useBoatSystem(
     }
     
     ctx.restore();
-  }, [worldStateRef, boatsRef, visualHour]);
+  }, [worldStateRef, boatsRef, visualHour, isMobile]);
 
   return {
     updateBoats,

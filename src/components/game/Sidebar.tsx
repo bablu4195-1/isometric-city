@@ -292,7 +292,7 @@ function ExitDialog({
 }
 
 // Memoized Sidebar Component
-export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => void }) {
+export const Sidebar = React.memo(function Sidebar({ onExitAction }: { onExitAction?: () => void }) {
   const { state, setTool, setActivePanel, saveCity } = useGame();
   const { selectedTool, stats, activePanel } = state;
   const [showExitDialog, setShowExitDialog] = useState(false);
@@ -301,13 +301,13 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
   const handleSaveAndExit = useCallback(() => {
     saveCity();
     setShowExitDialog(false);
-    onExit?.();
-  }, [saveCity, onExit]);
+    onExitAction?.();
+  }, [saveCity, onExitAction]);
   
   const handleExitWithoutSaving = useCallback(() => {
     setShowExitDialog(false);
-    onExit?.();
-  }, [onExit]);
+    onExitAction?.();
+  }, [onExitAction]);
   
   // Direct tool categories (shown inline)
   const directCategories = useMemo(() => ({
@@ -385,7 +385,7 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </Button>
-            {onExit && (
+            {onExitAction && (
               <Button
                 variant="ghost"
                 size="icon-sm"
