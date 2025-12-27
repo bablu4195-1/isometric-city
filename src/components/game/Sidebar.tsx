@@ -27,6 +27,14 @@ const UI_LABELS = {
   statistics: msg('Statistics'),
   advisors: msg('Advisors'),
   settings: msg('Settings'),
+  buildings: msg('BUILDINGS'),
+  search: msg('Search (⌘K)'),
+  invitePlayers: msg('Invite Players'),
+  exitToMainMenu: msg('Exit to Main Menu'),
+  exitDialogTitle: msg('Exit to Main Menu'),
+  exitDialogDescription: msg('Would you like to save your city before exiting?'),
+  exitWithoutSaving: msg('Exit Without Saving'),
+  saveAndExit: msg('Save & Exit'),
 };
 import {
   BudgetIcon,
@@ -254,24 +262,25 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
 });
 
 // Exit confirmation dialog component
-function ExitDialog({ 
-  open, 
-  onOpenChange, 
-  onSaveAndExit, 
-  onExitWithoutSaving 
-}: { 
-  open: boolean; 
+function ExitDialog({
+  open,
+  onOpenChange,
+  onSaveAndExit,
+  onExitWithoutSaving
+}: {
+  open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaveAndExit: () => void;
   onExitWithoutSaving: () => void;
 }) {
+  const m = useMessages();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Exit to Main Menu</DialogTitle>
+          <DialogTitle>{m(UI_LABELS.exitDialogTitle)}</DialogTitle>
           <DialogDescription>
-            Would you like to save your city before exiting?
+            {m(UI_LABELS.exitDialogDescription)}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -280,13 +289,13 @@ function ExitDialog({
             onClick={onExitWithoutSaving}
             className="w-full sm:w-auto"
           >
-            Exit Without Saving
+            {m(UI_LABELS.exitWithoutSaving)}
           </Button>
           <Button
             onClick={onSaveAndExit}
             className="w-full sm:w-auto"
           >
-            Save & Exit
+            {m(UI_LABELS.saveAndExit)}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -378,13 +387,13 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
               variant="ghost"
               size="icon-sm"
               onClick={openCommandMenu}
-              title="Search (⌘K)"
+              title={m(UI_LABELS.search)}
               className="h-7 w-7 text-muted-foreground hover:text-sidebar-foreground"
             >
-              <svg 
-                className="w-4 h-4" 
-                fill="none" 
-                viewBox="0 0 24 24" 
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
                 stroke="currentColor"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -396,7 +405,7 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setShowShareModal(true)}
-                title="Invite Players"
+                title={m(UI_LABELS.invitePlayers)}
                 className="h-7 w-7 text-muted-foreground hover:text-sidebar-foreground"
               >
                 <Users className="w-4 h-4" />
@@ -407,13 +416,13 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setShowExitDialog(true)}
-                title="Exit to Main Menu"
+                title={m(UI_LABELS.exitToMainMenu)}
                 className="h-7 w-7 text-muted-foreground hover:text-sidebar-foreground"
               >
-                <svg 
-                  className="w-4 h-4 -scale-x-100" 
-                  fill="none" 
-                  viewBox="0 0 24 24" 
+                <svg
+                  className="w-4 h-4 -scale-x-100"
+                  fill="none"
+                  viewBox="0 0 24 24"
                   stroke="currentColor"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -476,7 +485,7 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
         
         {/* Buildings header */}
         <div className="px-4 py-2 text-[10px] font-bold tracking-widest text-muted-foreground">
-          BUILDINGS
+          {m(UI_LABELS.buildings)}
         </div>
         
         {/* Submenu categories */}

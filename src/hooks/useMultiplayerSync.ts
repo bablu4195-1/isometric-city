@@ -24,15 +24,15 @@ export function useMultiplayerSync() {
   useEffect(() => {
     if (!multiplayer || !multiplayer.initialState || initialStateLoadedRef.current) return;
     if (multiplayer.isHost) return; // Host doesn't need to load initial state
-    
+
     // Use loadState to load the host's game state
     const stateString = JSON.stringify(multiplayer.initialState);
     const success = game.loadState(stateString);
-    
+
     if (success) {
       initialStateLoadedRef.current = true;
     }
-  }, [multiplayer?.initialState, multiplayer?.isHost, game]);
+  }, [multiplayer, multiplayer?.initialState, multiplayer?.isHost, game]);
 
   // Apply a remote action to the local game state
   const applyRemoteAction = useCallback((action: GameAction) => {

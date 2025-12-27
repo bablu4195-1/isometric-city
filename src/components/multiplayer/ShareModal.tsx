@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useMultiplayer } from '@/context/MultiplayerContext';
 import { useGame } from '@/context/GameContext';
 import { Copy, Check, Users, Loader2 } from 'lucide-react';
+import { T, useGT } from 'gt-next';
 
 interface ShareModalProps {
   open: boolean;
@@ -22,33 +23,37 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [playerName] = useState(() => `Player ${Math.floor(Math.random() * 9999)}`);
-  
+
   const { roomCode, players, createRoom, connectionState } = useMultiplayer();
   const { state } = useGame();
+  const gt = useGT();
 
   // Create room when modal opens (if not already in a room)
   useEffect(() => {
     if (open && !roomCode && !isCreating) {
-      setIsCreating(true);
-      createRoom(state.cityName, playerName, state)
-        .then((code) => {
+      const initRoom = async () => {
+        setIsCreating(true);
+        try {
+          const code = await createRoom(state.cityName, playerName, state);
           // Update URL to show room code
           window.history.replaceState({}, '', `/?room=${code}`);
-        })
-        .catch((err) => {
+        } catch (err) {
           console.error('[ShareModal] Failed to create room:', err);
-        })
-        .finally(() => {
+        } finally {
           setIsCreating(false);
-        });
+        }
+      };
+      initRoom();
     }
   }, [open, roomCode, isCreating, createRoom, state, playerName]);
 
   // Reset copied state when modal closes
   useEffect(() => {
-    if (!open) {
-      setCopied(false);
-    }
+    return () => {
+      if (!open) {
+        setCopied(false);
+      }
+    };
   }, [open]);
 
   const handleCopyLink = () => {
@@ -68,10 +73,10 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <Users className="w-5 h-5" />
-            Invite Players
+            <T>Invite Players</T>
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Share this link with friends to play together
+            <T>Share this link with friends to play together</T>
           </DialogDescription>
         </DialogHeader>
 
@@ -79,7 +84,9 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
           {isCreating || !roomCode ? (
             <div className="flex items-center justify-center gap-2 py-8">
               <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-              <span className="text-slate-400">Creating room...</span>
+              <T>
+                <span className="text-slate-400">Creating room...</span>
+              </T>
             </div>
           ) : (
             <>
@@ -88,7 +95,9 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
                 <div className="text-4xl font-mono font-bold tracking-widest text-white mb-2">
                   {roomCode}
                 </div>
-                <div className="text-sm text-slate-400">Room Code</div>
+                <T>
+                  <div className="text-sm text-slate-400">Room Code</div>
+                </T>
               </div>
 
               {/* Copy Link */}
@@ -111,7 +120,7 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
 
               {/* Player Count */}
               <div className="text-center text-sm text-slate-400">
-                <span className="text-white font-medium">{players.length}</span> player{players.length !== 1 ? 's' : ''} connected
+                <span className="text-white font-medium">{players.length}</span> {gt('{count} player{s} connected', { count: players.length, s: players.length !== 1 ? 's' : '' })}
               </div>
 
               {/* Continue Button */}
@@ -119,7 +128,7 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
                 onClick={() => onOpenChange(false)}
                 className="w-full bg-slate-700 hover:bg-slate-600 text-white border border-slate-600"
               >
-                Continue Playing
+                <T>Continue Playing</T>
               </Button>
             </>
           )}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { get } from '@vercel/edge-config';
+import { tx } from 'gt-next/server';
 
 // Extract Edge Config ID from connection string
 function getEdgeConfigId(): string | null {
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     if (!roomCode || !type || !from || !payload) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: await tx('Missing required fields', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) },
         { status: 400 }
       );
     }
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
     // Get current room data
     const room = await get<RoomData>(`room_${roomCode.toUpperCase()}`);
     if (!room) {
-      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+      return NextResponse.json({ error: await tx('Room not found', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) }, { status: 404 });
     }
 
     // Create new signal
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
     const success = await writeToEdgeConfig(`room_${roomCode.toUpperCase()}`, updatedRoom);
     if (!success) {
       return NextResponse.json(
-        { error: 'Failed to send signal' },
+        { error: await tx('Failed to send signal', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) },
         { status: 500 }
       );
     }
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error sending signal:', error);
     return NextResponse.json(
-      { error: 'Failed to send signal' },
+      { error: await tx('Failed to send signal', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) },
       { status: 500 }
     );
   }
@@ -141,7 +142,7 @@ export async function GET(request: NextRequest) {
 
     if (!roomCode || !peerId) {
       return NextResponse.json(
-        { error: 'Missing roomCode or peerId' },
+        { error: await tx('Missing roomCode or peerId', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) },
         { status: 400 }
       );
     }
@@ -149,7 +150,7 @@ export async function GET(request: NextRequest) {
     // Get room data (ultra-fast Edge Config read)
     const room = await get<RoomData>(`room_${roomCode.toUpperCase()}`);
     if (!room) {
-      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+      return NextResponse.json({ error: await tx('Room not found', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) }, { status: 404 });
     }
 
     // Parse lastSeen as a set of signal IDs we've already processed
@@ -190,7 +191,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error polling signals:', error);
     return NextResponse.json(
-      { error: 'Failed to poll signals' },
+      { error: await tx('Failed to poll signals', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) },
       { status: 500 }
     );
   }

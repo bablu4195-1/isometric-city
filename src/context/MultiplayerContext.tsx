@@ -21,6 +21,7 @@ import {
   RoomData,
 } from '@/lib/multiplayer/types';
 import { GameState } from '@/types/game';
+import { useGT } from 'gt-next';
 
 interface MultiplayerContextValue {
   // Connection state
@@ -62,13 +63,14 @@ export function MultiplayerContextProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const gt = useGT();
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [role, setRole] = useState<PlayerRole>('solo');
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [initialState, setInitialState] = useState<GameState | null>(null);
-  
+
   const providerRef = useRef<MultiplayerProvider | null>(null);
   const onRemoteActionRef = useRef<((action: GameAction) => void) | null>(null);
 
@@ -99,7 +101,7 @@ export function MultiplayerContextProvider({
 
         if (!response.ok) {
           const { error } = await response.json();
-          throw new Error(error || 'Failed to create room');
+          throw new Error(error || gt('Failed to create room'));
         }
 
         const { room } = await response.json();
@@ -133,11 +135,11 @@ export function MultiplayerContextProvider({
         return newRoomCode;
       } catch (err) {
         setConnectionState('error');
-        setError(err instanceof Error ? err.message : 'Failed to create room');
+        setError(err instanceof Error ? err.message : gt('Failed to create room'));
         throw err;
       }
     },
-    []
+    [gt]
   );
 
   // Join an existing room as guest
@@ -163,18 +165,18 @@ export function MultiplayerContextProvider({
             await new Promise(resolve => setTimeout(resolve, 500));
           } else {
             const { error } = await checkResponse.json();
-            throw new Error(error || 'Room not found');
+            throw new Error(error || gt('Room not found'));
           }
         }
-        
+
         if (!roomData) {
-          throw new Error('Room not found after retries');
+          throw new Error(gt('Room not found after retries'));
         }
         
         // Create multiplayer provider as guest
         const provider = await createMultiplayerProvider({
           roomCode: normalizedCode,
-          cityName: roomData.cityName || 'Co-op City',
+          cityName: roomData.cityName || gt('Co-op City'),
           playerName,
           isHost: false,
           onConnectionChange: (connected, peerCount) => {
@@ -203,7 +205,7 @@ export function MultiplayerContextProvider({
         const room: RoomData = {
           code: normalizedCode,
           hostId: roomData.hostId || '',
-          cityName: roomData.cityName || 'Co-op City',
+          cityName: roomData.cityName || gt('Co-op City'),
           createdAt: roomData.createdAt || Date.now(),
           playerCount: 1,
         };
@@ -211,11 +213,11 @@ export function MultiplayerContextProvider({
         return room;
       } catch (err) {
         setConnectionState('error');
-        setError(err instanceof Error ? err.message : 'Failed to join room');
+        setError(err instanceof Error ? err.message : gt('Failed to join room'));
         throw err;
       }
     },
-    []
+    [gt]
   );
 
   // Leave the current room

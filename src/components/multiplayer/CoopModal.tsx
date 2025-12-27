@@ -15,6 +15,7 @@ import { useMultiplayer } from '@/context/MultiplayerContext';
 import { GameState } from '@/types/game';
 import { createInitialGameState, DEFAULT_GRID_SIZE } from '@/lib/simulation';
 import { Copy, Check, Users, Loader2, AlertCircle } from 'lucide-react';
+import { T, useGT } from 'gt-next';
 
 interface CoopModalProps {
   open: boolean;
@@ -41,7 +42,7 @@ export function CoopModal({
   const [isLoading, setIsLoading] = useState(false);
   const [autoJoinAttempted, setAutoJoinAttempted] = useState(false);
   const [waitingForState, setWaitingForState] = useState(false);
-  
+
   const {
     connectionState,
     roomCode,
@@ -52,6 +53,8 @@ export function CoopModal({
     leaveRoom,
     initialState,
   } = useMultiplayer();
+
+  const gt = useGT();
 
   // Generate player name on mount
   useEffect(() => {
@@ -166,10 +169,10 @@ export function CoopModal({
         <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
             <DialogTitle className="text-2xl font-light text-white">
-              Co-op Multiplayer
+              <T>Co-op Multiplayer</T>
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              Build a city together with friends in real-time
+              <T>Build a city together with friends in real-time</T>
             </DialogDescription>
           </DialogHeader>
 
@@ -178,14 +181,14 @@ export function CoopModal({
               onClick={() => setMode('create')}
               className="w-full py-6 text-lg font-light bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none"
             >
-              Create Room
+              <T>Create Room</T>
             </Button>
             <Button
               onClick={() => setMode('join')}
               variant="outline"
               className="w-full py-6 text-lg font-light bg-transparent hover:bg-white/10 text-white/70 hover:text-white border border-white/15 rounded-none"
             >
-              Join Room
+              <T>Join Room</T>
             </Button>
           </div>
         </DialogContent>
@@ -200,12 +203,12 @@ export function CoopModal({
         <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
             <DialogTitle className="text-2xl font-light text-white">
-              Create Co-op Room
+              <T>Create Co-op Room</T>
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              {roomCode 
-                ? 'Share the room code with friends to invite them'
-                : 'Set up your co-op city'
+              {roomCode
+                ? gt('Share the room code with friends to invite them')
+                : gt('Set up your co-op city')
               }
             </DialogDescription>
           </DialogHeader>
@@ -214,26 +217,26 @@ export function CoopModal({
             <div className="flex flex-col gap-4 mt-4">
               <div className="space-y-2">
                 <Label htmlFor="cityName" className="text-slate-300">
-                  City Name
+                  <T>City Name</T>
                 </Label>
                 <Input
                   id="cityName"
                   value={cityName}
                   onChange={(e) => setCityName(e.target.value)}
-                  placeholder="My Co-op City"
+                  placeholder={gt('My Co-op City')}
                   className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="playerName" className="text-slate-300">
-                  Your Name
+                  <T>Your Name</T>
                 </Label>
                 <Input
                   id="playerName"
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
-                  placeholder="Player 1"
+                  placeholder={gt('Player 1')}
                   className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
                 />
               </div>
@@ -251,7 +254,7 @@ export function CoopModal({
                   variant="outline"
                   className="flex-1 bg-transparent hover:bg-white/10 text-white/70 border-white/20 rounded-none"
                 >
-                  Back
+                  <T>Back</T>
                 </Button>
                 <Button
                   onClick={handleCreateRoom}
@@ -261,10 +264,10 @@ export function CoopModal({
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
+                      <T>Creating...</T>
                     </>
                   ) : (
-                    'Create Room'
+                    <T>Create Room</T>
                   )}
                 </Button>
               </div>
@@ -273,7 +276,9 @@ export function CoopModal({
             <div className="flex flex-col gap-4 mt-4">
               {/* Room Code Display */}
               <div className="bg-slate-800 rounded-lg p-6 text-center">
-                <p className="text-slate-400 text-sm mb-2">Room Code</p>
+                <T>
+                  <p className="text-slate-400 text-sm mb-2">Room Code</p>
+                </T>
                 <p className="text-4xl font-mono font-bold tracking-widest text-white">
                   {roomCode}
                 </p>
@@ -288,12 +293,12 @@ export function CoopModal({
                 {copied ? (
                   <>
                     <Check className="w-4 h-4 mr-2" />
-                    Copied!
+                    <T>Copied!</T>
                   </>
                 ) : (
                   <>
                     <Copy className="w-4 h-4 mr-2" />
-                    Copy Invite Link
+                    <T>Copy Invite Link</T>
                   </>
                 )}
               </Button>
@@ -304,7 +309,7 @@ export function CoopModal({
                   <div className="flex items-center gap-2 text-slate-300 mb-3">
                     <Users className="w-4 h-4" />
                     <span className="text-sm font-medium">
-                      Players ({players.length})
+                      {gt('Players ({count})', { count: players.length })}
                     </span>
                   </div>
                   <div className="space-y-2">
@@ -319,19 +324,23 @@ export function CoopModal({
                         />
                         <span className="text-white">{player.name}</span>
                         {player.isHost && (
-                          <span className="text-xs text-slate-500">(Host)</span>
+                          <T>
+                            <span className="text-xs text-slate-500">(Host)</span>
+                          </T>
                         )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-              
+
               {/* Waiting message when no one else has joined */}
               {players.length <= 1 && (
-                <p className="text-center text-slate-400 text-sm">
-                  Waiting for players to join...
-                </p>
+                <T>
+                  <p className="text-center text-slate-400 text-sm">
+                    Waiting for players to join...
+                  </p>
+                </T>
               )}
 
               {/* Continue button - game already started, just close the modal */}
@@ -339,7 +348,7 @@ export function CoopModal({
                 onClick={() => onOpenChange(false)}
                 className="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 rounded-md"
               >
-                Continue Playing
+                <T>Continue Playing</T>
               </Button>
             </div>
           )}
@@ -354,17 +363,17 @@ export function CoopModal({
       <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
         <DialogHeader>
           <DialogTitle className="text-2xl font-light text-white">
-            Join Co-op Room
+            <T>Join Co-op Room</T>
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Enter the 5-character room code to join
+            <T>Enter the 5-character room code to join</T>
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 mt-4">
           <div className="space-y-2">
             <Label htmlFor="joinCode" className="text-slate-300">
-              Room Code
+              <T>Room Code</T>
             </Label>
             <Input
               id="joinCode"
@@ -378,13 +387,13 @@ export function CoopModal({
 
           <div className="space-y-2">
             <Label htmlFor="playerNameJoin" className="text-slate-300">
-              Your Name
+              <T>Your Name</T>
             </Label>
             <Input
               id="playerNameJoin"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="Player 2"
+              placeholder={gt('Player 2')}
               className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
             />
           </div>
@@ -400,16 +409,20 @@ export function CoopModal({
           {connectionState === 'connecting' && !waitingForState && (
             <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
               <Loader2 className="w-4 h-4 animate-spin" />
-              Connecting to room...
+              <T>Connecting to room...</T>
             </div>
           )}
-          
+
           {/* Waiting for state from host */}
           {waitingForState && (
             <div className="bg-slate-800/50 rounded-lg p-4 text-center">
               <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-400" />
-              <p className="text-slate-300 text-sm">Connecting to host...</p>
-              <p className="text-slate-500 text-xs mt-1">Waiting for game state</p>
+              <T>
+                <p className="text-slate-300 text-sm">Connecting to host...</p>
+              </T>
+              <T>
+                <p className="text-slate-500 text-xs mt-1">Waiting for game state</p>
+              </T>
             </div>
           )}
 
@@ -419,7 +432,7 @@ export function CoopModal({
               variant="outline"
               className="flex-1 bg-transparent hover:bg-white/10 text-white/70 border-white/20 rounded-none"
             >
-              Back
+              <T>Back</T>
             </Button>
             <Button
               onClick={handleJoinRoom}
@@ -429,10 +442,10 @@ export function CoopModal({
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Joining...
+                  <T>Joining...</T>
                 </>
               ) : (
-                'Join Room'
+                <T>Join Room</T>
               )}
             </Button>
           </div>

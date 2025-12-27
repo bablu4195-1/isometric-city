@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { get } from '@vercel/edge-config';
+import { tx } from 'gt-next/server';
 
 // Extract Edge Config ID from connection string
 // Format: https://edge-config.vercel.com/ecfg_xxx?token=yyy
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     if (!cityName || !hostId) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: await tx('Missing required fields', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) },
         { status: 400 }
       );
     }
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
     const ip = request.headers.get('x-forwarded-for') || 'unknown';
     if (!checkRateLimit(ip)) {
       return NextResponse.json(
-        { error: 'Rate limit exceeded. Try again later.' },
+        { error: await tx('Rate limit exceeded. Try again later.', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) },
         { status: 429 }
       );
     }
@@ -178,7 +179,7 @@ export async function POST(request: NextRequest) {
     const success = await writeToEdgeConfig(`room_${roomCode}`, room);
     if (!success) {
       return NextResponse.json(
-        { error: 'Failed to create room' },
+        { error: await tx('Failed to create room', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) },
         { status: 500 }
       );
     }
@@ -190,7 +191,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating room:', error);
     return NextResponse.json(
-      { error: 'Failed to create room' },
+      { error: await tx('Failed to create room', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) },
       { status: 500 }
     );
   }
@@ -203,13 +204,13 @@ export async function GET(request: NextRequest) {
     const code = searchParams.get('code');
 
     if (!code) {
-      return NextResponse.json({ error: 'Missing room code' }, { status: 400 });
+      return NextResponse.json({ error: await tx('Missing room code', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) }, { status: 400 });
     }
 
     const room = await get<RoomData>(`room_${code.toUpperCase()}`);
 
     if (!room) {
-      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+      return NextResponse.json({ error: await tx('Room not found', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) }, { status: 404 });
     }
 
     // Check if room is stale (older than 2 hours)
@@ -217,21 +218,21 @@ export async function GET(request: NextRequest) {
     if (Date.now() - room.createdAt > TWO_HOURS) {
       // Clean up stale room
       await deleteFromEdgeConfig(`room_${code.toUpperCase()}`);
-      return NextResponse.json({ error: 'Room expired' }, { status: 404 });
+      return NextResponse.json({ error: await tx('Room expired', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) }, { status: 404 });
     }
 
-    return NextResponse.json({ 
-      room: { 
-        code: room.code, 
-        hostId: room.hostId, 
-        cityName: room.cityName, 
+    return NextResponse.json({
+      room: {
+        code: room.code,
+        hostId: room.hostId,
+        cityName: room.cityName,
         createdAt: room.createdAt,
-      } 
+      }
     });
   } catch (error) {
     console.error('Error getting room:', error);
     return NextResponse.json(
-      { error: 'Failed to get room' },
+      { error: await tx('Failed to get room', { locale: request.headers.get('accept-language')?.split(',')[0] || 'en' }) },
       { status: 500 }
     );
   }

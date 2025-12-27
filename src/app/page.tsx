@@ -12,6 +12,7 @@ import { SavedCityMeta, GameState } from '@/types/game';
 import { decompressFromUTF16 } from 'lz-string';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Users } from 'lucide-react';
+import { T, Num } from 'gt-next';
 
 const STORAGE_KEY = 'isocity-game-state';
 const SAVED_CITIES_INDEX_KEY = 'isocity-saved-cities-index';
@@ -243,7 +244,9 @@ function SavedCityCard({ city, onLoad }: { city: SavedCityMeta; onLoad: () => vo
         {city.cityName}
       </h3>
       <div className="flex items-center gap-3 mt-1 text-xs text-white/50">
-        <span>Pop: {city.population.toLocaleString()}</span>
+        <T>
+          <span>Pop: <Num>{city.population}</Num></span>
+        </T>
         <span>${city.money.toLocaleString()}</span>
       </div>
     </button>
@@ -358,7 +361,9 @@ export default function HomePage() {
   if (isChecking) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-white/60">Loading...</div>
+        <T>
+          <div className="text-white/60">Loading...</div>
+        </T>
       </main>
     );
   }
@@ -386,33 +391,35 @@ export default function HomePage() {
       <MultiplayerContextProvider>
         <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 safe-area-top safe-area-bottom overflow-y-auto">
           {/* Title */}
-          <h1 className="text-5xl sm:text-6xl font-light tracking-wider text-white/90 mb-6">
-            IsoCity
-          </h1>
-          
+          <T>
+            <h1 className="text-5xl sm:text-6xl font-light tracking-wider text-white/90 mb-6">
+              IsoCity
+            </h1>
+          </T>
+
           {/* Sprite Gallery - keep visible even when saves exist */}
           <div className="mb-6">
             <SpriteGallery count={9} cols={3} cellSize={72} />
           </div>
-          
+
           {/* Buttons */}
           <div className="flex flex-col gap-3 w-full max-w-xs">
-            <Button 
+            <Button
               onClick={() => setShowGame(true)}
               className="w-full py-6 text-xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
             >
-              Start
+              <T>Start</T>
             </Button>
-            
-            <Button 
+
+            <Button
               onClick={() => setShowCoopModal(true)}
               variant="outline"
               className="w-full py-6 text-xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
             >
-              Co-op
+              <T>Co-op</T>
             </Button>
-            
-            <Button 
+
+            <Button
               onClick={async () => {
                 const response = await fetch('/example-states/example_state_9.json');
                 const exampleState = await response.json();
@@ -422,7 +429,7 @@ export default function HomePage() {
               variant="outline"
               className="w-full py-6 text-xl font-light tracking-wide bg-transparent hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 rounded-none transition-all duration-300"
             >
-              Load Example
+              <T>Load Example</T>
             </Button>
             <div className="flex items-center justify-between w-full">
               <a
@@ -431,18 +438,20 @@ export default function HomePage() {
                 rel="noopener noreferrer"
                 className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
               >
-                Open GitHub
+                <T>Open GitHub</T>
               </a>
               <LanguageSelector variant="ghost" className="text-white/40 hover:text-white/70 hover:bg-white/10" />
             </div>
           </div>
-          
+
           {/* Saved Cities */}
           {savedCities.length > 0 && (
             <div className="w-full max-w-xs mt-4">
-              <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
-                Saved Cities
-              </h2>
+              <T>
+                <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
+                  Saved Cities
+                </h2>
+              </T>
               <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
                 {savedCities.slice(0, 5).map((city) => (
                   <SavedCityCard
@@ -454,7 +463,7 @@ export default function HomePage() {
               </div>
             </div>
           )}
-          
+
           {/* Co-op Modal */}
           <CoopModal
             open={showCoopModal}
@@ -473,27 +482,29 @@ export default function HomePage() {
     <MultiplayerContextProvider>
       <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-8">
         <div className="max-w-7xl w-full grid lg:grid-cols-2 gap-16 items-center">
-          
+
           {/* Left - Title and Start Button */}
           <div className="flex flex-col items-center lg:items-start justify-center space-y-12">
-            <h1 className="text-8xl font-light tracking-wider text-white/90">
-              IsoCity
-            </h1>
+            <T>
+              <h1 className="text-8xl font-light tracking-wider text-white/90">
+                IsoCity
+              </h1>
+            </T>
             <div className="flex flex-col gap-3">
-              <Button 
+              <Button
                 onClick={() => setShowGame(true)}
                 className="w-64 py-8 text-2xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
               >
-                Start
+                <T>Start</T>
               </Button>
-              <Button 
+              <Button
                 onClick={() => setShowCoopModal(true)}
                 variant="outline"
                 className="w-64 py-8 text-2xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
               >
-                Co-op
+                <T>Co-op</T>
               </Button>
-              <Button 
+              <Button
                 onClick={async () => {
                   const response = await fetch('/example-states/example_state_9.json');
                   const exampleState = await response.json();
@@ -503,7 +514,7 @@ export default function HomePage() {
                 variant="outline"
                 className="w-64 py-8 text-2xl font-light tracking-wide bg-transparent hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 rounded-none transition-all duration-300"
               >
-                Load Example
+                <T>Load Example</T>
               </Button>
               <div className="flex items-center justify-between w-64">
                 <a
@@ -512,18 +523,20 @@ export default function HomePage() {
                   rel="noopener noreferrer"
                   className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
                 >
-                  Open GitHub
+                  <T>Open GitHub</T>
                 </a>
                 <LanguageSelector variant="ghost" className="text-white/40 hover:text-white/70 hover:bg-white/10" />
               </div>
             </div>
-            
+
             {/* Saved Cities */}
             {savedCities.length > 0 && (
               <div className="w-64">
-                <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
-                  Saved Cities
-                </h2>
+                <T>
+                  <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
+                    Saved Cities
+                  </h2>
+                </T>
                 <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
                   {savedCities.slice(0, 5).map((city) => (
                     <SavedCityCard
@@ -542,7 +555,7 @@ export default function HomePage() {
             <SpriteGallery count={16} />
           </div>
         </div>
-        
+
         {/* Co-op Modal */}
         <CoopModal
           open={showCoopModal}
