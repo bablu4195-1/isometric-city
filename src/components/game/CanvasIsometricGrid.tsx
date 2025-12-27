@@ -55,6 +55,12 @@ import {
   screenToGrid,
 } from '@/components/game/utils';
 import {
+  getOffsetForZoomAroundScreenPoint,
+  getTouchCenter,
+  getTouchDistance,
+  getWheelZoomNext,
+} from '@/components/game/viewportMath';
+import {
   drawGreenBaseTile,
   drawGreyBaseTile,
   drawBeachOnWater,
@@ -3528,46 +3534,23 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    // Calculate new zoom with proportional scaling for smoother feel
-    // Use smaller base delta (0.05) and scale by current zoom for consistent feel at all levels
-    const baseZoomDelta = 0.05;
-    const scaledDelta = baseZoomDelta * Math.max(0.5, zoom); // Scale with zoom, min 0.5x
-    const zoomDelta = e.deltaY > 0 ? -scaledDelta : scaledDelta;
-    const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom + zoomDelta));
+    const newZoom = getWheelZoomNext(zoom, e.deltaY, ZOOM_MIN, ZOOM_MAX);
     
     if (newZoom === zoom) return;
     
-    // World position under the mouse before zoom
-    // screen = world * zoom + offset → world = (screen - offset) / zoom
-    const worldX = (mouseX - offset.x) / zoom;
-    const worldY = (mouseY - offset.y) / zoom;
-    
-    // After zoom, keep the same world position under the mouse
-    // mouseX = worldX * newZoom + newOffset.x → newOffset.x = mouseX - worldX * newZoom
-    const newOffsetX = mouseX - worldX * newZoom;
-    const newOffsetY = mouseY - worldY * newZoom;
-    
-    // Clamp to map bounds
-    const clampedOffset = clampOffset({ x: newOffsetX, y: newOffsetY }, newZoom);
+    const unclampedOffset = getOffsetForZoomAroundScreenPoint({
+      screen: { x: mouseX, y: mouseY },
+      offset,
+      currentZoom: zoom,
+      nextZoom: newZoom,
+    });
+    const clampedOffset = clampOffset(unclampedOffset, newZoom);
     
     setOffset(clampedOffset);
     setZoom(newZoom);
   }, [zoom, offset, clampOffset]);
 
   // Touch handlers for mobile
-  const getTouchDistance = useCallback((touch1: React.Touch, touch2: React.Touch) => {
-    const dx = touch1.clientX - touch2.clientX;
-    const dy = touch1.clientY - touch2.clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-  }, []);
-
-  const getTouchCenter = useCallback((touch1: React.Touch, touch2: React.Touch) => {
-    return {
-      x: (touch1.clientX + touch2.clientX) / 2,
-      y: (touch1.clientY + touch2.clientY) / 2,
-    };
-  }, []);
-
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       // Single touch - could be pan or tap
@@ -3585,7 +3568,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       setIsPanning(false);
       isPinchZoomingRef.current = true;
     }
-  }, [offset, zoom, getTouchDistance, getTouchCenter]);
+  }, [offset, zoom]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
@@ -3612,20 +3595,19 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         const centerX = currentCenter.x - rect.left;
         const centerY = currentCenter.y - rect.top;
 
-        // World position at pinch center
-        const worldX = (centerX - offset.x) / zoom;
-        const worldY = (centerY - offset.y) / zoom;
-
-        // Keep the same world position under the pinch center after zoom
-        const newOffsetX = centerX - worldX * newZoom;
-        const newOffsetY = centerY - worldY * newZoom;
+        const offsetAtZoom = getOffsetForZoomAroundScreenPoint({
+          screen: { x: centerX, y: centerY },
+          offset,
+          currentZoom: zoom,
+          nextZoom: newZoom,
+        });
 
         // Also account for pan movement during pinch
         const panDeltaX = currentCenter.x - lastTouchCenterRef.current.x;
         const panDeltaY = currentCenter.y - lastTouchCenterRef.current.y;
 
         const clampedOffset = clampOffset(
-          { x: newOffsetX + panDeltaX, y: newOffsetY + panDeltaY },
+          { x: offsetAtZoom.x + panDeltaX, y: offsetAtZoom.y + panDeltaY },
           newZoom
         );
 
@@ -3634,7 +3616,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
         lastTouchCenterRef.current = currentCenter;
       }
     }
-  }, [isPanning, dragStart, zoom, offset, clampOffset, getTouchDistance, getTouchCenter]);
+  }, [isPanning, dragStart, zoom, offset, clampOffset]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     const touchStart = touchStartRef.current;

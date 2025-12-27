@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability -- These systems intentionally mutate ref-backed entities for animation/perf. */
 import { useCallback } from 'react';
 import { Seaplane, WorldRenderState, TILE_WIDTH, TILE_HEIGHT, WakeParticle } from './types';
 import {
