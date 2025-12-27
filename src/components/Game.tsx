@@ -6,12 +6,15 @@ import { Tool } from '@/types/game';
 import { useMobile } from '@/hooks/useMobile';
 import { MobileToolbar } from '@/components/mobile/MobileToolbar';
 import { MobileTopBar } from '@/components/mobile/MobileTopBar';
+import { msg, useMessages, useGT } from 'gt-next';
 
 // Import shadcn components
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useCheatCodes } from '@/hooks/useCheatCodes';
 import { VinnieDialog } from '@/components/VinnieDialog';
 import { CommandMenu } from '@/components/ui/CommandMenu';
+import { TipToast } from '@/components/ui/TipToast';
+import { useTipSystem } from '@/hooks/useTipSystem';
 
 // Import game components
 import { OverlayMode } from '@/components/game/types';
@@ -29,9 +32,11 @@ import { TopBar, StatsPanel } from '@/components/game/TopBar';
 import { CanvasIsometricGrid } from '@/components/game/CanvasIsometricGrid';
 
 // Cargo type names for notifications
-const CARGO_TYPE_NAMES = ['containers', 'bulk materials', 'oil'];
+const CARGO_TYPE_NAMES = [msg('containers'), msg('bulk materials'), msg('oil')];
 
 export default function Game({ onExit }: { onExit?: () => void }) {
+  const gt = useGT();
+  const m = useMessages();
   const { state, setTool, setActivePanel, addMoney, addNotification, setSpeed } = useGame();
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
@@ -48,6 +53,14 @@ export default function Game({ onExit }: { onExit?: () => void }) {
     setShowVinnieDialog,
     clearTriggeredCheat,
   } = useCheatCodes();
+  
+  // Tip system for helping new players
+  const {
+    currentTip,
+    isVisible: isTipVisible,
+    onContinue: onTipContinue,
+    onSkipAll: onTipSkipAll,
+  } = useTipSystem(state);
   const initialSelectedToolRef = useRef<Tool | null>(null);
   const previousSelectedToolRef = useRef<Tool | null>(null);
   const hasCapturedInitialTool = useRef(false);
@@ -161,8 +174,8 @@ export default function Game({ onExit }: { onExit?: () => void }) {
       case 'konami':
         addMoney(triggeredCheat.amount);
         addNotification(
-          'Retro Cheat Activated!',
-          'Your accountants are confused but not complaining. You received $50,000!',
+          gt('Retro Cheat Activated!'),
+          gt('Your accountants are confused but not complaining. You received $50,000!'),
           'trophy'
         );
         clearTriggeredCheat();
@@ -171,8 +184,8 @@ export default function Game({ onExit }: { onExit?: () => void }) {
       case 'motherlode':
         addMoney(triggeredCheat.amount);
         addNotification(
-          'Motherlode!',
-          'Your treasury just got a lot heavier. You received $1,000,000!',
+          gt('Motherlode!'),
+          gt('Your treasury just got a lot heavier. You received $1,000,000!'),
           'trophy'
         );
         clearTriggeredCheat();
@@ -192,17 +205,17 @@ export default function Game({ onExit }: { onExit?: () => void }) {
   const handleBargeDelivery = useCallback((cargoValue: number, cargoType: number) => {
     addMoney(cargoValue);
     bargeDeliveryCountRef.current++;
-    
+
     // Show a notification every 5 deliveries to avoid spam
     if (bargeDeliveryCountRef.current % 5 === 1) {
-      const cargoName = CARGO_TYPE_NAMES[cargoType] || 'cargo';
+      const cargoName = CARGO_TYPE_NAMES[cargoType] || msg('cargo');
       addNotification(
-        'Cargo Delivered',
-        `A shipment of ${cargoName} has arrived at the marina. +$${cargoValue} trade revenue.`,
+        gt('Cargo Delivered'),
+        gt('A shipment of {cargoName} has arrived at the marina. +${cargoValue} trade revenue.', { cargoName: m(cargoName), cargoValue }),
         'ship'
       );
     }
-  }, [addMoney, addNotification]);
+  }, [addMoney, addNotification, gt, m]);
 
   // Mobile layout
   if (isMobile) {
@@ -242,6 +255,14 @@ export default function Game({ onExit }: { onExit?: () => void }) {
           {state.activePanel === 'settings' && <SettingsPanel />}
           
           <VinnieDialog open={showVinnieDialog} onOpenChange={setShowVinnieDialog} />
+          
+          {/* Tip Toast for helping new players */}
+          <TipToast
+            message={currentTip || ''}
+            isVisible={isTipVisible}
+            onContinue={onTipContinue}
+            onSkipAll={onTipSkipAll}
+          />
         </div>
       </TooltipProvider>
     );
@@ -278,6 +299,14 @@ export default function Game({ onExit }: { onExit?: () => void }) {
         
         <VinnieDialog open={showVinnieDialog} onOpenChange={setShowVinnieDialog} />
         <CommandMenu />
+        
+        {/* Tip Toast for helping new players */}
+        <TipToast
+          message={currentTip || ''}
+          isVisible={isTipVisible}
+          onContinue={onTipContinue}
+          onSkipAll={onTipSkipAll}
+        />
       </div>
     </TooltipProvider>
   );

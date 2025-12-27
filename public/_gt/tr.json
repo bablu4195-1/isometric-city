@@ -1,13 +1,16 @@
 {
   "0012d10a61d77a76": "Ticari ve konut talebini artırır (3x3)",
+  "002dbb4296181a19": "Yük Teslim Edildi",
   "0099a8e0d6903046": "Çevre",
   "00ad8aeed0a6c461": "İptal",
   "010d027a9055baf1": "Küçük ofis binası",
   "012b78191d3eef87": "Hız Treni",
   "01ed738a35998bee": "Kaydet ve Çık",
   "0246f296a9647801": "Araçlar",
+  "026adc03115f2abb": "petrol",
   "036be42493f75286": " - Alanı bölgelendirmek için sürükle",
   "03e108901c6d428d": "Yolcu ve yük istasyonu",
+  "06cb84462c974933": "Damarı bulduk!",
   "06cf637219c05461": "Açık hava kamp alanı",
   "07440458a59d2f55": "Emin misin? Bu, tüm ilerlemeni sıfırlayacak.",
   "077acf288fdc5ceb": {
@@ -55,6 +58,7 @@
     "i": 1,
     "t": "div"
   },
+  "1b1481a79d72b160": "yük",
   "1d322b583a4b0247": "Ticari talebi artırır (3x3)",
   "1e5fcd19bdbca49e": "Doğa yürüyüşü parkuru girişi (3x3)",
   "1f30c00e03eeca50": "Yol",
@@ -65,6 +69,13 @@
   "236b49842190cde3": "Yangınlarla mücadele et",
   "244e7898107e1ee5": "Gündüz/Gece Modu",
   "2455ea3bff6fcd33": "Güvenliği artır",
+  "2458e22ee476fd63": [
+    "Devam Et",
+    {
+      "i": 1,
+      "t": "ArrowRight"
+    }
+  ],
   "26c08edf08a8fd43": "Şehri genişlet (+30x30)",
   "277949eda13391e5": "Ticari",
   "27b33d5e7ca06b25": "Stadyum",
@@ -84,6 +95,7 @@
   "3a6eca7252adb9a5": "{toolName} - {width}x{height} alanı",
   "3c4c4d97d5e66b21": "Sağlık",
   "3ce15d2f4c961d10": "Henüz yeterli veri yok. Tarihsel eğilimleri görmek için oynamaya devam et.",
+  "3d7ab4b2285527d1": "Hazinen bir hayli ağırlaştı. $1,000,000 aldın!",
   "3e3047cbe8ba9923": "Her kenardan 15 karo kaldır. Kenarlardaki binalar silinecek.",
   "3fed752c6b827eb4": "Kaykay parkı",
   "40bad8960b093d63": "Mutluluk, sağlık, eğitim, güvenlik ve çevreye göre",
@@ -104,6 +116,7 @@
   "4b6098b15618c700": "Metro",
   "4c059835fa726e47": "Paylaşmak veya yedeklemek için oyun durumunu kopyala",
   "4ca435219460c2ac": "Adrenalin eğlencesi (2x2)",
+  "4f7921f3fd81b8b8": "Binaların inşaatının başlayabilmesi için elektrik, su ve yollara ihtiyaç vardır.",
   "50e2a364d74d785c": "Haftalık Net",
   "5151b5e97cd737af": "Toplum Merkezi",
   "51ba70d622cd0090": "Amfitiyatro",
@@ -117,6 +130,7 @@
   "5710fcf3d552b2e4": "İtfaiye Merkezi",
   "573173896178c5b2": "Lunapark",
   "5842190480e1e770": "Su var",
+  "58b631994c014e93": "Hoş geldin! Önce Konut, Ticari ve Endüstriyel binalar için bölgeler ayır. Sonra şehrini kurmak için yol, elektrik ve su ekle.",
   "5a08b8941a037d58": "Yerel beyzbol sahası (2x2)",
   "5bf5088caf591468": "Tribünlü spor sahası",
   "5c26a3826c8eebd9": "Nüfus",
@@ -134,6 +148,7 @@
   "62f43adf29906dd6": "Futbol Sahası",
   "644d112397a9d946": "Yükle",
   "668bac01a99df249": "Polis",
+  "67b416f395bcb015": "Vatandaşlarınızın sağlık ve eğitimini iyileştirmek için hastaneler ve okullar inşa edin.",
   "67f7439638ec898d": "Topluluk",
   "68c8018cb5797990": "Oyun durumunu buraya yapıştırın...",
   "693839da902125cb": "İskele",
@@ -145,6 +160,7 @@
   "6ef03a3ce71f2e80": "Hazine",
   "6f799a1e48046e50": "Bölgeler",
   "71ba7468560d8d94": "Küçük Oyun Parkı",
+  "71c6a9765d5e2456": "Şehrinizin çevresini iyileştirmek ve sakinleri daha mutlu etmek için parklar ve ağaçlar ekleyin.",
   "72bef77d7b502f8f": "Vergi",
   "745eee8680d46de2": "Yüzme Havuzu",
   "750760318912cde3": "(geçerli)",
@@ -156,10 +172,13 @@
   "786f78fa84e8f121": "Gölet manzaralı park",
   "7a2dd3bc72dfe4a0": "Futbol Sahası",
   "7ab9534f0cd01856": "Mini harita",
+  "7af04611900a2ec1": "dökme malzemeler",
   "7db45eab1e6e4c9e": "Büyük Park",
   "7fb5371007f7f493": "İstatistikler",
+  "825d7120d9e5c572": "konteynerler",
   "830e21fdb11a5d4a": "Su sağla",
   "8422fd86fad87d61": "Metro ağına erişim",
+  "845da39023dc8d69": "İpucunu kapat",
   "84b3fc230d753c82": "Tren İstasyonu",
   "84bfc3db1e596cce": "Gölet Parkı",
   "85c943b4a30a4c69": "Mutluluk",
@@ -171,6 +190,7 @@
   "8a3ebfe5eefa1f3a": "Hizmetler",
   "8b5e8de8f4c85850": "Yükseköğretim (3x3)",
   "8b9192b9f5e25ab9": "Bina görsel stilini seç",
+  "8cfe5cbc808ec9b6": "Bölge talebini gözden kaçırma. Negatif talep, binaların terk edilmesine neden olabilir.",
   "8e51a2f65e212afd": "Suyu karaya dönüştür",
   "900353afc0ae0c5f": "Henüz kayıtlı şehir yok.",
   "907abc04009841aa": "Minyatür golf sahası (2x2)",
@@ -196,6 +216,7 @@
   "9f2ba8acaf861529": "Çıkmadan önce şehrinizi kaydetmek ister misiniz?",
   "9f624c646a344dd9": "Botanik sera (2x2)",
   "a1fe3b85fd8e6410": "Şehri Küçült (-30x30)",
+  "a757c44bab1bfc4d": "{cargoName} sevkiyatı Marina'ya ulaştı. +${cargoValue} ticari gelir.",
   "a7894306a08bac01": "Konut",
   "a7cc8ff7202beca4": "Rustik kır kaçamağı",
   "a83f273f0a35b2f5": "Giderler",
@@ -243,6 +264,7 @@
   "cd69d8784e9ce625": "Felaketler",
   "ce17b8c1c26494e0": "Kamp Alanı",
   "cf5babe756808083": "Marina",
+  "d062c71072c029de": "Retro Hilesi Etkinleştirildi!",
   "d08f67cf675a3159": "Profesyonel beyzbol sahası (3x3)",
   "d1acbf32e4fd9c19": "Olay",
   "d26290781c575c73": "Müze",
@@ -279,6 +301,13 @@
     "i": 1,
     "t": "DialogDescription"
   },
+  "e1f4d0e177a8637e": [
+    {
+      "i": 1,
+      "t": "SkipForward"
+    },
+    "Tüm İpuçlarını Atla"
+  ],
   "e23439349cbca510": "Karo bilgisini görmek için tıkla",
   "e4ca1c349676657c": "Gece",
   "e79d3dd997b03f78": "Su yok",
@@ -293,6 +322,7 @@
   "f06fd72176b8179e": "Bölgeleme",
   "f0cfc502ed112098": "Bölge",
   "f2faf4aaea86ae97": "Basketbol Sahaları",
+  "f313b32c80899b3a": "Şehrini suçtan ve yangınlardan korumak için itfaiye ve polis karakolları ekle.",
   "f34a6940381f60d6": "Olay bildirildi.",
   "f3e6f71a8bc19b40": "Yüklemek için bir oyun durumu yapıştırın",
   "f62db7ca5ce71d28": "Etkin",
@@ -304,5 +334,6 @@
   "fb6c8a01b4a60b2b": "Şehir kaydedildi!",
   "fbed860a569bfb30": "Ticari talepte büyük artış (4x4)",
   "fd064d8807f0aaa2": "Otomatik",
+  "fd9ddc523610dd77": "Muhasebecileriniz kafası karışık ama şikâyetçi değil. 50.000 $ aldınız!",
   "fe8a0b7a0c5d9c6f": "Bütçe"
 }

@@ -1,13 +1,16 @@
 {
   "0012d10a61d77a76": "Aumenta la domanda commerciale e residenziale (3x3)",
+  "002dbb4296181a19": "Carico consegnato",
   "0099a8e0d6903046": "Ambiente",
   "00ad8aeed0a6c461": "Annulla",
   "010d027a9055baf1": "Piccolo edificio per uffici",
   "012b78191d3eef87": "Montagne russe",
   "01ed738a35998bee": "Salva ed esci",
   "0246f296a9647801": "Strumenti",
+  "026adc03115f2abb": "petrolio",
   "036be42493f75286": " - Trascina per zonizzare l'area",
   "03e108901c6d428d": "Stazione passeggeri e merci",
+  "06cb84462c974933": "Miniera d’oro!",
   "06cf637219c05461": "Area campeggio all'aperto",
   "07440458a59d2f55": "Sei sicuro? Questo azzererà tutti i progressi.",
   "077acf288fdc5ceb": {
@@ -56,6 +59,7 @@
     "i": 1,
     "t": "div"
   },
+  "1b1481a79d72b160": "carico",
   "1d322b583a4b0247": "Aumenta la domanda commerciale (3x3)",
   "1e5fcd19bdbca49e": "Ingresso sentiero escursionistico (3x3)",
   "1f30c00e03eeca50": "Strada",
@@ -66,6 +70,13 @@
   "236b49842190cde3": "Spegni gli incendi",
   "244e7898107e1ee5": "Modalità giorno/notte",
   "2455ea3bff6fcd33": "Aumenta la sicurezza",
+  "2458e22ee476fd63": [
+    "Continua",
+    {
+      "i": 1,
+      "t": "ArrowRight"
+    }
+  ],
   "26c08edf08a8fd43": "Espandi città (+30x30)",
   "277949eda13391e5": "Commerciale",
   "27b33d5e7ca06b25": "Stadio",
@@ -85,6 +96,7 @@
   "3a6eca7252adb9a5": "{toolName} - area {width}x{height}",
   "3c4c4d97d5e66b21": "Salute",
   "3ce15d2f4c961d10": "Dati insufficienti per ora. Continua a giocare per vedere le tendenze storiche.",
+  "3d7ab4b2285527d1": "Il tuo tesoro è appena diventato molto più pesante. Hai ricevuto $1.000.000!",
   "3e3047cbe8ba9923": "Rimuovi 15 caselle da ogni lato. Le costruzioni sui lati verranno eliminate.",
   "3fed752c6b827eb4": "Parco skate",
   "40bad8960b093d63": "In base a felicità, salute, istruzione, sicurezza e ambiente",
@@ -105,6 +117,7 @@
   "4b6098b15618c700": "Metropolitana",
   "4c059835fa726e47": "Copia lo stato di gioco per condividerlo o farne una copia di sicurezza",
   "4ca435219460c2ac": "Attrazione adrenalinica (2x2)",
+  "4f7921f3fd81b8b8": "Gli edifici hanno bisogno di energia, acqua e Strade perché la costruzione possa iniziare.",
   "50e2a364d74d785c": "Saldo netto settimanale",
   "5151b5e97cd737af": "Centro comunitario",
   "51ba70d622cd0090": "Anfiteatro",
@@ -118,6 +131,7 @@
   "5710fcf3d552b2e4": "Caserma dei vigili del fuoco",
   "573173896178c5b2": "Parco divertimenti",
   "5842190480e1e770": "Ha acqua",
+  "58b631994c014e93": "Benvenuto! Inizia assegnando le zone per edifici residenziali, commerciali e industriali. Poi aggiungi strade, energia elettrica e acqua per costruire la tua città.",
   "5a08b8941a037d58": "Campo da baseball locale (2x2)",
   "5bf5088caf591468": "Campo sportivo con tribune",
   "5c26a3826c8eebd9": "Popolazione",
@@ -135,6 +149,7 @@
   "62f43adf29906dd6": "Campo da calcio",
   "644d112397a9d946": "Carica",
   "668bac01a99df249": "Polizia",
+  "67b416f395bcb015": "Costruisci ospedali e scuole per migliorare la salute e l'istruzione dei tuoi cittadini.",
   "67f7439638ec898d": "Comunità",
   "68c8018cb5797990": "Incolla qui lo stato di gioco...",
   "693839da902125cb": "Molo",
@@ -146,6 +161,7 @@
   "6ef03a3ce71f2e80": "Tesoreria",
   "6f799a1e48046e50": "Zone",
   "71ba7468560d8d94": "Piccolo parco giochi",
+  "71c6a9765d5e2456": "Aggiungi parchi e alberi per migliorare l'ambiente della tua città e rendere i residenti più felici.",
   "72bef77d7b502f8f": "Tasse",
   "745eee8680d46de2": "Piscina",
   "750760318912cde3": "(attuale)",
@@ -157,10 +173,13 @@
   "786f78fa84e8f121": "Parco con laghetto pittoresco",
   "7a2dd3bc72dfe4a0": "Campo da football americano",
   "7ab9534f0cd01856": "Minimappa",
+  "7af04611900a2ec1": "materiali sfusi",
   "7db45eab1e6e4c9e": "Parco grande",
   "7fb5371007f7f493": "Statistiche",
+  "825d7120d9e5c572": "contenitori",
   "830e21fdb11a5d4a": "Fornisce acqua",
   "8422fd86fad87d61": "Accesso alla rete metropolitana",
+  "845da39023dc8d69": "Chiudi suggerimento",
   "84b3fc230d753c82": "Stazione ferroviaria",
   "84bfc3db1e596cce": "Parco con stagno",
   "85c943b4a30a4c69": "Felicità",
@@ -172,6 +191,7 @@
   "8a3ebfe5eefa1f3a": "Servizi",
   "8b5e8de8f4c85850": "Istruzione superiore (3x3)",
   "8b9192b9f5e25ab9": "Scegli lo stile grafico dell'edificio",
+  "8cfe5cbc808ec9b6": "Tieni d’occhio la domanda di zona. Una domanda negativa può far abbandonare gli edifici.",
   "8e51a2f65e212afd": "Trasforma l'acqua in terra",
   "900353afc0ae0c5f": "Nessuna città salvata.",
   "907abc04009841aa": "Campo da minigolf (2x2)",
@@ -197,6 +217,7 @@
   "9f2ba8acaf861529": "Vuoi salvare la tua città prima di uscire?",
   "9f624c646a344dd9": "Serra botanica (2x2)",
   "a1fe3b85fd8e6410": "Riduci città (-30x30)",
+  "a757c44bab1bfc4d": "È arrivata al porto turistico una spedizione di {cargoName}. Entrate commerciali: +${cargoValue}.",
   "a7894306a08bac01": "Residenziale",
   "a7cc8ff7202beca4": "Rifugio in baita rustica",
   "a83f273f0a35b2f5": "Spese",
@@ -244,6 +265,7 @@
   "cd69d8784e9ce625": "Disastri",
   "ce17b8c1c26494e0": "Campeggio",
   "cf5babe756808083": "Porto turistico",
+  "d062c71072c029de": "Trucco retrò attivato!",
   "d08f67cf675a3159": "Stadio di baseball professionale (3x3)",
   "d1acbf32e4fd9c19": "Incidente",
   "d26290781c575c73": "Museo",
@@ -280,6 +302,13 @@
     "i": 1,
     "t": "DialogDescription"
   },
+  "e1f4d0e177a8637e": [
+    {
+      "i": 1,
+      "t": "SkipForward"
+    },
+    "Salta tutti i suggerimenti"
+  ],
   "e23439349cbca510": "Fai clic per visualizzare le informazioni sulla tessera",
   "e4ca1c349676657c": "Notte",
   "e79d3dd997b03f78": "Niente acqua",
@@ -294,6 +323,7 @@
   "f06fd72176b8179e": "Zonizzazione",
   "f0cfc502ed112098": "Zona",
   "f2faf4aaea86ae97": "Campi da basket",
+  "f313b32c80899b3a": "Aggiungi caserme dei vigili del fuoco e stazioni di Polizia per mantenere la tua città al sicuro da crimini e incendi.",
   "f34a6940381f60d6": "Incidente segnalato.",
   "f3e6f71a8bc19b40": "Incolla uno stato di gioco per caricarlo",
   "f62db7ca5ce71d28": "Abilitato",
@@ -305,5 +335,6 @@
   "fb6c8a01b4a60b2b": "Città salvata!",
   "fbed860a569bfb30": "Grande aumento della domanda commerciale (4x4)",
   "fd064d8807f0aaa2": "Automatico",
+  "fd9ddc523610dd77": "I tuoi contabili sono confusi ma non si lamentano. Hai ricevuto $50.000!",
   "fe8a0b7a0c5d9c6f": "Bilancio"
 }
