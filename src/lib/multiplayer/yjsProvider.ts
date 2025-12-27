@@ -386,22 +386,27 @@ export class MultiplayerProvider {
         // Google STUN servers
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        // Free TURN servers from Open Relay Project
+        { urls: 'stun:stun2.l.google.com:19302' },
+        // Free TURN servers from Open Relay (metered.ca)
         {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
+          urls: 'turn:a.relay.metered.ca:80',
+          username: 'e8dd65d92c62d5e5e3e6a5e0',
+          credential: 'uWdWNmkhvyqTmFir',
         },
         {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
+          urls: 'turn:a.relay.metered.ca:80?transport=tcp',
+          username: 'e8dd65d92c62d5e5e3e6a5e0',
+          credential: 'uWdWNmkhvyqTmFir',
         },
-        // Backup TURN with UDP
         {
-          urls: 'turn:openrelay.metered.ca:80?transport=udp',
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
+          urls: 'turn:a.relay.metered.ca:443',
+          username: 'e8dd65d92c62d5e5e3e6a5e0',
+          credential: 'uWdWNmkhvyqTmFir',
+        },
+        {
+          urls: 'turn:a.relay.metered.ca:443?transport=tcp',
+          username: 'e8dd65d92c62d5e5e3e6a5e0',
+          credential: 'uWdWNmkhvyqTmFir',
         },
       ],
       iceCandidatePoolSize: 10,
@@ -410,13 +415,19 @@ export class MultiplayerProvider {
     // ICE connection state handling
     pc.oniceconnectionstatechange = () => {
       console.log(`[MP] ICE state: ${pc!.iceConnectionState}`);
-      if (pc!.iceConnectionState === 'failed') {
-        console.error('[MP] ICE connection failed - may need TURN server');
+      if (pc!.iceConnectionState === 'failed' || pc!.iceConnectionState === 'disconnected') {
+        console.error('[MP] ICE connection failed/disconnected');
+        // Try to restart ICE
+        pc!.restartIce();
       }
     };
 
     pc.onicegatheringstatechange = () => {
       console.log(`[MP] ICE gathering: ${pc!.iceGatheringState}`);
+    };
+    
+    pc.onicecandidateerror = (event) => {
+      console.error(`[MP] ICE candidate error:`, event.errorCode, event.errorText, event.url);
     };
 
     this.peerConnections.set(remotePeerId, pc);
@@ -478,6 +489,12 @@ export class MultiplayerProvider {
       
       // Bundle ICE candidates WITH the offer to avoid race conditions
       const candidates = this.outgoingIceCandidates.get(remotePeerId) || [];
+      console.log(`[MP] Sending offer with ${candidates.length} ICE candidates`);
+      // Log candidate types for debugging
+      candidates.forEach((c, i) => {
+        const parts = (c.candidate || '').split(' ');
+        console.log(`[MP] Candidate ${i}: ${parts[7] || 'unknown'} ${parts[4] || ''}`);
+      });
       await this.sendSignal('offer', {
         sdp: pc.localDescription!.toJSON(),
         candidates: candidates,
@@ -621,6 +638,11 @@ export class MultiplayerProvider {
       
       // Bundle ICE candidates WITH the answer
       const candidates = this.outgoingIceCandidates.get(signal.from) || [];
+      console.log(`[MP] Sending answer with ${candidates.length} ICE candidates`);
+      candidates.forEach((c, i) => {
+        const parts = (c.candidate || '').split(' ');
+        console.log(`[MP] Candidate ${i}: ${parts[7] || 'unknown'} ${parts[4] || ''}`);
+      });
       await this.sendSignal('answer', {
         sdp: pc.localDescription!.toJSON(),
         candidates: candidates,
