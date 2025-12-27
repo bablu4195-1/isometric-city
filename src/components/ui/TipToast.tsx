@@ -21,22 +21,33 @@ function TipToastContent({ message, isVisible, onContinue, onSkipAll }: TipToast
   const [shouldRender, setShouldRender] = useState(false);
 
   useEffect(() => {
+    let frame1 = 0;
+    let frame2 = 0;
     if (isVisible) {
-      setShouldRender(true);
-      // Small delay to trigger animation
-      const frame = requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+      // Defer state updates to avoid setState directly in effect body
+      frame1 = requestAnimationFrame(() => {
+        setShouldRender(true);
+        // Small delay to trigger animation
+        frame2 = requestAnimationFrame(() => {
           setIsAnimating(true);
         });
       });
-      return () => cancelAnimationFrame(frame);
+      return () => {
+        cancelAnimationFrame(frame1);
+        cancelAnimationFrame(frame2);
+      };
     } else {
-      setIsAnimating(false);
+      frame1 = requestAnimationFrame(() => {
+        setIsAnimating(false);
+      });
       // Wait for exit animation before unmounting
       const timer = setTimeout(() => {
         setShouldRender(false);
       }, 300);
-      return () => clearTimeout(timer);
+      return () => {
+        cancelAnimationFrame(frame1);
+        clearTimeout(timer);
+      };
     }
   }, [isVisible]);
 
@@ -123,7 +134,10 @@ export function TipToast(props: TipToastProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    const frame = requestAnimationFrame(() => {
+      setMounted(true);
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   // Use portal to render at document body level to avoid z-index/overflow issues

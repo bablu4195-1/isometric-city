@@ -28,6 +28,12 @@ const UI_LABELS = {
   advisors: msg('Advisors'),
   settings: msg('Settings'),
 };
+
+const CITY_RESIZE_LABELS = {
+  expandCityMenu: msg('Expand City'),
+  expandCity: msg('Expand city'),
+  shrinkCity: msg('Shrink city'),
+};
 import {
   BudgetIcon,
   ChartIcon,
@@ -250,6 +256,192 @@ const HoverSubmenu = React.memo(function HoverSubmenu({
   );
 });
 
+type ActionSubmenuItem = {
+  key: string;
+  label: unknown; // Message object from msg() for translation
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+};
+
+// Hover Submenu Component for action items (not Tool selection)
+const HoverActionSubmenu = React.memo(function HoverActionSubmenu({
+  label,
+  items,
+  forceOpenUpward = false,
+}: {
+  label: unknown; // Message object from msg() for translation
+  items: ActionSubmenuItem[];
+  forceOpenUpward?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, buttonHeight: 0, openUpward: false });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const submenuRef = useRef<HTMLDivElement>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastMousePos = useRef<{ x: number; y: number } | null>(null);
+  const m = useMessages();
+
+  const SUBMENU_GAP = 12; // Gap between sidebar and submenu
+  const SUBMENU_MAX_HEIGHT = 220; // Approximate max height of submenu
+
+  const clearCloseTimeout = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  const handleMouseEnter = useCallback(() => {
+    clearCloseTimeout();
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.top;
+      const openUpward = forceOpenUpward || (spaceBelow < SUBMENU_MAX_HEIGHT && rect.top > SUBMENU_MAX_HEIGHT);
+
+      setMenuPosition({
+        top: openUpward ? rect.bottom : rect.top,
+        left: rect.right + SUBMENU_GAP,
+        buttonHeight: rect.height,
+        openUpward,
+      });
+    }
+    setIsOpen(true);
+  }, [clearCloseTimeout, forceOpenUpward]);
+
+  const isMovingTowardSubmenu = useCallback((e: React.MouseEvent) => {
+    if (!lastMousePos.current || !submenuRef.current) return false;
+
+    const submenuRect = submenuRef.current.getBoundingClientRect();
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+    const lastX = lastMousePos.current.x;
+
+    const movingRight = currentX > lastX;
+    const padding = 50;
+    const withinVerticalBounds =
+      currentY >= submenuRect.top - padding &&
+      currentY <= submenuRect.bottom + padding;
+
+    return movingRight && withinVerticalBounds;
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    lastMousePos.current = { x: e.clientX, y: e.clientY };
+  }, []);
+
+  const handleMouseLeave = useCallback((e: React.MouseEvent) => {
+    const delay = isMovingTowardSubmenu(e) ? 300 : 100;
+
+    clearCloseTimeout();
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, delay);
+  }, [clearCloseTimeout, isMovingTowardSubmenu]);
+
+  const handleSubmenuEnter = useCallback(() => {
+    clearCloseTimeout();
+  }, [clearCloseTimeout]);
+
+  const handleSubmenuLeave = useCallback(() => {
+    clearCloseTimeout();
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 100);
+  }, [clearCloseTimeout]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={handleMouseEnter}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      <Button
+        ref={buttonRef}
+        variant="ghost"
+        className={`w-full justify-between gap-2 px-3 py-2.5 h-auto text-sm group transition-all duration-200 ${
+          isOpen ? 'bg-muted/80' : ''
+        }`}
+      >
+        <span className="font-medium">{m(label as Parameters<typeof m>[0])}</span>
+        <svg
+          className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </Button>
+
+      {isOpen && (
+        <div
+          className="fixed"
+          style={{
+            top: `${menuPosition.top}px`,
+            left: `${menuPosition.left - SUBMENU_GAP}px`,
+            width: `${SUBMENU_GAP + 8}px`,
+            height: `${Math.max(menuPosition.buttonHeight, 200)}px`,
+            zIndex: 9998,
+          }}
+          onMouseEnter={handleSubmenuEnter}
+          onMouseLeave={handleSubmenuLeave}
+        />
+      )}
+
+      {isOpen && (
+        <div
+          ref={submenuRef}
+          className="fixed w-52 bg-sidebar backdrop-blur-sm border border-sidebar-border rounded-md shadow-xl overflow-hidden animate-submenu-in"
+          style={{
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(96, 165, 250, 0.1)',
+            zIndex: 9999,
+            ...(menuPosition.openUpward
+              ? { bottom: `${window.innerHeight - menuPosition.top}px` }
+              : { top: `${menuPosition.top}px` }),
+            left: `${menuPosition.left}px`,
+          }}
+          onMouseEnter={handleSubmenuEnter}
+          onMouseLeave={handleSubmenuLeave}
+        >
+          <div className="px-3 py-2 border-b border-sidebar-border/50 bg-muted/30">
+            <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+              {m(label as Parameters<typeof m>[0])}
+            </span>
+          </div>
+          <div className="p-1.5 flex flex-col gap-0.5 max-h-48 overflow-y-auto">
+            {items.map((item) => (
+              <Button
+                key={item.key}
+                onClick={() => {
+                  item.onClick();
+                  setIsOpen(false);
+                }}
+                disabled={item.disabled}
+                variant="ghost"
+                className="w-full justify-start gap-2 px-3 py-2 h-auto text-sm transition-all duration-150 hover:bg-muted/60"
+                title={item.title}
+              >
+                <span className="flex-1 text-left truncate">{m(item.label as Parameters<typeof m>[0])}</span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 // Exit confirmation dialog component
 function ExitDialog({ 
   open, 
@@ -293,10 +485,24 @@ function ExitDialog({
 
 // Memoized Sidebar Component
 export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => void }) {
-  const { state, setTool, setActivePanel, saveCity } = useGame();
+  const { state, setTool, setActivePanel, saveCity, expandCity, shrinkCity, addNotification } = useGame();
   const { selectedTool, stats, activePanel } = state;
   const [showExitDialog, setShowExitDialog] = useState(false);
   const m = useMessages();
+
+  const handleExpandCity = useCallback(() => {
+    expandCity();
+    addNotification('City expanded', `Map expanded to ${state.gridSize + 30}×${state.gridSize + 30}.`, 'buildings');
+  }, [addNotification, expandCity, state.gridSize]);
+
+  const handleShrinkCity = useCallback(() => {
+    const ok = shrinkCity();
+    if (!ok) {
+      addNotification('Cannot shrink city', 'City is already at the minimum size.', 'disaster');
+      return;
+    }
+    addNotification('City shrunk', `Map shrunk to ${state.gridSize - 30}×${state.gridSize - 30}.`, 'buildings');
+  }, [addNotification, shrinkCity, state.gridSize]);
   
   const handleSaveAndExit = useCallback(() => {
     saveCity();
@@ -448,6 +654,17 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
                   selectedTool={selectedTool}
                   money={stats.money}
                   onSelectTool={setTool}
+                />
+              )}
+
+              {/* City resizing actions - appears under TOOLS */}
+              {category === 'TOOLS' && (
+                <HoverActionSubmenu
+                  label={CITY_RESIZE_LABELS.expandCityMenu}
+                  items={[
+                    { key: 'expand', label: CITY_RESIZE_LABELS.expandCity, onClick: handleExpandCity },
+                    { key: 'shrink', label: CITY_RESIZE_LABELS.shrinkCity, onClick: handleShrinkCity },
+                  ]}
                 />
               )}
             </div>

@@ -193,7 +193,14 @@ export function useEffectsSystems(
     // Update existing fireworks
     const updatedFireworks: Firework[] = [];
     
-    for (const firework of fireworksRef.current) {
+    for (const existingFirework of fireworksRef.current) {
+      const firework: Firework = {
+        ...existingFirework,
+        particles: existingFirework.particles.map((p) => ({
+          ...p,
+          trail: p.trail.map((tp) => ({ ...tp })),
+        })),
+      };
       firework.age += delta;
       
       switch (firework.state) {
@@ -440,10 +447,13 @@ export function useEffectsSystems(
         const chimneyOffsetY = factory.type === 'factory_large' ? -TILE_HEIGHT * 1.2 : -TILE_HEIGHT * 0.7;
         
         if (existing && existing.buildingType === factory.type) {
-          // Update screen position but keep particles
-          existing.screenX = screenX + chimneyOffsetX;
-          existing.screenY = screenY + chimneyOffsetY;
-          return existing;
+          // Update screen position but keep particles (immutably)
+          return {
+            ...existing,
+            screenX: screenX + chimneyOffsetX,
+            screenY: screenY + chimneyOffsetY,
+            particles: existing.particles.map(p => ({ ...p })),
+          };
         }
         
         return {
@@ -459,18 +469,21 @@ export function useEffectsSystems(
     }
     
     // Update each factory's smog
-    for (const smog of factorySmogRef.current) {
+    const updatedSmog: FactorySmog[] = [];
+    for (const existingSmog of factorySmogRef.current) {
+      const smog: FactorySmog = { ...existingSmog, particles: existingSmog.particles.map(p => ({ ...p })) };
       // Update spawn timer with mobile multiplier
       const baseSpawnInterval = smog.buildingType === 'factory_large' 
         ? SMOG_SPAWN_INTERVAL_LARGE 
         : SMOG_SPAWN_INTERVAL_MEDIUM;
       const spawnInterval = baseSpawnInterval * spawnMultiplier;
       
-      smog.spawnTimer += adjustedDelta;
+      let spawnTimer = smog.spawnTimer + adjustedDelta;
+      let particles = smog.particles;
       
       // Spawn new particles (only if below particle limit)
-      while (smog.spawnTimer >= spawnInterval && smog.particles.length < maxParticles) {
-        smog.spawnTimer -= spawnInterval;
+      while (spawnTimer >= spawnInterval && particles.length < maxParticles) {
+        spawnTimer -= spawnInterval;
         
         // Calculate spawn position with some randomness around the chimney
         const spawnX = smog.screenX + (Math.random() - 0.5) * 8;
@@ -484,7 +497,9 @@ export function useEffectsSystems(
         const size = SMOG_PARTICLE_SIZE_MIN + Math.random() * (SMOG_PARTICLE_SIZE_MAX - SMOG_PARTICLE_SIZE_MIN);
         const maxAge = particleMaxAge * (0.7 + Math.random() * 0.6);
         
-        smog.particles.push({
+        particles = [
+          ...particles,
+          {
           x: spawnX,
           y: spawnY,
           vx,
@@ -493,38 +508,35 @@ export function useEffectsSystems(
           maxAge,
           size,
           opacity: SMOG_BASE_OPACITY * (0.8 + Math.random() * 0.4),
-        });
+          },
+        ];
       }
       
       // Reset spawn timer if we hit the particle limit to prevent buildup
-      if (smog.particles.length >= maxParticles) {
-        smog.spawnTimer = 0;
+      if (particles.length >= maxParticles) {
+        spawnTimer = 0;
       }
       
       // Update existing particles
-      smog.particles = smog.particles.filter(particle => {
-        particle.age += adjustedDelta;
-        
-        if (particle.age >= particle.maxAge) {
-          return false; // Remove old particles
-        }
-        
-        // Update position with drift
-        particle.x += particle.vx * adjustedDelta;
-        particle.y += particle.vy * adjustedDelta;
-        
-        // Slow down horizontal drift over time
-        particle.vx *= 0.995;
-        
-        // Slow down vertical rise as particle ages
-        particle.vy *= 0.998;
-        
-        // Grow particle size over time
-        particle.size += SMOG_PARTICLE_GROWTH * adjustedDelta;
-        
-        return true;
-      });
+      particles = particles
+        .map((particle) => {
+          const age = particle.age + adjustedDelta;
+          if (age >= particle.maxAge) return null;
+
+          const x = particle.x + particle.vx * adjustedDelta;
+          const y = particle.y + particle.vy * adjustedDelta;
+
+          const vx = particle.vx * 0.995;
+          const vy = particle.vy * 0.998;
+          const size = particle.size + SMOG_PARTICLE_GROWTH * adjustedDelta;
+
+          return { ...particle, age, x, y, vx, vy, size };
+        })
+        .filter((p): p is FactorySmog['particles'][number] => p !== null);
+
+      updatedSmog.push({ ...smog, spawnTimer, particles });
     }
+    factorySmogRef.current = updatedSmog;
   }, [worldStateRef, gridVersionRef, factorySmogRef, smogLastGridVersionRef, findSmogFactoriesCallback, isMobile]);
 
   // Draw smog particles

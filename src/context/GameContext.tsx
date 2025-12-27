@@ -664,28 +664,36 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     // Load sprite pack preference
     const savedPackId = loadSpritePackId();
     const pack = getSpritePack(savedPackId);
-    setCurrentSpritePack(pack);
-    setActiveSpritePack(pack);
-    
+
     // Load day/night mode preference
     const savedDayNightMode = loadDayNightMode();
-    setDayNightModeState(savedDayNightMode);
-    
+
     // Load saved cities index
     const cities = loadSavedCitiesIndex();
-    setSavedCities(cities);
-    
+
     // Load game state
     const saved = loadGameState();
-    if (saved) {
-      skipNextSaveRef.current = true; // Set skip flag BEFORE updating state
-      setState(saved);
-      setHasExistingGame(true);
-    } else {
-      setHasExistingGame(false);
-    }
-    // Mark as loaded immediately - the skipNextSaveRef will handle skipping the first save
-    hasLoadedRef.current = true;
+
+    // Defer state updates to avoid setState directly in effect body
+    const frame = requestAnimationFrame(() => {
+      setCurrentSpritePack(pack);
+      setActiveSpritePack(pack);
+      setDayNightModeState(savedDayNightMode);
+      setSavedCities(cities);
+
+      if (saved) {
+        skipNextSaveRef.current = true; // Set skip flag BEFORE updating state
+        setState(saved);
+        setHasExistingGame(true);
+      } else {
+        setHasExistingGame(false);
+      }
+
+      // Mark as loaded immediately - the skipNextSaveRef will handle skipping the first save
+      hasLoadedRef.current = true;
+    });
+
+    return () => cancelAnimationFrame(frame);
   }, []);
   
   // Track the state that needs to be saved
@@ -696,7 +704,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   // PERF: Just mark that state has changed - defer expensive deep copy to actual save time
   const stateChangedRef = useRef(false);
   const latestStateRef = useRef(state);
-  latestStateRef.current = state;
+  
+  useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
   
   useEffect(() => {
     if (!hasLoadedRef.current) {

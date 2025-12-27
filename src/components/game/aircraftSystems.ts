@@ -198,13 +198,14 @@ export function useAircraftSystems(
     // Update existing airplanes
     const updatedAirplanes: Airplane[] = [];
     
-    for (const plane of airplanesRef.current) {
+    for (const existingPlane of airplanesRef.current) {
       // Update contrail particles - shorter duration on mobile for performance
       const contrailMaxAge = isMobile ? 0.8 : CONTRAIL_MAX_AGE;
       const contrailSpawnInterval = isMobile ? 0.06 : CONTRAIL_SPAWN_INTERVAL;
-      plane.contrail = plane.contrail
+      let contrail = existingPlane.contrail
         .map(p => ({ ...p, age: p.age + delta, opacity: Math.max(0, 1 - p.age / contrailMaxAge) }))
         .filter(p => p.age < contrailMaxAge);
+      let plane: Airplane = { ...existingPlane, contrail };
       
       // Add new contrail particles at high altitude (less frequent on mobile)
       if (plane.altitude > 0.7) {
@@ -216,7 +217,7 @@ export function useAircraftSystems(
           const downOffset = 8; // Vertical offset down
           const contrailX = plane.x - Math.cos(plane.angle) * behindOffset;
           const contrailY = plane.y - Math.sin(plane.angle) * behindOffset + downOffset;
-          plane.contrail.push({ x: contrailX, y: contrailY, age: 0, opacity: 1 });
+          plane.contrail = [...plane.contrail, { x: contrailX, y: contrailY, age: 0, opacity: 1 }];
         }
       }
       
@@ -407,7 +408,8 @@ export function useAircraftSystems(
     // Update existing helicopters
     const updatedHelicopters: Helicopter[] = [];
     
-    for (const heli of helicoptersRef.current) {
+    for (const existingHeli of helicoptersRef.current) {
+      let heli: Helicopter = { ...existingHeli, rotorWash: [...existingHeli.rotorWash] };
       // Update rotor animation
       heli.rotorAngle += delta * 25; // Fast rotor spin
       
@@ -431,12 +433,15 @@ export function useAircraftSystems(
           // Single small rotor wash particle behind helicopter
           const behindAngle = heli.angle + Math.PI;
           const offsetDist = 6;
-          heli.rotorWash.push({
-            x: heli.x + Math.cos(behindAngle) * offsetDist,
-            y: heli.y + Math.sin(behindAngle) * offsetDist,
-            age: 0,
-            opacity: 1
-          });
+          heli.rotorWash = [
+            ...heli.rotorWash,
+            {
+              x: heli.x + Math.cos(behindAngle) * offsetDist,
+              y: heli.y + Math.sin(behindAngle) * offsetDist,
+              age: 0,
+              opacity: 1,
+            },
+          ];
         }
       }
       

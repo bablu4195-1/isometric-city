@@ -148,7 +148,8 @@ export function useBargeSystem(
     // Update existing barges
     const updatedBarges: Barge[] = [];
     
-    for (const barge of bargesRef.current) {
+    for (const existingBarge of bargesRef.current) {
+      let barge: Barge = { ...existingBarge, wake: [...existingBarge.wake] };
       barge.age += delta;
       
       // Update wake particles
@@ -309,18 +310,21 @@ export function useBargeSystem(
           // Add two wake particles behind the barge (wider wake for larger vessel)
           const behindBarge = -12;
           const wakeWidth = 8;
-          barge.wake.push({
-            x: barge.x + Math.cos(barge.angle) * behindBarge + Math.cos(barge.angle + Math.PI/2) * wakeWidth,
-            y: barge.y + Math.sin(barge.angle) * behindBarge + Math.sin(barge.angle + Math.PI/2) * wakeWidth,
-            age: 0,
-            opacity: 1
-          });
-          barge.wake.push({
-            x: barge.x + Math.cos(barge.angle) * behindBarge + Math.cos(barge.angle - Math.PI/2) * wakeWidth,
-            y: barge.y + Math.sin(barge.angle) * behindBarge + Math.sin(barge.angle - Math.PI/2) * wakeWidth,
-            age: 0,
-            opacity: 1
-          });
+          barge.wake = [
+            ...barge.wake,
+            {
+              x: barge.x + Math.cos(barge.angle) * behindBarge + Math.cos(barge.angle + Math.PI / 2) * wakeWidth,
+              y: barge.y + Math.sin(barge.angle) * behindBarge + Math.sin(barge.angle + Math.PI / 2) * wakeWidth,
+              age: 0,
+              opacity: 1,
+            },
+            {
+              x: barge.x + Math.cos(barge.angle) * behindBarge + Math.cos(barge.angle - Math.PI / 2) * wakeWidth,
+              y: barge.y + Math.sin(barge.angle) * behindBarge + Math.sin(barge.angle - Math.PI / 2) * wakeWidth,
+              age: 0,
+              opacity: 1,
+            },
+          ];
         }
       }
       
