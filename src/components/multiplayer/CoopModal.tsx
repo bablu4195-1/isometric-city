@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { useMultiplayer } from '@/context/MultiplayerContext';
 import { GameState } from '@/types/game';
 import { createInitialGameState, DEFAULT_GRID_SIZE } from '@/lib/simulation';
+import { loadRoomState, hasRoomState } from '@/hooks/useMultiplayerSync';
 import { Copy, Check, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 
 interface CoopModalProps {
@@ -69,12 +70,21 @@ export function CoopModal({
         .catch((err) => {
           console.error('Failed to auto-join room:', err);
           setIsLoading(false);
-          // Fall back to showing join modal
-          setJoinCode(pendingRoomCode);
-          setMode('join');
+          
+          // Check if we have a saved state for this room
+          const savedState = loadRoomState(pendingRoomCode);
+          if (savedState) {
+            console.log('[CoopModal] Found saved state for room, loading offline...');
+            onStartGame(false, savedState);
+            onOpenChange(false);
+          } else {
+            // Fall back to showing join modal
+            setJoinCode(pendingRoomCode);
+            setMode('join');
+          }
         });
     }
-  }, [open, pendingRoomCode, autoJoinAttempted, joinRoom]);
+  }, [open, pendingRoomCode, autoJoinAttempted, joinRoom, onStartGame, onOpenChange]);
 
   // Reset state when modal closes - cleanup any pending connection
   useEffect(() => {
@@ -129,6 +139,15 @@ export function CoopModal({
     } catch (err) {
       console.error('Failed to join room:', err);
       setIsLoading(false);
+      
+      // Check if we have a saved state for this room
+      const savedState = loadRoomState(joinCode);
+      if (savedState) {
+        console.log('[CoopModal] Failed to join but found saved state, loading offline...');
+        window.history.replaceState({}, '', `/?room=${joinCode.toUpperCase()}`);
+        onStartGame(false, savedState);
+        onOpenChange(false);
+      }
     }
   };
   
@@ -141,20 +160,35 @@ export function CoopModal({
     }
   }, [waitingForState, initialState, onStartGame, onOpenChange]);
   
-  // Timeout after 60 seconds if we can't connect
+  // Timeout after 15 seconds - if no state received, try to load from saved room state
   useEffect(() => {
     if (!waitingForState) return;
     
+    const roomToCheck = pendingRoomCode || joinCode;
+    
     const timeout = setTimeout(() => {
       if (waitingForState && !initialState) {
-        console.error('[CoopModal] Timeout waiting for state');
-        setWaitingForState(false);
-        leaveRoom();
+        console.log('[CoopModal] Timeout waiting for state, checking for saved room state...');
+        
+        // Check if we have a saved state for this room
+        const savedState = roomToCheck ? loadRoomState(roomToCheck) : null;
+        
+        if (savedState) {
+          console.log('[CoopModal] Found saved state for room, loading...');
+          setWaitingForState(false);
+          // Start game with saved state (not as host since we're trying to join)
+          onStartGame(false, savedState);
+          onOpenChange(false);
+        } else {
+          console.error('[CoopModal] No saved state found, timeout');
+          setWaitingForState(false);
+          leaveRoom();
+        }
       }
-    }, 60000);
+    }, 15000);
     
     return () => clearTimeout(timeout);
-  }, [waitingForState, initialState, leaveRoom]);
+  }, [waitingForState, initialState, leaveRoom, pendingRoomCode, joinCode, onStartGame, onOpenChange]);
 
   const handleCopyLink = () => {
     if (!roomCode) return;
@@ -403,6 +437,14 @@ export function CoopModal({
             <div className="flex items-center gap-2 text-red-400 text-sm">
               <AlertCircle className="w-4 h-4" />
               {error}
+            </div>
+          )}
+
+          {/* Show if we have a saved state for this room */}
+          {joinCode.length === 5 && hasRoomState(joinCode) && !waitingForState && (
+            <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+              <p className="text-slate-300 text-sm">💾 Previously visited city</p>
+              <p className="text-slate-500 text-xs mt-1">Will load saved state if connection fails</p>
             </div>
           )}
 

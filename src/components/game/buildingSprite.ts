@@ -20,7 +20,7 @@ export interface SpriteSourceResult {
   /** Path to the sprite sheet to use */
   source: string;
   /** Type of variant being used */
-  variantType: 'normal' | 'construction' | 'abandoned' | 'parks' | 'parksConstruction' | 'dense' | 'modern' | 'farm' | 'shop' | 'station';
+  variantType: 'normal' | 'construction' | 'abandoned' | 'parks' | 'parksConstruction' | 'dense' | 'modern' | 'farm' | 'shop' | 'station' | 'mansion';
   /** Variant coordinates if using a variant sheet (row, col) */
   variant: { row: number; col: number } | null;
 }
@@ -215,7 +215,22 @@ export function selectSpriteSource(
       };
     }
   }
-  
+
+  // Mansion variants (alternate mansion designs)
+  if (activePack.mansionsSrc && activePack.mansionsVariants && activePack.mansionsVariants[buildingType]) {
+    const variants = activePack.mansionsVariants[buildingType];
+    const totalOptions = 1 + variants.length;
+    const seed = (tileX * 31 + tileY * 17) % totalOptions;
+
+    if (seed > 0 && variants.length > 0) {
+      return {
+        source: activePack.mansionsSrc,
+        variantType: 'mansion',
+        variant: variants[seed - 1],
+      };
+    }
+  }
+
   // Default: normal sprite sheet
   return {
     source: activePack.src,
@@ -398,6 +413,21 @@ export function calculateSpriteCoords(
       sh: sourceH,
     };
   }
+
+  // Mansion variants
+  if (variantType === 'mansion' && variant) {
+    const mansionsCols = activePack.mansionsCols || 5;
+    const mansionsRows = activePack.mansionsRows || 7;
+    const tileWidth = Math.floor(sheetWidth / mansionsCols);
+    const tileHeight = Math.floor(sheetHeight / mansionsRows);
+
+    return {
+      sx: variant.col * tileWidth,
+      sy: variant.row * tileHeight,
+      sw: tileWidth,
+      sh: tileHeight,
+    };
+  }
   
   // Normal, construction, or abandoned - use getSpriteCoords
   const coords = getSpriteCoords(buildingType, sheetWidth, sheetHeight, activePack);
@@ -494,8 +524,12 @@ export function calculateSpriteScale(
   if (variantType === 'station' && activePack.stationsScales && buildingType in activePack.stationsScales) {
     scaleMultiplier *= activePack.stationsScales[buildingType];
   }
-  
-  if ((variantType === 'parks' || variantType === 'parksConstruction') && 
+
+  if (variantType === 'mansion' && activePack.mansionsScales && buildingType in activePack.mansionsScales) {
+    scaleMultiplier *= activePack.mansionsScales[buildingType];
+  }
+
+  if ((variantType === 'parks' || variantType === 'parksConstruction') &&
       activePack.parksScales && buildingType in activePack.parksScales) {
     scaleMultiplier *= activePack.parksScales[buildingType];
   }
@@ -586,9 +620,12 @@ export function calculateSpriteOffsets(
   } else if (variantType === 'shop' && activePack.shopsVerticalOffsets && 
              buildingType in activePack.shopsVerticalOffsets) {
     verticalOffset = activePack.shopsVerticalOffsets[buildingType];
-  } else if (variantType === 'station' && activePack.stationsVerticalOffsets && 
+  } else if (variantType === 'station' && activePack.stationsVerticalOffsets &&
              buildingType in activePack.stationsVerticalOffsets) {
     verticalOffset = activePack.stationsVerticalOffsets[buildingType];
+  } else if (variantType === 'mansion' && activePack.mansionsVerticalOffsets &&
+             buildingType in activePack.mansionsVerticalOffsets) {
+    verticalOffset = activePack.mansionsVerticalOffsets[buildingType];
   } else if (activePack.buildingVerticalOffsets && buildingType in activePack.buildingVerticalOffsets) {
     verticalOffset = activePack.buildingVerticalOffsets[buildingType];
   } else {
