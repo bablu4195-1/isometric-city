@@ -1572,18 +1572,19 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
             const modernVariants = activePack.modernSrc && activePack.modernVariants && activePack.modernVariants[buildingType]
               ? activePack.modernVariants[buildingType]
               : [];
+            // Combine both variant pools
+            const allVariants = [
+              ...denseVariants.map(v => ({ ...v, source: 'dense' as const })),
+              ...modernVariants.map(v => ({ ...v, source: 'modern' as const })),
+            ];
             // Use deterministic random based on tile position to select variant
             // This ensures the same building always shows the same variant
-            const seed = (tile.x * 31 + tile.y * 17) % 100;
-            // ~50% chance to use a dense/modern variant (when seed < 50)
-            if (seed < 50 && (denseVariants.length > 0 || modernVariants.length > 0)) {
-              // Combine both variant pools and select from them
-              const allVariants = [
-                ...denseVariants.map(v => ({ ...v, source: 'dense' as const })),
-                ...modernVariants.map(v => ({ ...v, source: 'modern' as const })),
-              ];
-              const variantIndex = (tile.x * 7 + tile.y * 13) % allVariants.length;
-              const selectedVariant = allVariants[variantIndex];
+            // Equal distribution: 1 original + N variants = N+1 total options
+            const totalOptions = 1 + allVariants.length;
+            const seed = (tile.x * 31 + tile.y * 17) % totalOptions;
+            // seed === 0 means use original, otherwise use variant at seed-1
+            if (seed > 0 && allVariants.length > 0) {
+              const selectedVariant = allVariants[seed - 1];
               if (selectedVariant.source === 'modern') {
                 useModernVariant = { row: selectedVariant.row, col: selectedVariant.col };
                 spriteSource = activePack.modernSrc!;
@@ -1595,10 +1596,12 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
           } else if (activePack.modernSrc && activePack.modernVariants && activePack.modernVariants[buildingType]) {
             // Check if this building type has modern variants available (without dense variants)
             const variants = activePack.modernVariants[buildingType];
-            const seed = (tile.x * 31 + tile.y * 17) % 100;
-            if (seed < 50 && variants.length > 0) {
-              const variantIndex = (tile.x * 7 + tile.y * 13) % variants.length;
-              useModernVariant = variants[variantIndex];
+            // Equal distribution: 1 original + N variants = N+1 total options
+            const totalOptions = 1 + variants.length;
+            const seed = (tile.x * 31 + tile.y * 17) % totalOptions;
+            // seed === 0 means use original, otherwise use variant at seed-1
+            if (seed > 0 && variants.length > 0) {
+              useModernVariant = variants[seed - 1];
               spriteSource = activePack.modernSrc;
             }
           } else if (activePack.farmsSrc && activePack.farmsVariants && activePack.farmsVariants[buildingType]) {
@@ -1606,12 +1609,12 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
             const variants = activePack.farmsVariants[buildingType];
             // Use deterministic random based on tile position to select variant
             // This ensures the same building always shows the same variant
-            const seed = (tile.x * 31 + tile.y * 17) % 100;
-            // ~50% chance to use a farm variant (when seed < 50)
-            if (seed < 50 && variants.length > 0) {
-              // Select which farm variant to use based on position
-              const variantIndex = (tile.x * 7 + tile.y * 13) % variants.length;
-              useFarmVariant = variants[variantIndex];
+            // Equal distribution: 1 original + N variants = N+1 total options
+            const totalOptions = 1 + variants.length;
+            const seed = (tile.x * 31 + tile.y * 17) % totalOptions;
+            // seed === 0 means use original, otherwise use variant at seed-1
+            if (seed > 0 && variants.length > 0) {
+              useFarmVariant = variants[seed - 1];
               spriteSource = activePack.farmsSrc;
             }
           } else if (activePack.shopsSrc && activePack.shopsVariants && activePack.shopsVariants[buildingType]) {
@@ -1619,12 +1622,12 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
             const variants = activePack.shopsVariants[buildingType];
             // Use deterministic random based on tile position to select variant
             // This ensures the same building always shows the same variant
-            const seed = (tile.x * 31 + tile.y * 17) % 100;
-            // ~50% chance to use a shop variant (when seed < 50)
-            if (seed < 50 && variants.length > 0) {
-              // Select which shop variant to use based on position
-              const variantIndex = (tile.x * 7 + tile.y * 13) % variants.length;
-              useShopVariant = variants[variantIndex];
+            // Equal distribution: 1 original + N variants = N+1 total options
+            const totalOptions = 1 + variants.length;
+            const seed = (tile.x * 31 + tile.y * 17) % totalOptions;
+            // seed === 0 means use original, otherwise use variant at seed-1
+            if (seed > 0 && variants.length > 0) {
+              useShopVariant = variants[seed - 1];
               spriteSource = activePack.shopsSrc;
             }
           } else if (activePack.stationsSrc && activePack.stationsVariants && activePack.stationsVariants[buildingType]) {
@@ -1721,6 +1724,15 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               // For apartment_high dense variants, add a bit more height to avoid cutoff at bottom
               if (buildingType === 'apartment_high') {
                 sourceH = tileHeight * 1.05; // Add 5% more height at bottom
+              }
+              // For office_high dense variants, shift down to avoid row above
+              if (buildingType === 'office_high') {
+                sourceY += tileHeight * 0.1; // Shift down ~10% to avoid row above
+                sourceH = tileHeight * 0.98; // Slight crop at bottom to avoid row below
+              }
+              // For office_low dense variants, shift down to avoid row above
+              if (buildingType === 'office_low') {
+                sourceY += tileHeight * 0.1; // Shift down ~10% to avoid row above
               }
               coords = {
                 sx: useDenseVariant.col * tileWidth,
@@ -1923,6 +1935,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               if (isDenseVariant && activePack.denseScales && buildingType in activePack.denseScales) {
                 scaleMultiplier *= activePack.denseScales[buildingType];
               }
+              // Per-variant scale adjustments for specific dense variants
+              if (isDenseVariant && buildingType === 'office_high' && useDenseVariant && useDenseVariant.row === 2 && useDenseVariant.col === 1) {
+                scaleMultiplier *= 0.7; // Scale down row 2 col 1 office_high by 30%
+              }
               // Apply modern-specific scale if building uses modern variant and has custom scale in config
               if (isModernVariant && activePack.modernScales && buildingType in activePack.modernScales) {
                 scaleMultiplier *= activePack.modernScales[buildingType];
@@ -2011,6 +2027,13 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
               } else if (isDenseVariant && activePack.denseVerticalOffsets && buildingType in activePack.denseVerticalOffsets) {
                 // Dense variants may need different positioning than normal
                 extraOffset = activePack.denseVerticalOffsets[buildingType] * h;
+                // Per-variant offset adjustments for specific dense variants
+                if (buildingType === 'mall' && useDenseVariant && useDenseVariant.row === 2 && useDenseVariant.col === 4) {
+                  extraOffset += 0.5 * h; // Shift row 2 col 4 mall down 0.5 tiles
+                }
+                if (buildingType === 'office_high' && useDenseVariant && useDenseVariant.row === 2 && useDenseVariant.col === 1) {
+                  extraOffset += 0.1 * h; // Shift row 2 col 1 office_high down 0.1 tiles
+                }
               } else if (isModernVariant && activePack.modernVerticalOffsets && buildingType in activePack.modernVerticalOffsets) {
                 // Modern variants may need different positioning than normal
                 extraOffset = activePack.modernVerticalOffsets[buildingType] * h;

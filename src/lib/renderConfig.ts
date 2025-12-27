@@ -153,17 +153,28 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
       { row: 0, col: 2 },
       { row: 0, col: 3 },
     ],
-    // Commercial high density (mall) - Rows 3 and 4, all columns (0-indexed: rows 2, 3)
-    mall: [
+    // Office low density - Row 4, columns 1, 2, 4 (0-indexed: row 3, cols 0, 1, 3)
+    office_low: [
+      { row: 3, col: 0 },
+      { row: 3, col: 1 },
+      { row: 3, col: 3 },
+    ],
+    // Office high density - Row 3 columns 1-4, Row 2 column 1 (0-indexed: row 2 cols 0-3, row 1 col 0)
+    office_high: [
+      { row: 1, col: 0 },
       { row: 2, col: 0 },
       { row: 2, col: 1 },
       { row: 2, col: 2 },
+      { row: 2, col: 3 },
+    ],
+    // Commercial high density (mall) - Row 2 col 5, Row 3 cols 4-5, Row 4 most columns (0-indexed: row 1 col 4, row 2 cols 3-4, row 3 except col 3)
+    mall: [
+      { row: 1, col: 4 },
       { row: 2, col: 3 },
       { row: 2, col: 4 },
       { row: 3, col: 0 },
       { row: 3, col: 1 },
       { row: 3, col: 2 },
-      { row: 3, col: 3 },
       { row: 3, col: 4 },
     ],
     // Industrial high density (factory_large) - Row 5, columns 1, 3, 5 (0-indexed: row 4, cols 0, 2, 4)
@@ -302,11 +313,14 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     // Dense apartment_high shifted up 0.2 tiles from -0.60
     apartment_high: -0.80, // Shifted up 0.2 tiles from -0.60
     factory_large: -1.15, // Dense variant shifted up 0.1 tiles from -1.05
-    mall: -1.0, // Dense mall stays at original position (non-dense moved to -1.5)
+    mall: -1.5, // Dense mall shifted up 0.5 tiles from -1.0
+    office_low: -0.7, // Dense office_low same as normal
+    office_high: -0.7, // Dense office_high shifted up 0.2 tiles from -0.5
   },
   denseScales: {
     // Dense apartment_high scaled down 10% total (5% more from 0.95)
     apartment_high: 0.90,
+    office_high: 1.3, // Dense office_high scaled up 30%
   },
   // Modern sprite sheet configuration (same layout as dense: 5 cols, 6 rows)
   modernSrc: '/assets/sprites_red_water_new_modern.png',
