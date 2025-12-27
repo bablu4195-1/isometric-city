@@ -279,7 +279,7 @@ export default function Game({ onExit }: { onExit?: () => void }) {
                         <button
                           onClick={handleCopyRoomLink}
                           className="p-0.5 hover:bg-white/10 rounded transition-colors"
-                          title="Copy invite link"
+                          title={gt('Copy invite link')}
                         >
                           {copiedRoomLink ? (
                             <Check className="w-3 h-3 text-green-400" />
@@ -350,7 +350,7 @@ export default function Game({ onExit }: { onExit?: () => void }) {
                 <div className="bg-slate-900/90 border border-slate-700 rounded-lg px-3 py-2 shadow-lg">
                   <div className="flex items-center gap-2 text-sm text-white">
                     <Users className="w-4 h-4 text-green-400" />
-                    <span className="font-medium">{playerCount} Players</span>
+                    <span className="font-medium">{gt('{playerCount} Players', { playerCount })}</span>
                     {roomCode && (
                       <>
                         <span className="text-slate-400 text-xs font-mono">
@@ -359,7 +359,7 @@ export default function Game({ onExit }: { onExit?: () => void }) {
                         <button
                           onClick={handleCopyRoomLink}
                           className="p-1 hover:bg-white/10 rounded transition-colors"
-                          title="Copy invite link"
+                          title={gt('Copy invite link')}
                         >
                           {copiedRoomLink ? (
                             <Check className="w-3 h-3 text-green-400" />

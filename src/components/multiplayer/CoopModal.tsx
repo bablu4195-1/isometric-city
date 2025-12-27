@@ -15,6 +15,7 @@ import { useMultiplayer } from '@/context/MultiplayerContext';
 import { GameState } from '@/types/game';
 import { createInitialGameState, DEFAULT_GRID_SIZE } from '@/lib/simulation';
 import { Copy, Check, Users, Loader2, AlertCircle } from 'lucide-react';
+import { T, Var, Branch, useGT } from 'gt-next';
 
 interface CoopModalProps {
   open: boolean;
@@ -41,7 +42,7 @@ export function CoopModal({
   const [isLoading, setIsLoading] = useState(false);
   const [autoJoinAttempted, setAutoJoinAttempted] = useState(false);
   const [waitingForState, setWaitingForState] = useState(false);
-  
+
   const {
     connectionState,
     roomCode,
@@ -52,6 +53,8 @@ export function CoopModal({
     leaveRoom,
     initialState,
   } = useMultiplayer();
+
+  const gt = useGT();
 
   // Generate player name on mount
   useEffect(() => {
@@ -166,27 +169,31 @@ export function CoopModal({
         <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
             <DialogTitle className="text-2xl font-light text-white">
-              Co-op Multiplayer
+              <T>Co-op Multiplayer</T>
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              Build a city together with friends in real-time
+              <T>Build a city together with friends in real-time</T>
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-3 mt-4">
-            <Button
-              onClick={() => setMode('create')}
-              className="w-full py-6 text-lg font-light bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none"
-            >
-              Create Room
-            </Button>
-            <Button
-              onClick={() => setMode('join')}
-              variant="outline"
-              className="w-full py-6 text-lg font-light bg-transparent hover:bg-white/10 text-white/70 hover:text-white border border-white/15 rounded-none"
-            >
-              Join Room
-            </Button>
+            <T>
+              <Button
+                onClick={() => setMode('create')}
+                className="w-full py-6 text-lg font-light bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none"
+              >
+                Create Room
+              </Button>
+            </T>
+            <T>
+              <Button
+                onClick={() => setMode('join')}
+                variant="outline"
+                className="w-full py-6 text-lg font-light bg-transparent hover:bg-white/10 text-white/70 hover:text-white border border-white/15 rounded-none"
+              >
+                Join Room
+              </Button>
+            </T>
           </div>
         </DialogContent>
       </Dialog>
@@ -200,112 +207,137 @@ export function CoopModal({
         <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
             <DialogTitle className="text-2xl font-light text-white">
-              Create Co-op Room
+              <T>Create Co-op Room</T>
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              {roomCode 
-                ? 'Share the room code with friends to invite them'
-                : 'Set up your co-op city'
-              }
+              <T>
+                <Branch
+                  branch={roomCode ? 'hasCode' : 'noCode'}
+                  hasCode={<>Share the room code with friends to invite them</>}
+                  noCode={<>Set up your co-op city</>}
+                />
+              </T>
             </DialogDescription>
           </DialogHeader>
 
           {!roomCode ? (
             <div className="flex flex-col gap-4 mt-4">
               <div className="space-y-2">
-                <Label htmlFor="cityName" className="text-slate-300">
-                  City Name
-                </Label>
+                <T>
+                  <Label htmlFor="cityName" className="text-slate-300">
+                    City Name
+                  </Label>
+                </T>
                 <Input
                   id="cityName"
                   value={cityName}
                   onChange={(e) => setCityName(e.target.value)}
-                  placeholder="My Co-op City"
+                  placeholder={gt('My Co-op City')}
                   className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
                 />
               </div>
-              
+
               <div className="space-y-2">
-                <Label htmlFor="playerName" className="text-slate-300">
-                  Your Name
-                </Label>
+                <T>
+                  <Label htmlFor="playerName" className="text-slate-300">
+                    Your Name
+                  </Label>
+                </T>
                 <Input
                   id="playerName"
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
-                  placeholder="Player 1"
+                  placeholder={gt('Player 1')}
                   className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
                 />
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 text-red-400 text-sm">
-                  <AlertCircle className="w-4 h-4" />
-                  {error}
-                </div>
+                <T>
+                  <div className="flex items-center gap-2 text-red-400 text-sm">
+                    <AlertCircle className="w-4 h-4" />
+                    <Var>{error}</Var>
+                  </div>
+                </T>
               )}
 
               <div className="flex gap-2 mt-2">
-                <Button
-                  onClick={handleBack}
-                  variant="outline"
-                  className="flex-1 bg-transparent hover:bg-white/10 text-white/70 border-white/20 rounded-none"
-                >
-                  Back
-                </Button>
-                <Button
-                  onClick={handleCreateRoom}
-                  disabled={isLoading || !cityName.trim() || !playerName.trim()}
-                  className="flex-1 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Room'
-                  )}
-                </Button>
+                <T>
+                  <Button
+                    onClick={handleBack}
+                    variant="outline"
+                    className="flex-1 bg-transparent hover:bg-white/10 text-white/70 border-white/20 rounded-none"
+                  >
+                    Back
+                  </Button>
+                </T>
+                <T>
+                  <Button
+                    onClick={handleCreateRoom}
+                    disabled={isLoading || !cityName.trim() || !playerName.trim()}
+                    className="flex-1 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none"
+                  >
+                    <Branch
+                      branch={isLoading.toString()}
+                      true={
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      }
+                      false={<>Create Room</>}
+                    />
+                  </Button>
+                </T>
               </div>
             </div>
           ) : (
             <div className="flex flex-col gap-4 mt-4">
               {/* Room Code Display */}
               <div className="bg-slate-800 rounded-lg p-6 text-center">
-                <p className="text-slate-400 text-sm mb-2">Room Code</p>
+                <T>
+                  <p className="text-slate-400 text-sm mb-2">Room Code</p>
+                </T>
                 <p className="text-4xl font-mono font-bold tracking-widest text-white">
                   {roomCode}
                 </p>
               </div>
 
               {/* Copy Link Button */}
-              <Button
-                onClick={handleCopyLink}
-                variant="outline"
-                className="w-full bg-transparent hover:bg-white/10 text-white border-white/20 rounded-none"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4 mr-2" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy Invite Link
-                  </>
-                )}
-              </Button>
+              <T>
+                <Button
+                  onClick={handleCopyLink}
+                  variant="outline"
+                  className="w-full bg-transparent hover:bg-white/10 text-white border-white/20 rounded-none"
+                >
+                  <Branch
+                    branch={copied.toString()}
+                    true={
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        Copied!
+                      </>
+                    }
+                    false={
+                      <>
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copy Invite Link
+                      </>
+                    }
+                  />
+                </Button>
+              </T>
 
               {/* Connected Players - only show when others have joined */}
               {players.length > 1 && (
                 <div className="bg-slate-800/50 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-slate-300 mb-3">
                     <Users className="w-4 h-4" />
-                    <span className="text-sm font-medium">
-                      Players ({players.length})
-                    </span>
+                    <T>
+                      <span className="text-sm font-medium">
+                        Players (<Var>{players.length}</Var>)
+                      </span>
+                    </T>
                   </div>
                   <div className="space-y-2">
                     {players.map((player) => (
@@ -319,28 +351,34 @@ export function CoopModal({
                         />
                         <span className="text-white">{player.name}</span>
                         {player.isHost && (
-                          <span className="text-xs text-slate-500">(Host)</span>
+                          <T>
+                            <span className="text-xs text-slate-500">(Host)</span>
+                          </T>
                         )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-              
+
               {/* Waiting message when no one else has joined */}
               {players.length <= 1 && (
-                <p className="text-center text-slate-400 text-sm">
-                  Waiting for players to join...
-                </p>
+                <T>
+                  <p className="text-center text-slate-400 text-sm">
+                    Waiting for players to join...
+                  </p>
+                </T>
               )}
 
               {/* Continue button - game already started, just close the modal */}
-              <Button
-                onClick={() => onOpenChange(false)}
-                className="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 rounded-md"
-              >
-                Continue Playing
-              </Button>
+              <T>
+                <Button
+                  onClick={() => onOpenChange(false)}
+                  className="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 rounded-md"
+                >
+                  Continue Playing
+                </Button>
+              </T>
             </div>
           )}
         </DialogContent>
@@ -354,18 +392,20 @@ export function CoopModal({
       <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
         <DialogHeader>
           <DialogTitle className="text-2xl font-light text-white">
-            Join Co-op Room
+            <T>Join Co-op Room</T>
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Enter the 5-character room code to join
+            <T>Enter the 5-character room code to join</T>
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 mt-4">
           <div className="space-y-2">
-            <Label htmlFor="joinCode" className="text-slate-300">
-              Room Code
-            </Label>
+            <T>
+              <Label htmlFor="joinCode" className="text-slate-300">
+                Room Code
+              </Label>
+            </T>
             <Input
               id="joinCode"
               value={joinCode}
@@ -377,64 +417,80 @@ export function CoopModal({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="playerNameJoin" className="text-slate-300">
-              Your Name
-            </Label>
+            <T>
+              <Label htmlFor="playerNameJoin" className="text-slate-300">
+                Your Name
+              </Label>
+            </T>
             <Input
               id="playerNameJoin"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="Player 2"
+              placeholder={gt('Player 2')}
               className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
             />
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 text-red-400 text-sm">
-              <AlertCircle className="w-4 h-4" />
-              {error}
-            </div>
+            <T>
+              <div className="flex items-center gap-2 text-red-400 text-sm">
+                <AlertCircle className="w-4 h-4" />
+                <Var>{error}</Var>
+              </div>
+            </T>
           )}
 
           {/* Connection Status when joining */}
           {connectionState === 'connecting' && !waitingForState && (
-            <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Connecting to room...
-            </div>
+            <T>
+              <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Connecting to room...
+              </div>
+            </T>
           )}
-          
+
           {/* Waiting for state from host */}
           {waitingForState && (
             <div className="bg-slate-800/50 rounded-lg p-4 text-center">
               <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-400" />
-              <p className="text-slate-300 text-sm">Connecting to host...</p>
-              <p className="text-slate-500 text-xs mt-1">Waiting for game state</p>
+              <T>
+                <p className="text-slate-300 text-sm">Connecting to host...</p>
+              </T>
+              <T>
+                <p className="text-slate-500 text-xs mt-1">Waiting for game state</p>
+              </T>
             </div>
           )}
 
           <div className="flex gap-2 mt-2">
-            <Button
-              onClick={handleBack}
-              variant="outline"
-              className="flex-1 bg-transparent hover:bg-white/10 text-white/70 border-white/20 rounded-none"
-            >
-              Back
-            </Button>
-            <Button
-              onClick={handleJoinRoom}
-              disabled={isLoading || joinCode.length !== 5 || !playerName.trim()}
-              className="flex-1 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Joining...
-                </>
-              ) : (
-                'Join Room'
-              )}
-            </Button>
+            <T>
+              <Button
+                onClick={handleBack}
+                variant="outline"
+                className="flex-1 bg-transparent hover:bg-white/10 text-white/70 border-white/20 rounded-none"
+              >
+                Back
+              </Button>
+            </T>
+            <T>
+              <Button
+                onClick={handleJoinRoom}
+                disabled={isLoading || joinCode.length !== 5 || !playerName.trim()}
+                className="flex-1 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none"
+              >
+                <Branch
+                  branch={isLoading.toString()}
+                  true={
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Joining...
+                    </>
+                  }
+                  false={<>Join Room</>}
+                />
+              </Button>
+            </T>
           </div>
         </div>
       </DialogContent>

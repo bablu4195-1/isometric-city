@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useMultiplayer } from '@/context/MultiplayerContext';
 import { useGame } from '@/context/GameContext';
 import { Copy, Check, Users, Loader2 } from 'lucide-react';
+import { T, Var, Plural, useGT } from 'gt-next';
 
 interface ShareModalProps {
   open: boolean;
@@ -22,9 +23,10 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [playerName] = useState(() => `Player ${Math.floor(Math.random() * 9999)}`);
-  
+
   const { roomCode, players, createRoom, connectionState } = useMultiplayer();
   const { state } = useGame();
+  const gt = useGT();
 
   // Create room when modal opens (if not already in a room)
   useEffect(() => {
@@ -68,10 +70,10 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <Users className="w-5 h-5" />
-            Invite Players
+            <T>Invite Players</T>
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Share this link with friends to play together
+            <T>Share this link with friends to play together</T>
           </DialogDescription>
         </DialogHeader>
 
@@ -79,7 +81,9 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
           {isCreating || !roomCode ? (
             <div className="flex items-center justify-center gap-2 py-8">
               <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-              <span className="text-slate-400">Creating room...</span>
+              <T>
+                <span className="text-slate-400">Creating room...</span>
+              </T>
             </div>
           ) : (
             <>
@@ -88,7 +92,9 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
                 <div className="text-4xl font-mono font-bold tracking-widest text-white mb-2">
                   {roomCode}
                 </div>
-                <div className="text-sm text-slate-400">Room Code</div>
+                <T>
+                  <div className="text-sm text-slate-400">Room Code</div>
+                </T>
               </div>
 
               {/* Copy Link */}
@@ -100,6 +106,7 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
                   onClick={handleCopyLink}
                   variant="outline"
                   className="shrink-0 border-slate-600 hover:bg-slate-700"
+                  aria-label={copied ? gt('Copied') : gt('Copy invite link')}
                 >
                   {copied ? (
                     <Check className="w-4 h-4 text-green-400" />
@@ -110,17 +117,21 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
               </div>
 
               {/* Player Count */}
-              <div className="text-center text-sm text-slate-400">
-                <span className="text-white font-medium">{players.length}</span> player{players.length !== 1 ? 's' : ''} connected
-              </div>
+              <T>
+                <div className="text-center text-sm text-slate-400">
+                  <span className="text-white font-medium"><Var>{players.length}</Var></span> <Plural n={players.length} one="player" other="players" /> connected
+                </div>
+              </T>
 
               {/* Continue Button */}
-              <Button
-                onClick={() => onOpenChange(false)}
-                className="w-full bg-slate-700 hover:bg-slate-600 text-white border border-slate-600"
-              >
-                Continue Playing
-              </Button>
+              <T>
+                <Button
+                  onClick={() => onOpenChange(false)}
+                  className="w-full bg-slate-700 hover:bg-slate-600 text-white border border-slate-600"
+                >
+                  Continue Playing
+                </Button>
+              </T>
             </>
           )}
         </div>

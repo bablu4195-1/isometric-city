@@ -12,6 +12,7 @@ import { SavedCityMeta, GameState } from '@/types/game';
 import { decompressFromUTF16 } from 'lz-string';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Users } from 'lucide-react';
+import { T, useGT } from 'gt-next';
 
 const STORAGE_KEY = 'isocity-game-state';
 const SAVED_CITIES_INDEX_KEY = 'isocity-saved-cities-index';
@@ -234,6 +235,7 @@ function SpriteGallery({ count = 16, cols = 4, cellSize = 120 }: { count?: numbe
 
 // Saved City Card Component
 function SavedCityCard({ city, onLoad }: { city: SavedCityMeta; onLoad: () => void }) {
+  const gt = useGT();
   return (
     <button
       onClick={onLoad}
@@ -243,7 +245,7 @@ function SavedCityCard({ city, onLoad }: { city: SavedCityMeta; onLoad: () => vo
         {city.cityName}
       </h3>
       <div className="flex items-center gap-3 mt-1 text-xs text-white/50">
-        <span>Pop: {city.population.toLocaleString()}</span>
+        <span>{gt('Pop: {population}', { population: city.population.toLocaleString() })}</span>
         <span>${city.money.toLocaleString()}</span>
       </div>
     </button>
@@ -358,7 +360,9 @@ export default function HomePage() {
   if (isChecking) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-white/60">Loading...</div>
+        <T>
+          <div className="text-white/60">Loading...</div>
+        </T>
       </main>
     );
   }
@@ -389,60 +393,70 @@ export default function HomePage() {
           <h1 className="text-5xl sm:text-6xl font-light tracking-wider text-white/90 mb-6">
             IsoCity
           </h1>
-          
+
           {/* Sprite Gallery - keep visible even when saves exist */}
           <div className="mb-6">
             <SpriteGallery count={9} cols={3} cellSize={72} />
           </div>
-          
+
           {/* Buttons */}
           <div className="flex flex-col gap-3 w-full max-w-xs">
-            <Button 
-              onClick={() => setShowGame(true)}
-              className="w-full py-6 text-xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
-            >
-              Start
-            </Button>
-            
-            <Button 
-              onClick={() => setShowCoopModal(true)}
-              variant="outline"
-              className="w-full py-6 text-xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
-            >
-              Co-op
-            </Button>
-            
-            <Button 
-              onClick={async () => {
-                const response = await fetch('/example-states/example_state_9.json');
-                const exampleState = await response.json();
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(exampleState));
-                setShowGame(true);
-              }}
-              variant="outline"
-              className="w-full py-6 text-xl font-light tracking-wide bg-transparent hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 rounded-none transition-all duration-300"
-            >
-              Load Example
-            </Button>
-            <div className="flex items-center justify-between w-full">
-              <a
-                href="https://github.com/amilich/isometric-city"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+            <T>
+              <Button
+                onClick={() => setShowGame(true)}
+                className="w-full py-6 text-xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
               >
-                Open GitHub
-              </a>
+                Start
+              </Button>
+            </T>
+
+            <T>
+              <Button
+                onClick={() => setShowCoopModal(true)}
+                variant="outline"
+                className="w-full py-6 text-xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
+              >
+                Co-op
+              </Button>
+            </T>
+
+            <T>
+              <Button
+                onClick={async () => {
+                  const response = await fetch('/example-states/example_state_9.json');
+                  const exampleState = await response.json();
+                  localStorage.setItem(STORAGE_KEY, JSON.stringify(exampleState));
+                  setShowGame(true);
+                }}
+                variant="outline"
+                className="w-full py-6 text-xl font-light tracking-wide bg-transparent hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 rounded-none transition-all duration-300"
+              >
+                Load Example
+              </Button>
+            </T>
+            <div className="flex items-center justify-between w-full">
+              <T>
+                <a
+                  href="https://github.com/amilich/isometric-city"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+                >
+                  Open GitHub
+                </a>
+              </T>
               <LanguageSelector variant="ghost" className="text-white/40 hover:text-white/70 hover:bg-white/10" />
             </div>
           </div>
-          
+
           {/* Saved Cities */}
           {savedCities.length > 0 && (
             <div className="w-full max-w-xs mt-4">
-              <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
-                Saved Cities
-              </h2>
+              <T>
+                <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
+                  Saved Cities
+                </h2>
+              </T>
               <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
                 {savedCities.slice(0, 5).map((city) => (
                   <SavedCityCard
@@ -454,7 +468,7 @@ export default function HomePage() {
               </div>
             </div>
           )}
-          
+
           {/* Co-op Modal */}
           <CoopModal
             open={showCoopModal}
@@ -473,57 +487,67 @@ export default function HomePage() {
     <MultiplayerContextProvider>
       <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-8">
         <div className="max-w-7xl w-full grid lg:grid-cols-2 gap-16 items-center">
-          
+
           {/* Left - Title and Start Button */}
           <div className="flex flex-col items-center lg:items-start justify-center space-y-12">
             <h1 className="text-8xl font-light tracking-wider text-white/90">
               IsoCity
             </h1>
             <div className="flex flex-col gap-3">
-              <Button 
-                onClick={() => setShowGame(true)}
-                className="w-64 py-8 text-2xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
-              >
-                Start
-              </Button>
-              <Button 
-                onClick={() => setShowCoopModal(true)}
-                variant="outline"
-                className="w-64 py-8 text-2xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
-              >
-                Co-op
-              </Button>
-              <Button 
-                onClick={async () => {
-                  const response = await fetch('/example-states/example_state_9.json');
-                  const exampleState = await response.json();
-                  localStorage.setItem(STORAGE_KEY, JSON.stringify(exampleState));
-                  setShowGame(true);
-                }}
-                variant="outline"
-                className="w-64 py-8 text-2xl font-light tracking-wide bg-transparent hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 rounded-none transition-all duration-300"
-              >
-                Load Example
-              </Button>
-              <div className="flex items-center justify-between w-64">
-                <a
-                  href="https://github.com/amilich/isometric-city"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+              <T>
+                <Button
+                  onClick={() => setShowGame(true)}
+                  className="w-64 py-8 text-2xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
                 >
-                  Open GitHub
-                </a>
+                  Start
+                </Button>
+              </T>
+              <T>
+                <Button
+                  onClick={() => setShowCoopModal(true)}
+                  variant="outline"
+                  className="w-64 py-8 text-2xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
+                >
+                  Co-op
+                </Button>
+              </T>
+              <T>
+                <Button
+                  onClick={async () => {
+                    const response = await fetch('/example-states/example_state_9.json');
+                    const exampleState = await response.json();
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(exampleState));
+                    setShowGame(true);
+                  }}
+                  variant="outline"
+                  className="w-64 py-8 text-2xl font-light tracking-wide bg-transparent hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 rounded-none transition-all duration-300"
+                >
+                  Load Example
+                </Button>
+              </T>
+              <div className="flex items-center justify-between w-64">
+                <T>
+                  <a
+                    href="https://github.com/amilich/isometric-city"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+                  >
+                    Open GitHub
+                  </a>
+                </T>
                 <LanguageSelector variant="ghost" className="text-white/40 hover:text-white/70 hover:bg-white/10" />
               </div>
             </div>
-            
+
             {/* Saved Cities */}
             {savedCities.length > 0 && (
               <div className="w-64">
-                <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
-                  Saved Cities
-                </h2>
+                <T>
+                  <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
+                    Saved Cities
+                  </h2>
+                </T>
                 <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
                   {savedCities.slice(0, 5).map((city) => (
                     <SavedCityCard
@@ -542,7 +566,7 @@ export default function HomePage() {
             <SpriteGallery count={16} />
           </div>
         </div>
-        
+
         {/* Co-op Modal */}
         <CoopModal
           open={showCoopModal}
