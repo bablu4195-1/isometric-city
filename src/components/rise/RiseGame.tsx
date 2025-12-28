@@ -47,6 +47,13 @@ export default function RiseGame() {
     setOffset({ x: ox, y: oy });
   };
 
+  const centerOnCity = (ownerId: string) => {
+    const city = state.buildings.find(b => b.ownerId === ownerId && b.type === 'city_center');
+    if (city) {
+      centerOnTile(city.tile.x, city.tile.y);
+    }
+  };
+
   return (
     <div className="w-full h-full min-h-screen bg-slate-950 text-slate-100 flex flex-col gap-3 p-3">
       <div className="flex items-center justify-between gap-4">
@@ -90,6 +97,20 @@ export default function RiseGame() {
                 {d}
               </button>
             ))}
+          </div>
+          <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-lg px-2 py-1">
+            <button
+              className="px-2 py-1 text-xs rounded-md bg-slate-800 hover:bg-slate-700"
+              onClick={() => centerOnCity(state.localPlayerId)}
+            >
+              Center on City
+            </button>
+            <button
+              className="px-2 py-1 text-xs rounded-md bg-slate-800 hover:bg-slate-700"
+              onClick={() => centerOnCity('ai')}
+            >
+              Enemy City
+            </button>
           </div>
         </div>
       </div>
