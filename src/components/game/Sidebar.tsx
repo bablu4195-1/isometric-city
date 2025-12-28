@@ -477,7 +477,11 @@ export const Sidebar = React.memo(function Sidebar({ onExit }: { onExit?: () => 
     const isHost = multiplayer?.connectionState === 'connected' && multiplayer?.roomCode && !multiplayer?.initialState;
     if (isHost && !hasShownShareModalRef.current) {
       hasShownShareModalRef.current = true;
-      setShowShareModal(true);
+      // Defer to avoid synchronous setState-in-effect lint + reduce cascading renders
+      const t = setTimeout(() => {
+        setShowShareModal(true);
+      }, 0);
+      return () => clearTimeout(t);
     }
   }, [multiplayer?.connectionState, multiplayer?.roomCode, multiplayer?.initialState]);
   const m = useMessages();

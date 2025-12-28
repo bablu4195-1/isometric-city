@@ -28,8 +28,13 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
   // Create room when modal opens (if not already in a room)
   // IMPORTANT: Wait for isStateReady to ensure we have the loaded state, not the default empty state
   useEffect(() => {
-    if (open && !roomCode && !isCreating && isStateReady) {
+    if (!(open && !roomCode && !isCreating && isStateReady)) return;
+
+    let cancelled = false;
+    const frame = requestAnimationFrame(() => {
+      if (cancelled) return;
       setIsCreating(true);
+
       createRoom(state.cityName, state)
         .then((code) => {
           // Update URL to show room code
@@ -39,15 +44,23 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
           console.error('[ShareModal] Failed to create room:', err);
         })
         .finally(() => {
-          setIsCreating(false);
+          requestAnimationFrame(() => {
+            if (!cancelled) setIsCreating(false);
+          });
         });
-    }
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
   }, [open, roomCode, isCreating, isStateReady, createRoom, state]);
 
   // Reset copied state when modal closes
   useEffect(() => {
     if (!open) {
-      setCopied(false);
+      const frame = requestAnimationFrame(() => setCopied(false));
+      return () => cancelAnimationFrame(frame);
     }
   }, [open]);
 

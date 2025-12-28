@@ -213,7 +213,7 @@ export function SettingsPanel() {
   
   return (
     <Dialog open={true} onOpenChange={() => setActivePanel('none')}>
-      <DialogContent className="max-w-[400px] max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-[400px] max-h-[85vh] overflow-y-auto overscroll-contain touch-pan-y">
         <DialogHeader>
           <DialogTitle>{m(UI_LABELS.settings)}</DialogTitle>
         </DialogHeader>
@@ -351,7 +351,7 @@ export function SettingsPanel() {
             
             {/* Saved Cities List */}
             {savedCities.length > 0 ? (
-              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              <div className="space-y-2 sm:max-h-[200px] sm:overflow-y-auto sm:overscroll-contain sm:touch-pan-y">
                 {savedCities.map((city) => (
                   <div
                     key={city.id}

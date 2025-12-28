@@ -279,7 +279,7 @@ function SavedCityCard({ city, onLoad, onDelete }: { city: SavedCityMeta; onLoad
     <div className="relative group">
       <button
         onClick={onLoad}
-        className="w-full text-left p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-none transition-all duration-200"
+        className={`w-full text-left p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-none transition-all duration-200 ${onDelete ? 'pr-10' : ''}`}
       >
         <div className="flex items-center gap-2">
           <h3 className="text-white font-medium truncate group-hover:text-white/90 text-sm flex-1">
@@ -303,7 +303,7 @@ function SavedCityCard({ city, onLoad, onDelete }: { city: SavedCityMeta; onLoad
             e.stopPropagation();
             onDelete();
           }}
-          className="absolute bottom-2 right-2 p-1 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-white/40 hover:text-red-400 rounded transition-all duration-200"
+          className="absolute top-2 right-2 p-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-red-500/20 text-white/40 hover:text-red-400 rounded transition-all duration-200"
           title="Delete city"
         >
           <X className="w-3.5 h-3.5" />
