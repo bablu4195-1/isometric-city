@@ -150,6 +150,25 @@ export interface SpritePack {
   globalScale?: number;
 }
 
+// Additional mapping for Rise-of-Nations style buildings to existing sprite keys
+const RISE_BUILDING_TO_SPRITE: Record<string, string> = {
+  city_center: 'city_hall',
+  farm: 'factory_small',
+  lumber_camp: 'warehouse',
+  mine: 'factory_medium',
+  oil_rig: 'factory_large',
+  market: 'shop_medium',
+  library: 'school',
+  university: 'university',
+  house: 'house_small',
+  barracks: 'warehouse',
+  factory: 'factory_medium',
+  siege_factory: 'factory_large',
+  airbase: 'airport',
+  fort: 'police_station',
+  tower: 'fire_station',
+};
+
 // ============================================================================
 // SPRITE PACK: SPRITES4 (Default)
 // ============================================================================
@@ -623,6 +642,63 @@ const SPRITE_PACK_SPRITES4_CHINA: SpritePack = {
 };
 
 // ============================================================================
+// SPRITE PACKS: RISE OF NATIONS AGE SHEETS (Age-specific visuals)
+// ============================================================================
+function withRiseBuildingMap(base: SpritePack, src: string, id: string, name: string): SpritePack {
+  return {
+    ...base,
+    id,
+    name,
+    src,
+    constructionSrc: undefined,
+    abandonedSrc: undefined,
+    denseSrc: undefined,
+    modernSrc: undefined,
+    parksSrc: undefined,
+    farmsSrc: undefined,
+    shopsSrc: undefined,
+    stationsSrc: undefined,
+    mansionsSrc: undefined,
+    buildingToSprite: { ...base.buildingToSprite, ...RISE_BUILDING_TO_SPRITE },
+  };
+}
+
+const SPRITE_PACK_RISE_CLASSICS = withRiseBuildingMap(
+  SPRITE_PACK_SPRITES4,
+  '/assets/ages/classics.png',
+  'rise-age-classics',
+  'Rise Age - Classics'
+);
+
+const SPRITE_PACK_RISE_MEDEIVAL = withRiseBuildingMap(
+  SPRITE_PACK_SPRITES4,
+  '/assets/ages/medeival.png',
+  'rise-age-medeival',
+  'Rise Age - Medieval'
+);
+
+const SPRITE_PACK_RISE_ENLIGHTENMENT = withRiseBuildingMap(
+  SPRITE_PACK_SPRITES4,
+  '/assets/ages/enlightenment.png',
+  'rise-age-enlightenment',
+  'Rise Age - Enlightenment'
+);
+
+const SPRITE_PACK_RISE_INDUSTRIAL = withRiseBuildingMap(
+  SPRITE_PACK_SPRITES4,
+  '/assets/ages/industrial.png',
+  'rise-age-industrial',
+  'Rise Age - Industrial'
+);
+
+const SPRITE_PACK_RISE_MODERN = withRiseBuildingMap(
+  SPRITE_PACK_SPRITES4,
+  '/assets/ages/modern.png',
+  'rise-age-modern',
+  'Rise Age - Modern'
+);
+
+// ============================================================================
 // SPRITE PACKS REGISTRY
 // ============================================================================
 // Add new sprite packs here. Each pack can have completely different
@@ -634,12 +710,26 @@ export const SPRITE_PACKS: SpritePack[] = [
   SPRITE_PACK_SPRITES4_CHINA,
 ];
 
+// Rise-of-Nations age-specific packs (kept separate from default selector)
+export const RISE_AGE_PACKS: SpritePack[] = [
+  SPRITE_PACK_RISE_CLASSICS,
+  SPRITE_PACK_RISE_MEDEIVAL,
+  SPRITE_PACK_RISE_ENLIGHTENMENT,
+  SPRITE_PACK_RISE_INDUSTRIAL,
+  SPRITE_PACK_RISE_MODERN,
+];
+
 // Default sprite pack ID
 export const DEFAULT_SPRITE_PACK_ID = 'sprites4';
 
 // Get a sprite pack by ID
 export function getSpritePack(id: string): SpritePack {
   return SPRITE_PACKS.find(pack => pack.id === id) || SPRITE_PACKS[0];
+}
+
+export function getRiseSpritePack(ageId: string): SpritePack {
+  const pack = RISE_AGE_PACKS.find(p => p.id.endsWith(ageId));
+  return pack || SPRITE_PACK_RISE_CLASSICS;
 }
 
 // ============================================================================
