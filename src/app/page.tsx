@@ -12,9 +12,23 @@ import { SavedCityMeta, GameState } from '@/types/game';
 import { decompressFromUTF16, compressToUTF16 } from 'lz-string';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { Users, X } from 'lucide-react';
+import { msg, useMessages } from 'gt-next';
 
 const STORAGE_KEY = 'isocity-game-state';
 const SAVED_CITIES_INDEX_KEY = 'isocity-saved-cities-index';
+
+// Translatable UI labels
+const UI_LABELS = {
+  loading: msg('Loading...'),
+  isoCity: msg('IsoCity'),
+  continue: msg('Continue'),
+  newGame: msg('New Game'),
+  coop: msg('Co-op'),
+  loadExample: msg('Load Example'),
+  openGitHub: msg('Open GitHub'),
+  savedCities: msg('Saved Cities'),
+  pop: msg('Pop'),
+};
 
 // Background color to filter from sprite sheets (red)
 const BACKGROUND_COLOR = { r: 255, g: 0, b: 0 };
@@ -275,6 +289,7 @@ function SpriteGallery({ count = 16, cols = 4, cellSize = 120 }: { count?: numbe
 
 // Saved City Card Component
 function SavedCityCard({ city, onLoad, onDelete }: { city: SavedCityMeta; onLoad: () => void; onDelete?: () => void }) {
+  const m = useMessages();
   return (
     <div className="relative group">
       <button
@@ -287,12 +302,12 @@ function SavedCityCard({ city, onLoad, onDelete }: { city: SavedCityMeta; onLoad
           </h3>
           {city.roomCode && (
             <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded shrink-0">
-              Co-op
+              {m(UI_LABELS.coop)}
             </span>
           )}
         </div>
         <div className="flex items-center gap-3 mt-1 text-xs text-white/50">
-          <span>Pop: {city.population.toLocaleString()}</span>
+          <span>{m(UI_LABELS.pop)}: {city.population.toLocaleString()}</span>
           <span>${city.money.toLocaleString()}</span>
           {city.roomCode && <span className="text-blue-400/60">{city.roomCode}</span>}
         </div>
@@ -326,6 +341,7 @@ export default function HomePage() {
   const [pendingRoomCode, setPendingRoomCode] = useState<string | null>(null);
   const { isMobileDevice, isSmallScreen } = useMobile();
   const isMobile = isMobileDevice || isSmallScreen;
+  const m = useMessages();
 
   // Check for saved game and room code in URL after mount
   useEffect(() => {
@@ -445,7 +461,7 @@ export default function HomePage() {
   if (isChecking) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-white/60">Loading...</div>
+        <div className="text-white/60">{m(UI_LABELS.loading)}</div>
       </main>
     );
   }
@@ -474,7 +490,7 @@ export default function HomePage() {
         <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 safe-area-top safe-area-bottom overflow-y-auto">
           {/* Title */}
           <h1 className="text-5xl sm:text-6xl font-light tracking-wider text-white/90 mb-6">
-            IsoCity
+            {m(UI_LABELS.isoCity)}
           </h1>
           
           {/* Sprite Gallery - keep visible even when saves exist */}
@@ -484,22 +500,22 @@ export default function HomePage() {
           
           {/* Buttons */}
           <div className="flex flex-col gap-3 w-full max-w-xs">
-            <Button 
+            <Button
               onClick={() => setShowGame(true)}
               className="w-full py-6 text-xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
             >
-              {hasSaved ? 'Continue' : 'New Game'}
+              {hasSaved ? m(UI_LABELS.continue) : m(UI_LABELS.newGame)}
             </Button>
-            
-            <Button 
+
+            <Button
               onClick={() => setShowCoopModal(true)}
               variant="outline"
               className="w-full py-6 text-xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
             >
-              Co-op
+              {m(UI_LABELS.coop)}
             </Button>
-            
-            <Button 
+
+            <Button
               onClick={async () => {
                 // Clear any room code from URL to prevent multiplayer conflicts
                 if (window.location.search.includes('room=')) {
@@ -519,7 +535,7 @@ export default function HomePage() {
               variant="outline"
               className="w-full py-6 text-xl font-light tracking-wide bg-transparent hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 rounded-none transition-all duration-300"
             >
-              Load Example
+              {m(UI_LABELS.loadExample)}
             </Button>
             <div className="flex items-center justify-between w-full">
               <a
@@ -528,7 +544,7 @@ export default function HomePage() {
                 rel="noopener noreferrer"
                 className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
               >
-                Open GitHub
+                {m(UI_LABELS.openGitHub)}
               </a>
               <LanguageSelector variant="ghost" className="text-white/40 hover:text-white/70 hover:bg-white/10" />
             </div>
@@ -538,9 +554,9 @@ export default function HomePage() {
           {savedCities.length > 0 && (
             <div className="w-full max-w-xs mt-4">
               <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
-                Saved Cities
+                {m(UI_LABELS.savedCities)}
               </h2>
-              <div 
+              <div
                 className="flex flex-col gap-2 max-h-48 overflow-y-auto overscroll-y-contain"
                 style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
               >
@@ -573,27 +589,27 @@ export default function HomePage() {
     <MultiplayerContextProvider>
       <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-8">
         <div className="max-w-7xl w-full grid lg:grid-cols-2 gap-16 items-center">
-          
+
           {/* Left - Title and Start Button */}
           <div className="flex flex-col items-center lg:items-start justify-center space-y-12">
             <h1 className="text-8xl font-light tracking-wider text-white/90">
-              IsoCity
+              {m(UI_LABELS.isoCity)}
             </h1>
             <div className="flex flex-col gap-3">
-              <Button 
+              <Button
                 onClick={() => setShowGame(true)}
                 className="w-64 py-8 text-2xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
               >
-                {hasSaved ? 'Continue' : 'New Game'}
+                {hasSaved ? m(UI_LABELS.continue) : m(UI_LABELS.newGame)}
               </Button>
-              <Button 
+              <Button
                 onClick={() => setShowCoopModal(true)}
                 variant="outline"
                 className="w-64 py-8 text-2xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
               >
-                Co-op
+                {m(UI_LABELS.coop)}
               </Button>
-              <Button 
+              <Button
                 onClick={async () => {
                   // Clear any room code from URL to prevent multiplayer conflicts
                   if (window.location.search.includes('room=')) {
@@ -613,7 +629,7 @@ export default function HomePage() {
                 variant="outline"
                 className="w-64 py-8 text-2xl font-light tracking-wide bg-transparent hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 rounded-none transition-all duration-300"
               >
-                Load Example
+                {m(UI_LABELS.loadExample)}
               </Button>
               <div className="flex items-center justify-between w-64">
                 <a
@@ -622,19 +638,19 @@ export default function HomePage() {
                   rel="noopener noreferrer"
                   className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
                 >
-                  Open GitHub
+                  {m(UI_LABELS.openGitHub)}
                 </a>
                 <LanguageSelector variant="ghost" className="text-white/40 hover:text-white/70 hover:bg-white/10" />
               </div>
             </div>
-            
+
             {/* Saved Cities */}
             {savedCities.length > 0 && (
               <div className="w-64">
                 <h2 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
-                  Saved Cities
+                  {m(UI_LABELS.savedCities)}
                 </h2>
-                <div 
+                <div
                   className="flex flex-col gap-2 max-h-64 overflow-y-auto overscroll-y-contain"
                   style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
                 >

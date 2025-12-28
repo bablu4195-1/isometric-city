@@ -66,6 +66,16 @@ const UI_LABELS = {
   developerTools: msg('Developer Tools'),
   openSpriteTestView: msg('Open Sprite Test View'),
   loadExampleState: msg('Load Example State'),
+  loadExampleState2: msg('Load Example State 2'),
+  loadExampleState3: msg('Load Example State 3'),
+  loadExampleState4: msg('Load Example State 4'),
+  loadExampleState5: msg('Load Example State 5'),
+  loadExampleState6: msg('Load Example State 6'),
+  loadExampleState7: msg('Load Example State 7'),
+  loadExampleState8: msg('Load Example State 8'),
+  loadExampleState9: msg('Load Example State 9'),
+  loadExampleState10: msg('Load Example State 10'),
+  loadExampleState11: msg('Load Example State 11'),
   dayNightMode: msg('Day/Night Mode'),
   dayNightModeDesc: msg('Override the time-of-day appearance without affecting time progression'),
   auto: msg('Auto'),
@@ -602,37 +612,37 @@ export function SettingsPanel() {
               {m(UI_LABELS.openSpriteTestView)}
             </Button>
             <Button variant="outline" className="w-full mt-2" onClick={() => loadExampleState('example_state.json', loadState, setActivePanel)}>
-              Load Example State
+              {m(UI_LABELS.loadExampleState)}
             </Button>
             <Button variant="outline" className="w-full mt-2" onClick={() => loadExampleState('example_state_2.json', loadState, setActivePanel)}>
-              Load Example State 2
+              {m(UI_LABELS.loadExampleState2)}
             </Button>
             <Button variant="outline" className="w-full mt-2" onClick={() => loadExampleState('example_state_3.json', loadState, setActivePanel)}>
-              Load Example State 3
+              {m(UI_LABELS.loadExampleState3)}
             </Button>
             <Button variant="outline" className="w-full mt-2" onClick={() => loadExampleState('example_state_4.json', loadState, setActivePanel)}>
-              Load Example State 4
+              {m(UI_LABELS.loadExampleState4)}
             </Button>
             <Button variant="outline" className="w-full mt-2" onClick={() => loadExampleState('example_state_5.json', loadState, setActivePanel)}>
-              Load Example State 5
+              {m(UI_LABELS.loadExampleState5)}
             </Button>
             <Button variant="outline" className="w-full mt-2" onClick={() => loadExampleState('example_state_6.json', loadState, setActivePanel)}>
-              Load Example State 6
+              {m(UI_LABELS.loadExampleState6)}
             </Button>
             <Button variant="outline" className="w-full mt-2" onClick={() => loadExampleState('example_state_7.json', loadState, setActivePanel)}>
-              Load Example State 7
+              {m(UI_LABELS.loadExampleState7)}
             </Button>
             <Button variant="outline" className="w-full mt-2" onClick={() => loadExampleState('example_state_8.json', loadState, setActivePanel)}>
-              Load Example State 8
+              {m(UI_LABELS.loadExampleState8)}
             </Button>
             <Button variant="outline" className="w-full mt-2" onClick={() => loadExampleState('example_state_9.json', loadState, setActivePanel)}>
-              Load Example State 9
+              {m(UI_LABELS.loadExampleState9)}
             </Button>
             <Button variant="outline" className="w-full mt-2" onClick={() => loadExampleState('example_state_10.json', loadState, setActivePanel)}>
-              Load Example State 10
+              {m(UI_LABELS.loadExampleState10)}
             </Button>
             <Button variant="outline" className="w-full mt-2" onClick={() => loadExampleState('example_state_11.json', loadState, setActivePanel)}>
-              Load Example State 11
+              {m(UI_LABELS.loadExampleState11)}
             </Button>
             <div className="mt-4 pt-4 border-t border-border">
               <Label>{m(UI_LABELS.dayNightMode)}</Label>
