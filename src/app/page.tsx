@@ -471,22 +471,22 @@ export default function HomePage() {
   if (isMobile) {
     return (
       <MultiplayerContextProvider>
-        <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-4 safe-area-top safe-area-bottom overflow-y-auto">
+        <main className="min-h-[100svh] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-start overflow-y-auto px-4 pt-[calc(var(--safe-area-inset-top)+16px)] pb-[calc(var(--safe-area-inset-bottom)+16px)]">
           {/* Title */}
-          <h1 className="text-5xl sm:text-6xl font-light tracking-wider text-white/90 mb-6">
+          <h1 className="text-4xl sm:text-5xl font-light leading-none tracking-wider text-white/90 mb-4">
             IsoCity
           </h1>
           
           {/* Sprite Gallery - keep visible even when saves exist */}
-          <div className="mb-6">
-            <SpriteGallery count={9} cols={3} cellSize={72} />
+          <div className="mb-5">
+            <SpriteGallery count={9} cols={3} cellSize={64} />
           </div>
           
           {/* Buttons */}
           <div className="flex flex-col gap-3 w-full max-w-xs">
             <Button 
               onClick={() => setShowGame(true)}
-              className="w-full py-6 text-xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
+              className="w-full py-5 text-lg font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
             >
               {hasSaved ? 'Continue' : 'New Game'}
             </Button>
@@ -494,7 +494,7 @@ export default function HomePage() {
             <Button 
               onClick={() => setShowCoopModal(true)}
               variant="outline"
-              className="w-full py-6 text-xl font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
+              className="w-full py-5 text-lg font-light tracking-wide bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/15 rounded-none transition-all duration-300"
             >
               Co-op
             </Button>
@@ -517,7 +517,7 @@ export default function HomePage() {
                 setShowGame(true);
               }}
               variant="outline"
-              className="w-full py-6 text-xl font-light tracking-wide bg-transparent hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 rounded-none transition-all duration-300"
+              className="w-full py-5 text-lg font-light tracking-wide bg-transparent hover:bg-white/10 text-white/40 hover:text-white/60 border border-white/10 rounded-none transition-all duration-300"
             >
               Load Example
             </Button>

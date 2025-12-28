@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,7 @@ interface ShareModalProps {
 export function ShareModal({ open, onOpenChange }: ShareModalProps) {
   const [copied, setCopied] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const createInFlightRef = useRef(false);
   
   const { roomCode, createRoom } = useMultiplayer();
   const { state, isStateReady } = useGame();
@@ -28,26 +29,41 @@ export function ShareModal({ open, onOpenChange }: ShareModalProps) {
   // Create room when modal opens (if not already in a room)
   // IMPORTANT: Wait for isStateReady to ensure we have the loaded state, not the default empty state
   useEffect(() => {
-    if (open && !roomCode && !isCreating && isStateReady) {
-      setIsCreating(true);
-      createRoom(state.cityName, state)
-        .then((code) => {
-          // Update URL to show room code
-          window.history.replaceState({}, '', `/coop/${code}`);
-        })
-        .catch((err) => {
-          console.error('[ShareModal] Failed to create room:', err);
-        })
-        .finally(() => {
-          setIsCreating(false);
-        });
+    if (!open || roomCode || !isStateReady || createInFlightRef.current) {
+      return;
     }
-  }, [open, roomCode, isCreating, isStateReady, createRoom, state]);
+
+    let cancelled = false;
+    createInFlightRef.current = true;
+    const t = setTimeout(() => setIsCreating(true), 0);
+
+    createRoom(state.cityName, state)
+      .then((code) => {
+        if (cancelled) return;
+        // Update URL to show room code
+        window.history.replaceState({}, '', `/coop/${code}`);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[ShareModal] Failed to create room:', err);
+      })
+      .finally(() => {
+        createInFlightRef.current = false;
+        if (cancelled) return;
+        setIsCreating(false);
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [open, roomCode, isStateReady, createRoom, state]);
 
   // Reset copied state when modal closes
   useEffect(() => {
     if (!open) {
-      setCopied(false);
+      const t = setTimeout(() => setCopied(false), 0);
+      return () => clearTimeout(t);
     }
   }, [open]);
 
