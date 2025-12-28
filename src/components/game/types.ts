@@ -1,12 +1,19 @@
-// Game-specific types for rendering and animation
+// Rendering types for isometric games
+// These types are used by the rendering engine and can be shared across games
 
-// Isometric tile dimensions (shared constants)
-export const TILE_WIDTH = 64;
-export const HEIGHT_RATIO = 0.60;
-export const TILE_HEIGHT = TILE_WIDTH * HEIGHT_RATIO;
-export const KEY_PAN_SPEED = 520; // Pixels per second for keyboard panning
+// Re-export core rendering constants
+export {
+  TILE_WIDTH,
+  TILE_HEIGHT,
+  HEIGHT_RATIO,
+  KEY_PAN_SPEED,
+  type CardinalDirection,
+  type Particle,
+  type PhysicsParticle,
+  type DirectionMeta as CoreDirectionMeta,
+} from '@/core/types';
 
-// Car/Vehicle types
+// Alias for backward compatibility - matches existing code that uses CarDirection
 export type CarDirection = 'north' | 'east' | 'south' | 'west';
 
 export type Car = {
