@@ -87,6 +87,8 @@ export function RiseCanvas({
   const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
   const [spriteImage, setSpriteImage] = useState<HTMLImageElement | null>(null);
   const [hoverTile, setHoverTile] = useState<{ x: number; y: number } | null>(null);
+  const [lastCommand, setLastCommand] = useState<{ x: number; y: number; kind: 'move' | 'gather' | 'attack' } | null>(null);
+  const lastCommandTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const playerAge = useMemo(() => state.players.find(p => p.id === state.localPlayerId)?.age, [state.players, state.localPlayerId]);
 
@@ -227,7 +229,20 @@ export function RiseCanvas({
       const valid = isPlacementValid(activeBuild, hoverTile.x, hoverTile.y);
       drawDiamond(ctx, sx, sy, TW, TH, valid ? 'rgba(34,197,94,0.35)' : 'rgba(248,113,113,0.35)', valid ? '#22c55e' : '#ef4444');
     }
-  }, [state, dragStart, dragEnd, offset, spriteImage, activeBuild, hoverTile, isPlacementValid]);
+
+    // Last command marker
+    if (lastCommand) {
+      const { x: sx, y: sy } = gridToScreen(lastCommand.x, lastCommand.y, offset);
+      ctx.beginPath();
+      ctx.arc(sx, sy - 6, 16, 0, Math.PI * 2);
+      ctx.strokeStyle =
+        lastCommand.kind === 'attack' ? '#f97316' : lastCommand.kind === 'gather' ? '#22c55e' : '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }, [state, dragStart, dragEnd, offset, spriteImage, activeBuild, hoverTile, isPlacementValid, lastCommand]);
 
   // Event handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -318,14 +333,29 @@ export function RiseCanvas({
         const attackMove = e.shiftKey;
         if (enemyUnit) {
           issueAttack(unitIds, { x, y }, enemyUnit.id, undefined);
+          if (lastCommandTimer.current) clearTimeout(lastCommandTimer.current);
+          setLastCommand({ x, y, kind: 'attack' });
+          lastCommandTimer.current = setTimeout(() => setLastCommand(null), 1200);
         } else if (enemyBuilding) {
           issueAttack(unitIds, { x, y }, undefined, enemyBuilding.id);
+          if (lastCommandTimer.current) clearTimeout(lastCommandTimer.current);
+          setLastCommand({ x, y, kind: 'attack' });
+          lastCommandTimer.current = setTimeout(() => setLastCommand(null), 1200);
         } else if (attackMove) {
           issueAttack(unitIds, { x, y });
+          if (lastCommandTimer.current) clearTimeout(lastCommandTimer.current);
+          setLastCommand({ x, y, kind: 'attack' });
+          lastCommandTimer.current = setTimeout(() => setLastCommand(null), 1200);
         } else if (nodeType) {
           issueGather(unitIds, { x, y }, nodeType);
+          if (lastCommandTimer.current) clearTimeout(lastCommandTimer.current);
+          setLastCommand({ x, y, kind: 'gather' });
+          lastCommandTimer.current = setTimeout(() => setLastCommand(null), 1200);
         } else {
           issueMove(unitIds, { x, y });
+          if (lastCommandTimer.current) clearTimeout(lastCommandTimer.current);
+          setLastCommand({ x, y, kind: 'move' });
+          lastCommandTimer.current = setTimeout(() => setLastCommand(null), 1200);
         }
       }
     }
@@ -340,6 +370,12 @@ export function RiseCanvas({
     const handler = (e: Event) => e.preventDefault();
     canvas.addEventListener('contextmenu', handler);
     return () => canvas.removeEventListener('contextmenu', handler);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (lastCommandTimer.current) clearTimeout(lastCommandTimer.current);
+    };
   }, []);
 
   return (
