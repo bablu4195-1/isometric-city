@@ -11,6 +11,7 @@ import { TopStats } from './TopStats';
 import { SelectionPanel } from './SelectionPanel';
 import { Tips } from './Tips';
 import { AgeProgress } from './AgeProgress';
+import { Legend } from './Legend';
 
 const SPEED_LABELS: Record<0 | 1 | 2 | 3, string> = {
   0: 'Pause',
@@ -250,6 +251,7 @@ export default function RiseGame() {
           </div>
           <SelectionPanel state={state} />
           <Tips />
+          <Legend />
         </div>
 
         <div className="relative flex-1 min-h-[720px] rounded-lg overflow-hidden border border-slate-800 bg-slate-900/60">
