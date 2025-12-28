@@ -414,18 +414,21 @@ export function calculateSpriteCoords(
     };
   }
 
-  // Mansion variants
+  // Mansion variants (same crops as modern apartment_high)
   if (variantType === 'mansion' && variant) {
     const mansionsCols = activePack.mansionsCols || 5;
     const mansionsRows = activePack.mansionsRows || 7;
     const tileWidth = Math.floor(sheetWidth / mansionsCols);
     const tileHeight = Math.floor(sheetHeight / mansionsRows);
+    
+    // Apply same height extension as modern apartment_high
+    const sourceH = tileHeight * 1.05;
 
     return {
       sx: variant.col * tileWidth,
       sy: variant.row * tileHeight,
       sw: tileWidth,
-      sh: tileHeight,
+      sh: sourceH,
     };
   }
   

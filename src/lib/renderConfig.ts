@@ -534,32 +534,20 @@ const SPRITE_PACK_SPRITES4: SpritePack = {
     rail_station: 0.85, // Scale down 15% for better fit
   },
   // Mansions sprite sheet with 35 alternate mansion designs
-  mansionsSrc: '/assets/buildings/mansion_alternates.png',
+  mansionsSrc: '/assets/mansion_alternates.png',
   mansionsCols: 5,
   mansionsRows: 7,
   mansionsVariants: {
     mansion: [
-      // Row 0 (top row)
+      // Row 0 only (temporarily)
       { row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 }, { row: 0, col: 3 }, { row: 0, col: 4 },
-      // Row 1
-      { row: 1, col: 0 }, { row: 1, col: 1 }, { row: 1, col: 2 }, { row: 1, col: 3 }, { row: 1, col: 4 },
-      // Row 2
-      { row: 2, col: 0 }, { row: 2, col: 1 }, { row: 2, col: 2 }, { row: 2, col: 3 }, { row: 2, col: 4 },
-      // Row 3
-      { row: 3, col: 0 }, { row: 3, col: 1 }, { row: 3, col: 2 }, { row: 3, col: 3 }, { row: 3, col: 4 },
-      // Row 4
-      { row: 4, col: 0 }, { row: 4, col: 1 }, { row: 4, col: 2 }, { row: 4, col: 3 }, { row: 4, col: 4 },
-      // Row 5
-      { row: 5, col: 0 }, { row: 5, col: 1 }, { row: 5, col: 2 }, { row: 5, col: 3 }, { row: 5, col: 4 },
-      // Row 6 (bottom row)
-      { row: 6, col: 0 }, { row: 6, col: 1 }, { row: 6, col: 2 }, { row: 6, col: 3 }, { row: 6, col: 4 },
     ],
   },
   mansionsVerticalOffsets: {
-    mansion: -0.35, // Match the normal mansion offset
+    mansion: -0.95, // Adjusted up 0.15 tiles from -0.80
   },
   mansionsScales: {
-    mansion: 1.0, // Default scale, adjust if needed
+    mansion: 0.90, // Same as modern apartment_high scale
   },
   buildingToSprite: {
     house_small: 'house_small',
