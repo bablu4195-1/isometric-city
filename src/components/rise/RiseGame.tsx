@@ -30,14 +30,16 @@ export default function RiseGame() {
   }, [player]);
   const ai = state.players.find(p => p.id === 'ai');
 
-  if (!player) return null;
-
-  const canAfford = (cost: Partial<ResourcePool>) => {
-    for (const key of Object.keys(cost) as (keyof ResourcePool)[]) {
-      if ((player.resources[key] ?? 0) < (cost[key] ?? 0)) return false;
-    }
-    return true;
-  };
+  const canAfford = React.useCallback(
+    (cost: Partial<ResourcePool>) => {
+      if (!player) return false;
+      for (const key of Object.keys(cost) as (keyof ResourcePool)[]) {
+        if ((player.resources[key] ?? 0) < (cost[key] ?? 0)) return false;
+      }
+      return true;
+    },
+    [player]
+  );
 
   const centerOnTile = (tx: number, ty: number) => {
     const canvasW = 1400;
@@ -54,6 +56,24 @@ export default function RiseGame() {
     }
   };
 
+  const ageUpInfo = React.useMemo(() => {
+    if (!player) return { can: false, reason: 'No player' };
+    const currentIndex = AGE_CONFIGS.findIndex(a => a.id === player.age);
+    const next = AGE_CONFIGS[currentIndex + 1];
+    if (!next) return { can: false, reason: 'Max age' };
+    const elapsedSinceAge = state.elapsedSeconds - (player.ageStartSeconds ?? 0);
+    if (elapsedSinceAge < (next.minDurationSeconds ?? 0)) {
+      const remaining = Math.max(0, Math.ceil(next.minDurationSeconds - elapsedSinceAge));
+      return { can: false, reason: `Locked ${remaining}s` };
+    }
+    if (!canAfford(next.nextCost || {})) {
+      return { can: false, reason: 'Need resources' };
+    }
+    return { can: true, reason: 'Ready' };
+  }, [player, state.elapsedSeconds, canAfford]);
+
+  if (!player) return null;
+
   return (
     <div className="w-full h-full min-h-screen bg-slate-950 text-slate-100 flex flex-col gap-3 p-3">
       <div className="flex items-center justify-between gap-4">
@@ -68,6 +88,8 @@ export default function RiseGame() {
           <button
             className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-md text-sm font-semibold"
             onClick={ageUp}
+            disabled={!ageUpInfo.can}
+            title={ageUpInfo.reason}
           >
             Age Up
           </button>

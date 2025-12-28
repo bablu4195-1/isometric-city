@@ -142,6 +142,8 @@ export function RiseGameProvider({ children }: { children: React.ReactNode }) {
       const currentIndex = AGE_CONFIGS.findIndex(a => a.id === player.age);
       const next = AGE_CONFIGS[currentIndex + 1];
       if (!next) return prev;
+      const elapsedSinceAge = prev.elapsedSeconds - (player.ageStartSeconds ?? 0);
+      if (elapsedSinceAge < (next.minDurationSeconds ?? 0)) return prev;
       return ageUp(prev, player.id, next.id, next.nextCost);
     });
   }, []);

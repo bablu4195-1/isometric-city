@@ -150,6 +150,7 @@ function addInitialPlayers(): PlayerState[] {
       name: 'You',
       color: '#38bdf8',
       age: 'classics',
+      ageStartSeconds: 0,
       resources: { ...BASE_RESOURCES },
       controller: { isAI: false },
     },
@@ -158,6 +159,7 @@ function addInitialPlayers(): PlayerState[] {
       name: 'AI',
       color: '#f97316',
       age: 'classics',
+      ageStartSeconds: 0,
       resources: { ...BASE_RESOURCES, wealth: 260, food: 260, wood: 260, metal: 160 },
       controller: { isAI: true, difficulty: 'medium' },
     },
@@ -559,6 +561,8 @@ export function ageUp(state: RiseGameState, playerId: string, nextAge: AgeId, co
   const resources = payCost(player.resources, cost);
   return {
     ...state,
-    players: state.players.map(p => (p.id === playerId ? { ...p, age: nextAge, resources } : p)),
+    players: state.players.map(p =>
+      p.id === playerId ? { ...p, age: nextAge, ageStartSeconds: state.elapsedSeconds, resources } : p
+    ),
   };
 }

@@ -114,6 +114,7 @@ export interface PlayerState {
   name: string;
   color: string;
   age: AgeId;
+  ageStartSeconds: number;
   resources: ResourcePool;
   controller: PlayerController;
 }
