@@ -10,7 +10,7 @@ const TILE_COLORS: Record<string, string> = {
   water: '#0ea5e9',
 };
 
-export function RiseMinimap({ state }: { state: RiseGameState }) {
+export function RiseMinimap({ state, onNavigate }: { state: RiseGameState; onNavigate?: (x: number, y: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const size = 200;
 
@@ -58,7 +58,19 @@ export function RiseMinimap({ state }: { state: RiseGameState }) {
           <div className="flex items-center gap-1"><span className="w-3 h-3 inline-block bg-[#f97316]" />AI</div>
         </div>
       </div>
-      <canvas ref={canvasRef} width={size} height={size} className="w-full h-full border border-slate-800 rounded" />
+      <canvas
+        ref={canvasRef}
+        width={size}
+        height={size}
+        className="w-full h-full border border-slate-800 rounded cursor-pointer"
+        onClick={e => {
+          if (!onNavigate) return;
+          const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
+          const gx = ((e.clientX - rect.left) / rect.width) * state.gridSize;
+          const gy = ((e.clientY - rect.top) / rect.height) * state.gridSize;
+          onNavigate(Math.floor(gx), Math.floor(gy));
+        }}
+      />
     </div>
   );
 }

@@ -66,15 +66,16 @@ function getNodeAccent(tile: RiseTile): string | null {
 export function RiseCanvas({
   activeBuild,
   onBuildPlaced,
+  offset,
 }: {
   activeBuild?: string | null;
   onBuildPlaced?: () => void;
+  offset: { x: number; y: number };
 }) {
   const { state, issueMove, issueGather, selectUnits, placeBuilding, issueAttack } = useRiseGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
-  const [offset] = useState<{ x: number; y: number }>({ x: 520, y: 120 });
   const [spriteImage, setSpriteImage] = useState<HTMLImageElement | null>(null);
   const [hoverTile, setHoverTile] = useState<{ x: number; y: number } | null>(null);
 

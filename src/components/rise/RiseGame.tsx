@@ -8,6 +8,7 @@ import { AGE_CONFIGS } from '@/games/rise/constants';
 import { BUILDING_COSTS, UNIT_COSTS, POP_COST } from '@/games/rise/constants';
 import { ResourcePool } from '@/games/rise/types';
 import { RiseMinimap } from './RiseMinimap';
+import { TILE_HEIGHT, TILE_WIDTH } from '@/components/game/types';
 
 const SPEED_LABELS: Record<0 | 1 | 2 | 3, string> = {
   0: 'Pause',
@@ -19,6 +20,7 @@ const SPEED_LABELS: Record<0 | 1 | 2 | 3, string> = {
 export default function RiseGame() {
   const { state, setSpeed, spawnCitizen, trainUnit, ageUp, setAIDifficulty } = useRiseGame();
   const [activeBuild, setActiveBuild] = React.useState<string | null>(null);
+  const [offset, setOffset] = React.useState<{ x: number; y: number }>({ x: 520, y: 120 });
   const player = state.players.find(p => p.id === state.localPlayerId);
   const ageLabel = useMemo(() => {
     if (!player) return '';
@@ -34,6 +36,14 @@ export default function RiseGame() {
       if ((player.resources[key] ?? 0) < (cost[key] ?? 0)) return false;
     }
     return true;
+  };
+
+  const centerOnTile = (tx: number, ty: number) => {
+    const canvasW = 1400;
+    const canvasH = 900;
+    const ox = canvasW / 2 - (tx - ty) * (TILE_WIDTH / 2);
+    const oy = canvasH / 2 - (tx + ty) * (TILE_HEIGHT / 2);
+    setOffset({ x: ox, y: oy });
   };
 
   return (
@@ -138,11 +148,11 @@ export default function RiseGame() {
         </div>
 
         <div className="flex-1 min-h-[720px] rounded-lg overflow-hidden border border-slate-800 bg-slate-900/60">
-          <RiseCanvas activeBuild={activeBuild} onBuildPlaced={() => setActiveBuild(null)} />
+          <RiseCanvas activeBuild={activeBuild} onBuildPlaced={() => setActiveBuild(null)} offset={offset} />
         </div>
 
         <div className="w-64">
-          <RiseMinimap state={state} />
+          <RiseMinimap state={state} onNavigate={centerOnTile} />
         </div>
       </div>
 
