@@ -387,27 +387,48 @@ export function tickState(state: RiseGameState, deltaSeconds: number): RiseGameS
 
     // Resolve attack damage if in range
     if (newUnit.order.kind === 'attack' && newUnit.attack) {
-      const targetUnit = newUnit.order.targetUnitId ? unitsById.get(newUnit.order.targetUnitId) : undefined;
-      const targetBuilding = newUnit.order.targetBuildingId ? buildingsById.get(newUnit.order.targetBuildingId) : undefined;
+      let targetUnit = newUnit.order.targetUnitId ? unitsById.get(newUnit.order.targetUnitId) : undefined;
+      let targetBuilding = newUnit.order.targetBuildingId ? buildingsById.get(newUnit.order.targetBuildingId) : undefined;
+
+      // Attack-move: acquire nearest enemy within small radius if none targeted
       if (!targetUnit && !targetBuilding) {
-        newUnit.order = { kind: 'idle' };
-      } else {
-        const targetPos = targetUnit
-          ? targetUnit.position
-          : targetBuilding
-            ? { x: targetBuilding.tile.x, y: targetBuilding.tile.y }
-            : newUnit.order.target;
-        const dist = Math.hypot(targetPos.x - newUnit.position.x, targetPos.y - newUnit.position.y);
-        const inRange = dist <= (newUnit.attack.range ?? 1);
-        if (inRange && newUnit.attack.cooldownRemaining <= 0) {
-          const dmg = newUnit.attack.damage;
-          if (targetUnit && targetUnit.ownerId !== newUnit.ownerId) {
-            targetUnit.hp -= dmg;
-            newUnit.attack = { ...newUnit.attack, cooldownRemaining: newUnit.attack.cooldown };
-          } else if (targetBuilding && targetBuilding.ownerId !== newUnit.ownerId) {
-            targetBuilding.hp -= dmg;
-            newUnit.attack = { ...newUnit.attack, cooldownRemaining: newUnit.attack.cooldown };
+        let bestUnit: RiseUnit | undefined;
+        let bestDist = Infinity;
+        for (const enemy of updatedUnits) {
+          if (enemy.ownerId === newUnit.ownerId || enemy.type === 'citizen') continue;
+          const d = Math.hypot(enemy.position.x - newUnit.position.x, enemy.position.y - newUnit.position.y);
+          if (d < 3 && d < bestDist) {
+            bestDist = d;
+            bestUnit = enemy;
           }
+        }
+        if (bestUnit) {
+          targetUnit = bestUnit;
+          newUnit.order = { ...newUnit.order, targetUnitId: bestUnit.id };
+        } else {
+          const enemyCity = state.buildings.find(b => b.ownerId !== newUnit.ownerId);
+          if (enemyCity) {
+            targetBuilding = enemyCity;
+            newUnit.order = { ...newUnit.order, targetBuildingId: enemyCity.id };
+          }
+        }
+      }
+
+      const targetPos = targetUnit
+        ? targetUnit.position
+        : targetBuilding
+          ? { x: targetBuilding.tile.x, y: targetBuilding.tile.y }
+          : newUnit.order.target;
+      const dist = Math.hypot(targetPos.x - newUnit.position.x, targetPos.y - newUnit.position.y);
+      const inRange = dist <= (newUnit.attack.range ?? 1);
+      if (inRange && newUnit.attack.cooldownRemaining <= 0) {
+        const dmg = newUnit.attack.damage;
+        if (targetUnit && targetUnit.ownerId !== newUnit.ownerId) {
+          targetUnit.hp -= dmg;
+          newUnit.attack = { ...newUnit.attack, cooldownRemaining: newUnit.attack.cooldown };
+        } else if (targetBuilding && targetBuilding.ownerId !== newUnit.ownerId) {
+          targetBuilding.hp -= dmg;
+          newUnit.attack = { ...newUnit.attack, cooldownRemaining: newUnit.attack.cooldown };
         }
       }
     }

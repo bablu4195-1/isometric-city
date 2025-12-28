@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useRiseGame } from '@/context/RiseGameContext';
 import { RiseTile } from '@/games/rise/types';
 import { TILE_HEIGHT, TILE_WIDTH } from '@/components/game/types';
@@ -76,8 +76,26 @@ export function RiseCanvas({
   const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
   const [offset] = useState<{ x: number; y: number }>({ x: 520, y: 120 });
   const [spriteImage, setSpriteImage] = useState<HTMLImageElement | null>(null);
+  const [hoverTile, setHoverTile] = useState<{ x: number; y: number } | null>(null);
 
   const playerAge = useMemo(() => state.players.find(p => p.id === state.localPlayerId)?.age, [state.players, state.localPlayerId]);
+
+  const isPlacementValid = useCallback(
+    (type: string, x: number, y: number) => {
+      if (x < 0 || y < 0 || y >= state.gridSize || x >= state.gridSize) return false;
+      const tile = state.tiles[y][x];
+      if (tile.terrain === 'water') return false;
+      if (tile.buildingId) return false;
+      if (type === 'farm') {
+        return tile.node?.type === 'fertile';
+      }
+      if (type === 'oil_rig') {
+        return tile.node?.type === 'oil';
+      }
+      return true;
+    },
+    [state.gridSize, state.tiles]
+  );
 
   // Load age sprite
   useEffect(() => {
@@ -169,7 +187,14 @@ export function RiseCanvas({
       ctx.strokeRect(x, y, w, h);
       ctx.setLineDash([]);
     }
-  }, [state, dragStart, dragEnd, offset, spriteImage]);
+
+    // Hover placement
+    if (activeBuild && hoverTile) {
+      const { x: sx, y: sy } = gridToScreen(hoverTile.x, hoverTile.y, offset);
+      const valid = isPlacementValid(activeBuild, hoverTile.x, hoverTile.y);
+      drawDiamond(ctx, sx, sy, TW, TH, valid ? 'rgba(34,197,94,0.35)' : 'rgba(248,113,113,0.35)', valid ? '#22c55e' : '#ef4444');
+    }
+  }, [state, dragStart, dragEnd, offset, spriteImage, activeBuild, hoverTile, isPlacementValid]);
 
   // Event handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -183,6 +208,8 @@ export function RiseCanvas({
     if (dragStart) {
       setDragEnd({ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY });
     }
+    const { x, y } = screenToGrid(e.nativeEvent.offsetX, e.nativeEvent.offsetY, offset);
+    setHoverTile({ x, y });
   };
 
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -207,8 +234,10 @@ export function RiseCanvas({
       const { offsetX, offsetY } = e.nativeEvent;
       const { x, y } = screenToGrid(offsetX, offsetY, offset);
       if (activeBuild) {
-        placeBuilding(activeBuild, x, y);
-        onBuildPlaced?.();
+        if (isPlacementValid(activeBuild, x, y)) {
+          placeBuilding(activeBuild, x, y);
+          onBuildPlaced?.();
+        }
       } else {
         let closest: { id: string; dist: number } | null = null;
         for (const u of state.units) {
@@ -253,10 +282,13 @@ export function RiseCanvas({
           }
         }
 
+        const attackMove = e.shiftKey;
         if (enemyUnit) {
           issueAttack(unitIds, { x, y }, enemyUnit.id, undefined);
         } else if (enemyBuilding) {
           issueAttack(unitIds, { x, y }, undefined, enemyBuilding.id);
+        } else if (attackMove) {
+          issueAttack(unitIds, { x, y });
         } else if (nodeType) {
           issueGather(unitIds, { x, y }, nodeType);
         } else {
