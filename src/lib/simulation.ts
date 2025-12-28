@@ -2229,7 +2229,9 @@ export function simulateTick(state: GameState): GameState {
           const nx = x + dx;
           const ny = y + dy;
           if (nx >= 0 && nx < size && ny >= 0 && ny < size) {
-            const neighbor = newGrid[ny][nx];
+            // Use state.grid (original tick state) to avoid directional cascade bias
+            // where fires set earlier in the current tick affect later tiles
+            const neighbor = state.grid[ny][nx];
             if (neighbor.building.onFire) {
               adjacentFireCount++;
             }
