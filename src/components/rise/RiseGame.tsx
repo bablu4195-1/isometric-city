@@ -20,7 +20,7 @@ const SPEED_LABELS: Record<0 | 1 | 2 | 3, string> = {
 };
 
 export default function RiseGame() {
-  const { state, setSpeed, spawnCitizen, trainUnit, ageUp, setAIDifficulty } = useRiseGame();
+  const { state, setSpeed, spawnCitizen, trainUnit, ageUp, setAIDifficulty, restart } = useRiseGame();
   const [activeBuild, setActiveBuild] = React.useState<string | null>(null);
   const [offset, setOffset] = React.useState<{ x: number; y: number }>({ x: 520, y: 120 });
   const player = state.players.find(p => p.id === state.localPlayerId);
@@ -200,7 +200,7 @@ export default function RiseGame() {
                 <div className="text-sm text-slate-300">City center {state.gameStatus === 'won' ? 'captured' : 'lost'}.</div>
                 <button
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-md text-sm font-semibold text-white"
-                  onClick={() => window.location.reload()}
+                  onClick={restart}
                 >
                   Restart
                 </button>

@@ -27,6 +27,7 @@ type RiseGameContextValue = {
   placeBuilding: (type: string, tileX: number, tileY: number) => void;
   ageUp: () => void;
   setAIDifficulty: (difficulty: 'easy' | 'medium' | 'hard') => void;
+  restart: () => void;
 };
 
 const RiseGameContext = createContext<RiseGameContextValue | null>(null);
@@ -53,6 +54,10 @@ export function RiseGameProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<RiseGameState>(() => initializeRiseState());
   const lastFrameRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
+
+  const restart = useCallback(() => {
+    setState(initializeRiseState());
+  }, []);
 
   useEffect(() => {
     const step = (timestamp: number) => {
@@ -387,8 +392,9 @@ export function RiseGameProvider({ children }: { children: React.ReactNode }) {
       placeBuilding: handlePlaceBuilding,
       ageUp: handleAgeUp,
       setAIDifficulty,
+      restart,
     }),
-    [state, setSpeed, spawnCitizen, trainUnit, issueMove, issueGather, issueAttack, selectUnits, handlePlaceBuilding, handleAgeUp, setAIDifficulty]
+    [state, setSpeed, spawnCitizen, trainUnit, issueMove, issueGather, issueAttack, selectUnits, handlePlaceBuilding, handleAgeUp, setAIDifficulty, restart]
   );
 
   return <RiseGameContext.Provider value={value}>{children}</RiseGameContext.Provider>;
