@@ -136,6 +136,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const containerRef = useRef<HTMLDivElement>(null);
   const renderPendingRef = useRef<number | null>(null); // PERF: Track pending render frame
   const lastMainRenderTimeRef = useRef<number>(0); // PERF: Throttle main renders at high speed
+  const dprRef = useRef<number>(1); // PERF: Clamp DPR on mobile to reduce fill/draw cost
   const [offset, setOffset] = useState({ x: isMobile ? 200 : 620, y: isMobile ? 100 : 160 });
   const [isDragging, setIsDragging] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
@@ -671,7 +672,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const drawAirplanes = useCallback((ctx: CanvasRenderingContext2D) => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
     const canvas = ctx.canvas;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = dprRef.current;
     
     // Early exit if no airplanes
     if (!currentGrid || currentGridSize <= 0 || airplanesRef.current.length === 0) {
@@ -701,7 +702,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const drawHelicopters = useCallback((ctx: CanvasRenderingContext2D) => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
     const canvas = ctx.canvas;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = dprRef.current;
     
     // Early exit if no helicopters
     if (!currentGrid || currentGridSize <= 0 || helicoptersRef.current.length === 0) {
@@ -731,7 +732,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   const drawSeaplanes = useCallback((ctx: CanvasRenderingContext2D) => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
     const canvas = ctx.canvas;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = dprRef.current;
 
     // Early exit if no seaplanes
     if (!currentGrid || currentGridSize <= 0 || seaplanesRef.current.length === 0) {
@@ -889,7 +890,10 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current && canvasRef.current) {
-        const dpr = window.devicePixelRatio || 1;
+        const rawDpr = window.devicePixelRatio || 1;
+        const maxDpr = isMobile ? 1.5 : 2;
+        const dpr = Math.min(rawDpr, maxDpr);
+        dprRef.current = dpr;
         const rect = containerRef.current.getBoundingClientRect();
         
         // Set display size
@@ -926,7 +930,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     updateSize();
     window.addEventListener('resize', updateSize);
     return () => window.removeEventListener('resize', updateSize);
-  }, []);
+  }, [isMobile]);
   
   // Main render function - PERF: Uses requestAnimationFrame throttling to batch multiple state updates
   useEffect(() => {
@@ -957,7 +961,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
       }
       lastMainRenderTimeRef.current = now;
       
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = dprRef.current;
     
       // Disable image smoothing for crisp pixel art
       ctx.imageSmoothingEnabled = false;
@@ -2138,7 +2142,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = dprRef.current;
     
     // Clear the hover canvas
     ctx.setTransform(1, 0, 0, 1, 0, 0);

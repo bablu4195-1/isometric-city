@@ -7,6 +7,8 @@ import React, {
   useCallback,
   useEffect,
   useRef,
+  useMemo,
+  useSyncExternalStore,
 } from 'react';
 import {
   MultiplayerProvider,
@@ -36,8 +38,12 @@ interface MultiplayerContextValue {
   // Connection state
   connectionState: ConnectionState;
   roomCode: string | null;
-  players: Player[];
   error: string | null;
+
+  // Players (presence) - stored outside React state to avoid full-tree rerenders
+  // Subscribe via useMultiplayerPlayers()
+  subscribePlayers: (listener: () => void) => () => void;
+  getPlayersSnapshot: () => Player[];
 
   // Actions
   createRoom: (cityName: string, initialState: GameState) => Promise<string>;
@@ -74,7 +80,6 @@ export function MultiplayerContextProvider({
   const gt = useGT();
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [roomCode, setRoomCode] = useState<string | null>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [initialState, setInitialState] = useState<GameState | null>(null);
   const [provider, setProvider] = useState<MultiplayerProvider | null>(null);
@@ -82,6 +87,45 @@ export function MultiplayerContextProvider({
 
   const providerRef = useRef<MultiplayerProvider | null>(null);
   const onRemoteActionRef = useRef<((action: GameAction) => void) | null>(null);
+
+  // Players store (external) to avoid rerendering the entire app on presence sync spam
+  const playersRef = useRef<Player[]>([]);
+  const playersListenersRef = useRef<Set<() => void>>(new Set());
+  const playersSignatureRef = useRef<string>('');
+
+  const getPlayersSnapshot = useCallback(() => playersRef.current, []);
+
+  const subscribePlayers = useCallback((listener: () => void) => {
+    playersListenersRef.current.add(listener);
+    return () => {
+      playersListenersRef.current.delete(listener);
+    };
+  }, []);
+
+  const notifyPlayersListeners = useCallback(() => {
+    for (const listener of playersListenersRef.current) {
+      try {
+        listener();
+      } catch (e) {
+        console.error('[MultiplayerContext] players listener error', e);
+      }
+    }
+  }, []);
+
+  const setPlayersSnapshot = useCallback(
+    (nextPlayers: Player[]) => {
+      // Deduplicate + stable sort so signature is consistent across clients
+      const uniqueById = new Map<string, Player>();
+      for (const p of nextPlayers) uniqueById.set(p.id, p);
+      const normalized = Array.from(uniqueById.values()).sort((a, b) => a.id.localeCompare(b.id));
+      const signature = normalized.map((p) => `${p.id}:${p.name}`).join('|');
+      if (signature === playersSignatureRef.current) return;
+      playersSignatureRef.current = signature;
+      playersRef.current = normalized;
+      notifyPlayersListeners();
+    },
+    [notifyPlayersListeners]
+  );
 
   // Set up remote action callback
   const handleSetOnRemoteAction = useCallback(
@@ -112,7 +156,7 @@ export function MultiplayerContextProvider({
             setConnectionState(connected ? 'connected' : 'disconnected');
           },
           onPlayersChange: (newPlayers) => {
-            setPlayers(newPlayers);
+            setPlayersSnapshot(newPlayers);
           },
           onAction: (action) => {
             if (onRemoteActionRef.current) {
@@ -137,7 +181,7 @@ export function MultiplayerContextProvider({
         throw err;
       }
     },
-    [gt]
+    [gt, setPlayersSnapshot]
   );
 
   // Join an existing room
@@ -158,7 +202,7 @@ export function MultiplayerContextProvider({
             setConnectionState(connected ? 'connected' : 'disconnected');
           },
           onPlayersChange: (newPlayers) => {
-            setPlayers(newPlayers);
+            setPlayersSnapshot(newPlayers);
           },
           onAction: (action) => {
             if (onRemoteActionRef.current) {
@@ -196,7 +240,7 @@ export function MultiplayerContextProvider({
         throw err;
       }
     },
-    [gt]
+    [gt, setPlayersSnapshot]
   );
 
   // Leave the current room
@@ -209,10 +253,10 @@ export function MultiplayerContextProvider({
     setProvider(null);
     setConnectionState('disconnected');
     setRoomCode(null);
-    setPlayers([]);
+    setPlayersSnapshot([]);
     setError(null);
     setInitialState(null);
-  }, []);
+  }, [setPlayersSnapshot]);
 
   // Dispatch a game action to all peers
   const dispatchAction = useCallback(
@@ -243,22 +287,41 @@ export function MultiplayerContextProvider({
     };
   }, []);
 
-  const value: MultiplayerContextValue = {
-    connectionState,
-    roomCode,
-    players,
-    error,
-    createRoom,
-    joinRoom,
-    leaveRoom,
-    dispatchAction,
-    initialState,
-    onRemoteAction,
-    setOnRemoteAction: handleSetOnRemoteAction,
-    updateGameState,
-    provider,
-    isHost: false, // No longer meaningful - kept for compatibility
-  };
+  const value: MultiplayerContextValue = useMemo(
+    () => ({
+      connectionState,
+      roomCode,
+      error,
+      subscribePlayers,
+      getPlayersSnapshot,
+      createRoom,
+      joinRoom,
+      leaveRoom,
+      dispatchAction,
+      initialState,
+      onRemoteAction,
+      setOnRemoteAction: handleSetOnRemoteAction,
+      updateGameState,
+      provider,
+      isHost: false, // No longer meaningful - kept for compatibility
+    }),
+    [
+      connectionState,
+      roomCode,
+      error,
+      subscribePlayers,
+      getPlayersSnapshot,
+      createRoom,
+      joinRoom,
+      leaveRoom,
+      dispatchAction,
+      initialState,
+      onRemoteAction,
+      handleSetOnRemoteAction,
+      updateGameState,
+      provider,
+    ]
+  );
 
   return (
     <MultiplayerContext.Provider value={value}>
@@ -273,6 +336,13 @@ export function useMultiplayer() {
     throw new Error('useMultiplayer must be used within a MultiplayerContextProvider');
   }
   return context;
+}
+
+export function useMultiplayerPlayers(): Player[] {
+  const context = useContext(MultiplayerContext);
+  const subscribe = context?.subscribePlayers ?? (() => () => {});
+  const getSnapshot = context?.getPlayersSnapshot ?? (() => []);
+  return useSyncExternalStore(subscribe, getSnapshot, () => []);
 }
 
 // Optional hook that returns null if not in multiplayer context

@@ -16,7 +16,7 @@ import { CommandMenu } from '@/components/ui/CommandMenu';
 import { TipToast } from '@/components/ui/TipToast';
 import { useTipSystem } from '@/hooks/useTipSystem';
 import { useMultiplayerSync } from '@/hooks/useMultiplayerSync';
-import { useMultiplayerOptional } from '@/context/MultiplayerContext';
+import { useMultiplayerOptional, useMultiplayerPlayers } from '@/context/MultiplayerContext';
 import { ShareModal } from '@/components/multiplayer/ShareModal';
 import { Copy, Check } from 'lucide-react';
 
@@ -51,6 +51,7 @@ export default function Game({ onExit }: { onExit?: () => void }) {
   const isMobile = isMobileDevice || isSmallScreen;
   const [showShareModal, setShowShareModal] = useState(false);
   const multiplayer = useMultiplayerOptional();
+  const players = useMultiplayerPlayers();
   
   // Cheat code system
   const {
@@ -74,7 +75,6 @@ export default function Game({ onExit }: { onExit?: () => void }) {
     isHost,
     playerCount,
     roomCode,
-    players,
     broadcastPlace,
     leaveRoom,
   } = useMultiplayerSync();

@@ -56,6 +56,15 @@ export class MultiplayerProvider {
   private pendingStateSave: GameState | null = null;
   private saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  // Presence/UI throttling to avoid rerender spam on mobile
+  private playersNotifyTimeout: ReturnType<typeof setTimeout> | null = null;
+  private lastPlayersSignature = '';
+  private lastPlayerCountUpdate = 0;
+  private pendingPlayerCountUpdate: number | null = null;
+  private playerCountTimeout: ReturnType<typeof setTimeout> | null = null;
+  private lastConnectionPeerCount: number | null = null;
+  private lastConnectionConnected: boolean | null = null;
+
   constructor(options: MultiplayerProviderOptions) {
     this.options = options;
     this.roomCode = options.roomCode;
@@ -133,9 +142,7 @@ export class MultiplayerProvider {
 
         this.notifyPlayersChange();
         this.updateConnectionStatus();
-        
-        // Update player count in database
-        updatePlayerCount(this.roomCode, this.players.size);
+        this.schedulePlayerCountUpdate(this.players.size);
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
         if (key !== this.peerId && newPresences.length > 0) {
@@ -145,22 +152,30 @@ export class MultiplayerProvider {
             this.notifyPlayersChange();
             this.updateConnectionStatus();
             
-            // When a new player joins, send them the current state via broadcast
-            // This ensures they get the latest state (database might be stale)
-            if (this.gameState) {
+            // When a new player joins, ONLY ONE existing player should send state-sync.
+            // Otherwise every peer serializes + transmits a huge payload (very expensive on mobile).
+            const shouldSendState =
+              !!this.gameState &&
+              !this.destroyed &&
+              (() => {
+                const ids = Array.from(this.players.keys()).sort();
+                return ids.length > 0 && ids[0] === this.peerId;
+              })();
+
+            if (shouldSendState) {
               setTimeout(() => {
                 if (!this.destroyed && this.gameState) {
                   this.channel.send({
                     type: 'broadcast',
                     event: 'state-sync',
-                    payload: { 
-                      state: this.gameState, 
-                      to: key, 
-                      from: this.peerId 
+                    payload: {
+                      state: this.gameState,
+                      to: key,
+                      from: this.peerId,
                     },
                   });
                 }
-              }, Math.random() * 200); // Stagger to avoid multiple simultaneous sends
+              }, Math.random() * 150);
             }
           }
         }
@@ -170,8 +185,7 @@ export class MultiplayerProvider {
         this.notifyPlayersChange();
         this.updateConnectionStatus();
         
-        // Update player count in database
-        updatePlayerCount(this.roomCode, this.players.size);
+        this.schedulePlayerCountUpdate(this.players.size);
       })
       // Broadcast: real-time game actions from other players
       .on('broadcast', { event: 'action' }, ({ payload }) => {
@@ -269,14 +283,51 @@ export class MultiplayerProvider {
 
   private updateConnectionStatus(): void {
     if (this.options.onConnectionChange) {
-      this.options.onConnectionChange(true, this.players.size);
+      const connected = true;
+      const peerCount = this.players.size;
+      if (this.lastConnectionConnected === connected && this.lastConnectionPeerCount === peerCount) return;
+      this.lastConnectionConnected = connected;
+      this.lastConnectionPeerCount = peerCount;
+      this.options.onConnectionChange(connected, peerCount);
     }
   }
 
   private notifyPlayersChange(): void {
-    if (this.options.onPlayersChange) {
-      this.options.onPlayersChange(Array.from(this.players.values()));
+    if (!this.options.onPlayersChange) return;
+
+    // Throttle + dedupe to reduce React churn
+    const nextPlayers = Array.from(this.players.values()).sort((a, b) => a.id.localeCompare(b.id));
+    const signature = nextPlayers.map((p) => `${p.id}:${p.name}`).join('|');
+    if (signature === this.lastPlayersSignature) return;
+    this.lastPlayersSignature = signature;
+
+    if (this.playersNotifyTimeout) return;
+    this.playersNotifyTimeout = setTimeout(() => {
+      this.playersNotifyTimeout = null;
+      if (this.destroyed) return;
+      // Re-evaluate from latest map (and signature already updated)
+      this.options.onPlayersChange?.(Array.from(this.players.values()).sort((a, b) => a.id.localeCompare(b.id)));
+    }, 200);
+  }
+
+  private schedulePlayerCountUpdate(count: number): void {
+    const now = Date.now();
+    // Debounce + throttle DB writes (presence can be noisy)
+    if (now - this.lastPlayerCountUpdate >= 1000) {
+      this.lastPlayerCountUpdate = now;
+      updatePlayerCount(this.roomCode, count);
+      return;
     }
+    this.pendingPlayerCountUpdate = count;
+    if (this.playerCountTimeout) return;
+    this.playerCountTimeout = setTimeout(() => {
+      this.playerCountTimeout = null;
+      if (this.destroyed) return;
+      if (this.pendingPlayerCountUpdate === null) return;
+      this.lastPlayerCountUpdate = Date.now();
+      updatePlayerCount(this.roomCode, this.pendingPlayerCountUpdate);
+      this.pendingPlayerCountUpdate = null;
+    }, 1000);
   }
 
   destroy(): void {
@@ -294,6 +345,16 @@ export class MultiplayerProvider {
       clearTimeout(this.saveTimeout);
       this.saveTimeout = null;
     }
+
+    if (this.playersNotifyTimeout) {
+      clearTimeout(this.playersNotifyTimeout);
+      this.playersNotifyTimeout = null;
+    }
+    if (this.playerCountTimeout) {
+      clearTimeout(this.playerCountTimeout);
+      this.playerCountTimeout = null;
+    }
+    this.pendingPlayerCountUpdate = null;
     
     this.channel.unsubscribe();
     supabase.removeChannel(this.channel);

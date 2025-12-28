@@ -12,7 +12,7 @@ import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useMultiplayer } from '@/context/MultiplayerContext';
+import { useMultiplayer, useMultiplayerPlayers } from '@/context/MultiplayerContext';
 import { GameState } from '@/types/game';
 import { createInitialGameState, DEFAULT_GRID_SIZE } from '@/lib/simulation';
 import { Copy, Check, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
@@ -48,13 +48,13 @@ export function CoopModal({
   const {
     connectionState,
     roomCode,
-    players,
     error,
     createRoom,
     joinRoom,
     leaveRoom,
     initialState,
   } = useMultiplayer();
+  const players = useMultiplayerPlayers();
 
   // Auto-join when there's a pending room code - go directly into game
   useEffect(() => {

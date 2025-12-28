@@ -263,24 +263,28 @@ export function useMultiplayerSync() {
   // Keep the game state synced with the Supabase database
   // The provider handles throttling internally (saves every 3 seconds max)
   // Also updates the local saved cities index so the city appears on the homepage
-  const lastUpdateRef = useRef<number>(0);
   const lastIndexUpdateRef = useRef<number>(0);
   useEffect(() => {
     if (!multiplayer || multiplayer.connectionState !== 'connected') return;
-    
-    const now = Date.now();
-    if (now - lastUpdateRef.current < 2000) return; // Throttle to 2 second intervals
-    lastUpdateRef.current = now;
-    
-    // Update the game state - provider will save to Supabase database (throttled)
-    multiplayer.updateGameState(game.state);
-    
-    // Also update the local saved cities index (less frequently - every 10 seconds)
-    if (multiplayer.roomCode && now - lastIndexUpdateRef.current > 10000) {
-      lastIndexUpdateRef.current = now;
-      updateSavedCitiesIndex(game.state, multiplayer.roomCode);
-    }
-  }, [multiplayer, game.state]);
+
+    // Use an interval + latestStateRef so we don't re-run this effect on every UI sync.
+    // (On mobile + multiplayer, extra React work here adds up quickly.)
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const state = game.latestStateRef.current;
+
+      // Update the game state - provider will save to Supabase database (throttled internally)
+      multiplayer.updateGameState(state);
+
+      // Also update the local saved cities index (less frequently - every 10 seconds)
+      if (multiplayer.roomCode && now - lastIndexUpdateRef.current > 10000) {
+        lastIndexUpdateRef.current = now;
+        updateSavedCitiesIndex(state, multiplayer.roomCode);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [multiplayer, multiplayer?.connectionState, multiplayer?.roomCode, game.latestStateRef]);
 
   // Broadcast a local action to peers
   const broadcastAction = useCallback((action: GameActionInput) => {
@@ -334,7 +338,7 @@ export function useMultiplayerSync() {
   // Check if we're in multiplayer mode
   const isMultiplayer = multiplayer?.connectionState === 'connected';
   const isHost = multiplayer?.isHost ?? false;
-  const playerCount = multiplayer?.players.length ?? 0;
+  const playerCount = multiplayer ? multiplayer.getPlayersSnapshot().length : 0;
   const roomCode = multiplayer?.roomCode ?? null;
   const connectionState = multiplayer?.connectionState ?? 'disconnected';
 
@@ -344,7 +348,6 @@ export function useMultiplayerSync() {
     playerCount,
     roomCode,
     connectionState,
-    players: multiplayer?.players ?? [],
     broadcastPlace,
     broadcastTaxRate,
     broadcastBudget,

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability -- Game entity refs are mutated in-place for performance. */
 import { useCallback } from 'react';
 import { Barge, WorldRenderState, TILE_WIDTH, TILE_HEIGHT } from './types';
 import {

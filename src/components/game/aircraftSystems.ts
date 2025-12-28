@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability -- Game entity refs are mutated in-place for performance. */
 import { useCallback } from 'react';
 import { Airplane, Helicopter, WorldRenderState, TILE_WIDTH, TILE_HEIGHT, PlaneType } from './types';
 import {
