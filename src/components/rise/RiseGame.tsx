@@ -24,7 +24,11 @@ export default function RiseGame() {
   const { state, setSpeed, spawnCitizen, trainUnit, ageUp, setAIDifficulty, restart, selectUnits } = useRiseGame();
   const [activeBuild, setActiveBuild] = React.useState<string | null>(null);
   const [offset, setOffset] = React.useState<{ x: number; y: number }>({ x: 520, y: 120 });
-  const [showAlerts, setShowAlerts] = React.useState(true);
+  const [showAlerts, setShowAlerts] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = window.localStorage.getItem('rise_show_alerts');
+    return stored === null ? true : stored === 'true';
+  });
   const player = state.players.find(p => p.id === state.localPlayerId);
   const ageLabel = useMemo(() => {
     if (!player) return '';
@@ -46,6 +50,11 @@ export default function RiseGame() {
     const age = state.elapsedSeconds - state.lastDamageAt.time;
     return { age, x: state.lastDamageAt.x, y: state.lastDamageAt.y };
   }, [state.lastDamageAt, state.elapsedSeconds]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('rise_show_alerts', showAlerts ? 'true' : 'false');
+  }, [showAlerts]);
 
   const hotkeyInfo = React.useMemo(
     () => [
