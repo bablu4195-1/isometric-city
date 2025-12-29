@@ -163,11 +163,13 @@ export function RoNSidebar() {
     if (selectedBuilding.type === 'airbase') {
       if (ageIndex >= AGE_ORDER.indexOf('industrial')) {
         units.push({ type: 'biplane', name: 'Biplane' });
+        units.push({ type: 'bomber_early', name: 'Early Bomber' });
       }
       if (ageIndex >= AGE_ORDER.indexOf('modern')) {
         units.push({ type: 'fighter', name: 'Fighter' });
         units.push({ type: 'bomber', name: 'Bomber' });
         units.push({ type: 'helicopter', name: 'Helicopter' });
+        units.push({ type: 'stealth_bomber', name: 'Stealth Bomber' });
       }
     }
     
@@ -180,9 +182,11 @@ export function RoNSidebar() {
       }
       if (ageIndex >= AGE_ORDER.indexOf('medieval')) {
         units.push({ type: 'carrack', name: 'Carrack' });
+        units.push({ type: 'galleass', name: 'Galleass' });
       }
       if (ageIndex >= AGE_ORDER.indexOf('enlightenment')) {
         units.push({ type: 'frigate', name: 'Frigate' });
+        units.push({ type: 'ship_of_the_line', name: 'Ship of the Line' });
       }
       if (ageIndex >= AGE_ORDER.indexOf('industrial')) {
         units.push({ type: 'ironclad', name: 'Ironclad' });

@@ -65,7 +65,8 @@ function drawCitizenUnit(
 ): void {
   const appearance = getUnitAppearance(unit.id);
   // Canvas is already scaled by zoom, so just use a fixed scale
-  const scale = 0.5;
+  // Increased by 50% for better visibility
+  const scale = 0.75;
   
   // Animation based on task and movement
   const isWorking = unit.task && unit.task.startsWith('gather_') && !unit.isMoving;
@@ -188,11 +189,12 @@ function drawMilitaryUnit(
 ): void {
   const stats = UNIT_STATS[unit.type];
   // Naval units largest, cavalry/tanks and air medium-large, infantry smaller
+  // All scales increased by 50% for better visibility
   const isTankOrVehicle = unit.type.includes('tank') || unit.type.includes('armored');
-  const baseScale = stats.category === 'naval' ? 1.0 : 
-                    stats.category === 'air' ? 0.8 :
-                    stats.category === 'cavalry' ? (isTankOrVehicle ? 1.0 : 0.7) :
-                    stats.category === 'siege' ? 0.8 : 0.5;
+  const baseScale = stats.category === 'naval' ? 1.5 :
+                    stats.category === 'air' ? 1.2 :
+                    stats.category === 'cavalry' ? (isTankOrVehicle ? 1.5 : 1.05) :
+                    stats.category === 'siege' ? 1.2 : 0.75;
   const scale = baseScale;
   const animPhase = (tick * 0.1 + parseInt(unit.id.slice(-4), 16)) % (Math.PI * 2);
 
@@ -1423,33 +1425,114 @@ function drawNavalUnit(
 // ============ NAVAL UNIT SPRITES ============
 
 function drawFishingBoat(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, bob: number): void {
-  const w = 10 * s, h = 5 * s;
-  // Wake
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  const w = 18 * s, h = 10 * s;
+  
+  // Shadow on water
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
   ctx.beginPath();
-  ctx.ellipse(cx, cy + bob + 2, w * 0.5, h * 0.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy + 6, w * 0.5, h * 0.2, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Small wooden hull
+  
+  // Wake/ripples
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(cx - w * 0.3, cy + bob + 4, w * 0.4, h * 0.12, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Wooden hull - larger and more detailed
   ctx.fillStyle = '#8b5a2b';
   ctx.beginPath();
-  ctx.moveTo(cx - w * 0.4, cy + bob);
-  ctx.quadraticCurveTo(cx, cy + bob + h * 0.4, cx + w * 0.5, cy + bob);
-  ctx.lineTo(cx + w * 0.35, cy + bob - h * 0.3);
-  ctx.lineTo(cx - w * 0.35, cy + bob - h * 0.3);
+  ctx.moveTo(cx - w * 0.45, cy + bob);
+  ctx.quadraticCurveTo(cx - w * 0.2, cy + bob + h * 0.35, cx + w * 0.1, cy + bob + h * 0.3);
+  ctx.quadraticCurveTo(cx + w * 0.4, cy + bob + h * 0.2, cx + w * 0.5, cy + bob);
+  ctx.lineTo(cx + w * 0.4, cy + bob - h * 0.25);
+  ctx.lineTo(cx - w * 0.4, cy + bob - h * 0.25);
   ctx.closePath();
   ctx.fill();
-  // Fisherman
+  
+  // Hull outline
+  ctx.strokeStyle = '#5c3d1e';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Hull planks
+  ctx.strokeStyle = '#6b4423';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.35, cy + bob - h * 0.1);
+  ctx.lineTo(cx + w * 0.35, cy + bob - h * 0.05);
+  ctx.moveTo(cx - w * 0.3, cy + bob + h * 0.1);
+  ctx.lineTo(cx + w * 0.35, cy + bob + h * 0.12);
+  ctx.stroke();
+  
+  // Bow (front) point
+  ctx.fillStyle = '#6b4423';
+  ctx.beginPath();
+  ctx.moveTo(cx + w * 0.45, cy + bob - h * 0.1);
+  ctx.lineTo(cx + w * 0.55, cy + bob);
+  ctx.lineTo(cx + w * 0.45, cy + bob + h * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Fishing nets in boat
+  ctx.fillStyle = '#a08060';
+  ctx.beginPath();
+  ctx.ellipse(cx - w * 0.15, cy + bob - h * 0.1, w * 0.12, h * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Net texture
+  ctx.strokeStyle = '#8a7050';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  for (let i = -2; i <= 2; i++) {
+    ctx.moveTo(cx - w * 0.15 + i * 1.5, cy + bob - h * 0.18);
+    ctx.lineTo(cx - w * 0.15 + i * 1.5, cy + bob - h * 0.02);
+  }
+  ctx.stroke();
+  
+  // Fisherman body
+  ctx.fillStyle = '#3b5998'; // Blue shirt
+  ctx.beginPath();
+  ctx.ellipse(cx + w * 0.1, cy + bob - h * 0.35, 3 * s, 4 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Fisherman head
   ctx.fillStyle = '#f5d0c5';
   ctx.beginPath();
-  ctx.arc(cx, cy + bob - h * 0.5, 2 * s, 0, Math.PI * 2);
+  ctx.arc(cx + w * 0.1, cy + bob - h * 0.55, 2.5 * s, 0, Math.PI * 2);
   ctx.fill();
+  
+  // Hat
+  ctx.fillStyle = '#d4a574';
+  ctx.beginPath();
+  ctx.ellipse(cx + w * 0.1, cy + bob - h * 0.6, 3.5 * s, 1.5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#c49464';
+  ctx.beginPath();
+  ctx.arc(cx + w * 0.1, cy + bob - h * 0.65, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  
   // Fishing rod
   ctx.strokeStyle = '#5c4033';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(cx + 2 * s, cy + bob - h * 0.4);
-  ctx.lineTo(cx + w * 0.6, cy + bob - h * 0.8);
+  ctx.moveTo(cx + w * 0.15, cy + bob - h * 0.4);
+  ctx.quadraticCurveTo(cx + w * 0.5, cy + bob - h * 0.9, cx + w * 0.6, cy + bob - h * 0.3);
   ctx.stroke();
+  
+  // Fishing line
+  ctx.strokeStyle = '#888';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(cx + w * 0.6, cy + bob - h * 0.3);
+  ctx.lineTo(cx + w * 0.55, cy + bob + h * 0.5);
+  ctx.stroke();
+  
+  // Float/bobber
+  ctx.fillStyle = '#ff4444';
+  ctx.beginPath();
+  ctx.arc(cx + w * 0.55, cy + bob + h * 0.5, 1.5 * s, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawGalley(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, bob: number, anim: number): void {
@@ -1988,7 +2071,7 @@ function drawGenericSailboat(ctx: CanvasRenderingContext2D, cx: number, cy: numb
 }
 
 /**
- * Draw air unit (plane/helicopter)
+ * Draw air unit (plane/helicopter) - dispatches to specific aircraft type
  */
 function drawAirUnit(
   ctx: CanvasRenderingContext2D,
@@ -2001,75 +2084,590 @@ function drawAirUnit(
   scale: number,
   animPhase: number
 ): void {
-  const width = 14 * scale;
-  const height = 10 * scale;
+  // Circling animation - aircraft circle around their position
+  const circleRadius = 8 * scale;
+  const circleSpeed = 1.5;
+  const circleX = Math.cos(animPhase * circleSpeed) * circleRadius;
+  const circleY = Math.sin(animPhase * circleSpeed) * circleRadius * 0.4; // Flattened for isometric
   
-  // Floating animation
-  const float = Math.sin(animPhase * 3) * 1.5 * scale;
-  const tilt = Math.sin(animPhase * 2) * 0.05;
+  // Calculate heading based on circle direction
+  const heading = animPhase * circleSpeed + Math.PI / 2;
   
-  // Shadow on ground
-  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  // Altitude offset (aircraft fly above ground)
+  const altitude = -12 * scale;
+  
+  const drawX = centerX + circleX;
+  const drawY = centerY + circleY + altitude;
+  
+  // Draw shadow on ground (at base position)
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
   ctx.beginPath();
-  ctx.ellipse(centerX, centerY + 8, width * 0.4, height * 0.15, 0, 0, Math.PI * 2);
+  ctx.ellipse(centerX + circleX, centerY + circleY + 10, 8 * scale, 3 * scale, 0, 0, Math.PI * 2);
   ctx.fill();
+  
+  // Dispatch to specific aircraft type
+  switch (unit.type) {
+    case 'biplane':
+      drawBiplane(ctx, drawX, drawY, color, darkerColor, scale, heading);
+      break;
+    case 'bomber_early':
+      drawBomberEarly(ctx, drawX, drawY, color, darkerColor, scale, heading);
+      break;
+    case 'fighter':
+      drawFighter(ctx, drawX, drawY, color, darkerColor, lighterColor, scale, heading);
+      break;
+    case 'bomber':
+      drawBomber(ctx, drawX, drawY, color, darkerColor, scale, heading);
+      break;
+    case 'helicopter':
+      drawHelicopter(ctx, drawX, drawY, color, darkerColor, scale, animPhase);
+      break;
+    case 'stealth_bomber':
+      drawStealthBomber(ctx, drawX, drawY, color, darkerColor, scale, heading);
+      break;
+    default:
+      drawGenericAircraft(ctx, drawX, drawY, color, darkerColor, scale, heading);
+  }
+}
+
+/**
+ * Draw WWI-era biplane
+ */
+function drawBiplane(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  color: string,
+  darkerColor: string,
+  scale: number,
+  heading: number
+): void {
+  const size = 20 * scale;
   
   ctx.save();
-  ctx.translate(centerX, centerY - height * 0.5 + float);
-  ctx.rotate(tilt);
+  ctx.translate(x, y);
+  ctx.rotate(heading);
   
-  // Fuselage
+  // Fuselage (wood/canvas body)
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.ellipse(0, 0, width * 0.45, height * 0.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, size * 0.5, size * 0.12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = darkerColor;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Upper wing
+  ctx.fillStyle = darkerColor;
+  ctx.fillRect(-size * 0.15, -size * 0.4, size * 0.3, size * 0.08);
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(-size * 0.15, -size * 0.4, size * 0.3, size * 0.08);
+  
+  // Lower wing
+  ctx.fillRect(-size * 0.12, -size * 0.15, size * 0.24, size * 0.06);
+  ctx.strokeRect(-size * 0.12, -size * 0.15, size * 0.24, size * 0.06);
+  
+  // Wing struts
+  ctx.strokeStyle = '#5c4033';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.1, -size * 0.15);
+  ctx.lineTo(-size * 0.12, -size * 0.4);
+  ctx.moveTo(size * 0.1, -size * 0.15);
+  ctx.lineTo(size * 0.12, -size * 0.4);
+  ctx.stroke();
+  
+  // Propeller (spinning blur)
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.ellipse(size * 0.5, 0, size * 0.04, size * 0.15, 0, 0, Math.PI * 2);
   ctx.fill();
   
-  // Nose cone
+  // Tail
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.45, 0);
+  ctx.lineTo(-size * 0.55, -size * 0.15);
+  ctx.lineTo(-size * 0.55, size * 0.15);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Vertical stabilizer
   ctx.fillStyle = darkerColor;
   ctx.beginPath();
-  ctx.ellipse(width * 0.4, 0, width * 0.1, height * 0.12, 0, 0, Math.PI * 2);
+  ctx.moveTo(-size * 0.5, 0);
+  ctx.lineTo(-size * 0.55, -size * 0.2);
+  ctx.lineTo(-size * 0.45, 0);
+  ctx.closePath();
   ctx.fill();
   
   // Cockpit
   ctx.fillStyle = '#60a5fa';
   ctx.beginPath();
-  ctx.ellipse(width * 0.2, -height * 0.08, width * 0.12, height * 0.1, 0, Math.PI * 1.2, Math.PI * 1.8);
+  ctx.ellipse(size * 0.15, -size * 0.08, size * 0.08, size * 0.05, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.restore();
+}
+
+/**
+ * Draw early bomber (WWI/WWII era heavy bomber)
+ */
+function drawBomberEarly(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  color: string,
+  darkerColor: string,
+  scale: number,
+  heading: number
+): void {
+  const size = 28 * scale;
+  
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(heading);
+  
+  // Large fuselage
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, size * 0.5, size * 0.15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = darkerColor;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Wings (wide span)
+  ctx.fillStyle = darkerColor;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.1, 0);
+  ctx.lineTo(-size * 0.2, -size * 0.55);
+  ctx.lineTo(size * 0.15, -size * 0.55);
+  ctx.lineTo(size * 0.1, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.1, 0);
+  ctx.lineTo(-size * 0.2, size * 0.55);
+  ctx.lineTo(size * 0.15, size * 0.55);
+  ctx.lineTo(size * 0.1, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Twin engines on wings
+  ctx.fillStyle = '#444';
+  ctx.beginPath();
+  ctx.ellipse(0, -size * 0.3, size * 0.08, size * 0.05, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, size * 0.3, size * 0.08, size * 0.05, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Propellers
+  ctx.fillStyle = '#222';
+  ctx.beginPath();
+  ctx.ellipse(size * 0.08, -size * 0.3, size * 0.02, size * 0.1, 0, 0, Math.PI * 2);
+  ctx.ellipse(size * 0.08, size * 0.3, size * 0.02, size * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Tail section
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.45, 0);
+  ctx.lineTo(-size * 0.55, -size * 0.2);
+  ctx.lineTo(-size * 0.55, size * 0.2);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Vertical stabilizer
+  ctx.fillStyle = darkerColor;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.5, 0);
+  ctx.lineTo(-size * 0.55, -size * 0.25);
+  ctx.lineTo(-size * 0.45, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Nose gunner position
+  ctx.fillStyle = '#60a5fa';
+  ctx.beginPath();
+  ctx.arc(size * 0.4, 0, size * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Bomb bay (darker underside)
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-size * 0.15, -size * 0.05, size * 0.3, size * 0.1);
+  
+  ctx.restore();
+}
+
+/**
+ * Draw modern jet fighter
+ */
+function drawFighter(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  color: string,
+  darkerColor: string,
+  lighterColor: string,
+  scale: number,
+  heading: number
+): void {
+  const size = 24 * scale;
+  
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(heading);
+  
+  // Sleek fuselage
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(size * 0.55, 0);
+  ctx.lineTo(size * 0.3, -size * 0.08);
+  ctx.lineTo(-size * 0.4, -size * 0.1);
+  ctx.lineTo(-size * 0.5, 0);
+  ctx.lineTo(-size * 0.4, size * 0.1);
+  ctx.lineTo(size * 0.3, size * 0.08);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = darkerColor;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Delta wings
+  ctx.fillStyle = darkerColor;
+  ctx.beginPath();
+  ctx.moveTo(size * 0.1, 0);
+  ctx.lineTo(-size * 0.2, -size * 0.45);
+  ctx.lineTo(-size * 0.35, -size * 0.45);
+  ctx.lineTo(-size * 0.15, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  ctx.beginPath();
+  ctx.moveTo(size * 0.1, 0);
+  ctx.lineTo(-size * 0.2, size * 0.45);
+  ctx.lineTo(-size * 0.35, size * 0.45);
+  ctx.lineTo(-size * 0.15, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Tail fins
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.4, 0);
+  ctx.lineTo(-size * 0.5, -size * 0.2);
+  ctx.lineTo(-size * 0.45, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.4, 0);
+  ctx.lineTo(-size * 0.5, size * 0.2);
+  ctx.lineTo(-size * 0.45, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Cockpit
+  ctx.fillStyle = '#60a5fa';
+  ctx.beginPath();
+  ctx.ellipse(size * 0.25, 0, size * 0.12, size * 0.06, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+  
+  // Engine exhaust
+  ctx.fillStyle = 'rgba(255, 120, 50, 0.7)';
+  ctx.beginPath();
+  ctx.ellipse(-size * 0.55, 0, size * 0.06, size * 0.04, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Missiles on wings
+  ctx.fillStyle = '#666';
+  ctx.fillRect(-size * 0.1, -size * 0.35, size * 0.15, size * 0.03);
+  ctx.fillRect(-size * 0.1, size * 0.32, size * 0.15, size * 0.03);
+  
+  ctx.restore();
+}
+
+/**
+ * Draw modern heavy bomber
+ */
+function drawBomber(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  color: string,
+  darkerColor: string,
+  scale: number,
+  heading: number
+): void {
+  const size = 32 * scale;
+  
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(heading);
+  
+  // Large fuselage
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, size * 0.5, size * 0.12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = darkerColor;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Swept wings (wide)
+  ctx.fillStyle = darkerColor;
+  ctx.beginPath();
+  ctx.moveTo(size * 0.1, 0);
+  ctx.lineTo(-size * 0.1, -size * 0.6);
+  ctx.lineTo(-size * 0.3, -size * 0.6);
+  ctx.lineTo(-size * 0.2, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  ctx.beginPath();
+  ctx.moveTo(size * 0.1, 0);
+  ctx.lineTo(-size * 0.1, size * 0.6);
+  ctx.lineTo(-size * 0.3, size * 0.6);
+  ctx.lineTo(-size * 0.2, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  // 4 jet engines under wings
+  ctx.fillStyle = '#444';
+  for (const yOff of [-size * 0.25, -size * 0.45, size * 0.25, size * 0.45]) {
+    ctx.beginPath();
+    ctx.ellipse(-size * 0.05, yOff, size * 0.06, size * 0.03, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // T-tail
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.45, 0);
+  ctx.lineTo(-size * 0.55, -size * 0.25);
+  ctx.lineTo(-size * 0.5, 0);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Horizontal stabilizer on top of tail
+  ctx.fillStyle = darkerColor;
+  ctx.fillRect(-size * 0.55, -size * 0.26, size * 0.08, size * 0.15);
+  
+  // Nose cone
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.ellipse(size * 0.48, 0, size * 0.06, size * 0.08, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Cockpit windows
+  ctx.fillStyle = '#60a5fa';
+  ctx.beginPath();
+  ctx.ellipse(size * 0.35, -size * 0.05, size * 0.08, size * 0.04, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Bomb bay doors
+  ctx.fillStyle = '#222';
+  ctx.fillRect(-size * 0.2, -size * 0.05, size * 0.35, size * 0.1);
+  
+  ctx.restore();
+}
+
+/**
+ * Draw helicopter
+ */
+function drawHelicopter(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  color: string,
+  darkerColor: string,
+  scale: number,
+  animPhase: number
+): void {
+  const size = 20 * scale;
+  
+  // Helicopters hover and bob slightly (don't circle as much)
+  const bob = Math.sin(animPhase * 4) * 2 * scale;
+  
+  ctx.save();
+  ctx.translate(x, y + bob);
+  
+  // Main body
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, size * 0.35, size * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = darkerColor;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Nose
+  ctx.fillStyle = darkerColor;
+  ctx.beginPath();
+  ctx.ellipse(size * 0.3, size * 0.05, size * 0.12, size * 0.1, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Cockpit glass
+  ctx.fillStyle = '#60a5fa';
+  ctx.beginPath();
+  ctx.ellipse(size * 0.2, -size * 0.02, size * 0.12, size * 0.08, 0, Math.PI * 1.2, Math.PI * 1.8);
+  ctx.fill();
+  
+  // Tail boom
+  ctx.fillStyle = color;
+  ctx.fillRect(-size * 0.55, -size * 0.04, size * 0.35, size * 0.08);
+  
+  // Tail rotor
+  ctx.fillStyle = '#444';
+  ctx.beginPath();
+  ctx.ellipse(-size * 0.55, 0, size * 0.03, size * 0.12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Main rotor (spinning blur)
+  ctx.fillStyle = 'rgba(100, 100, 100, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(0, -size * 0.15, size * 0.5, size * 0.15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Rotor hub
+  ctx.fillStyle = '#333';
+  ctx.beginPath();
+  ctx.arc(0, -size * 0.15, size * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Skids
+  ctx.strokeStyle = '#444';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.2, size * 0.2);
+  ctx.lineTo(size * 0.25, size * 0.2);
+  ctx.moveTo(-size * 0.2, size * 0.22);
+  ctx.lineTo(size * 0.25, size * 0.22);
+  ctx.stroke();
+  
+  ctx.restore();
+}
+
+/**
+ * Draw stealth bomber (B-2 style flying wing)
+ */
+function drawStealthBomber(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  color: string,
+  darkerColor: string,
+  scale: number,
+  heading: number
+): void {
+  const size = 36 * scale;
+  
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(heading);
+  
+  // Flying wing shape (no distinct fuselage)
+  ctx.fillStyle = '#1a1a2e'; // Dark stealth color
+  ctx.beginPath();
+  ctx.moveTo(size * 0.4, 0);
+  ctx.lineTo(size * 0.1, -size * 0.15);
+  ctx.lineTo(-size * 0.35, -size * 0.55);
+  ctx.lineTo(-size * 0.4, -size * 0.45);
+  ctx.lineTo(-size * 0.25, 0);
+  ctx.lineTo(-size * 0.4, size * 0.45);
+  ctx.lineTo(-size * 0.35, size * 0.55);
+  ctx.lineTo(size * 0.1, size * 0.15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#2a2a4e';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Cockpit (subtle)
+  ctx.fillStyle = '#2a3a5e';
+  ctx.beginPath();
+  ctx.ellipse(size * 0.2, 0, size * 0.1, size * 0.06, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Engine intakes (top surface)
+  ctx.fillStyle = '#0a0a1e';
+  ctx.beginPath();
+  ctx.ellipse(-size * 0.1, -size * 0.15, size * 0.04, size * 0.02, 0.3, 0, Math.PI * 2);
+  ctx.ellipse(-size * 0.1, size * 0.15, size * 0.04, size * 0.02, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Subtle panel lines
+  ctx.strokeStyle = '#2a2a3e';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(size * 0.3, 0);
+  ctx.lineTo(-size * 0.2, 0);
+  ctx.stroke();
+  
+  ctx.restore();
+}
+
+/**
+ * Draw generic aircraft (fallback)
+ */
+function drawGenericAircraft(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  color: string,
+  darkerColor: string,
+  scale: number,
+  heading: number
+): void {
+  const size = 18 * scale;
+  
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(heading);
+  
+  // Fuselage
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, size * 0.45, size * 0.15, 0, 0, Math.PI * 2);
   ctx.fill();
   
   // Wings
   ctx.fillStyle = darkerColor;
   ctx.beginPath();
-  ctx.moveTo(-width * 0.1, 0);
-  ctx.lineTo(-width * 0.15, -height * 0.5);
-  ctx.lineTo(width * 0.15, -height * 0.5);
-  ctx.lineTo(width * 0.1, 0);
+  ctx.moveTo(-size * 0.1, 0);
+  ctx.lineTo(-size * 0.15, -size * 0.4);
+  ctx.lineTo(size * 0.15, -size * 0.4);
+  ctx.lineTo(size * 0.1, 0);
   ctx.closePath();
   ctx.fill();
   
   ctx.beginPath();
-  ctx.moveTo(-width * 0.1, 0);
-  ctx.lineTo(-width * 0.15, height * 0.5);
-  ctx.lineTo(width * 0.15, height * 0.5);
-  ctx.lineTo(width * 0.1, 0);
+  ctx.moveTo(-size * 0.1, 0);
+  ctx.lineTo(-size * 0.15, size * 0.4);
+  ctx.lineTo(size * 0.15, size * 0.4);
+  ctx.lineTo(size * 0.1, 0);
   ctx.closePath();
   ctx.fill();
   
   // Tail
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.moveTo(-width * 0.4, 0);
-  ctx.lineTo(-width * 0.5, -height * 0.25);
-  ctx.lineTo(-width * 0.35, 0);
+  ctx.moveTo(-size * 0.4, 0);
+  ctx.lineTo(-size * 0.5, -size * 0.2);
+  ctx.lineTo(-size * 0.35, 0);
   ctx.closePath();
   ctx.fill();
   
-  // Engine glow (if moving)
-  if (unit.isMoving) {
-    ctx.fillStyle = 'rgba(255, 150, 50, 0.5)';
-    ctx.beginPath();
-    ctx.ellipse(-width * 0.5, 0, width * 0.08, height * 0.06, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // Cockpit
+  ctx.fillStyle = '#60a5fa';
+  ctx.beginPath();
+  ctx.ellipse(size * 0.2, -size * 0.05, size * 0.1, size * 0.06, 0, 0, Math.PI * 2);
+  ctx.fill();
   
   ctx.restore();
 }
@@ -2193,26 +2791,29 @@ export function drawRoNUnit(
     ctx.stroke();
   }
   
-  // Health bar if damaged
+  // Health bar - always visible for military units, only when damaged for civilians
   const healthPercent = unit.health / unit.maxHealth;
-  if (healthPercent < 1) {
-    const barWidth = 10;
-    const barHeight = 2;
+  const isMilitary = stats?.category !== 'civilian';
+  const showHealthBar = isMilitary || healthPercent < 1;
+  
+  if (showHealthBar) {
+    const barWidth = 14;
+    const barHeight = 3;
     const barX = centerX - barWidth / 2;
-    const barY = centerY - 12;
+    const barY = centerY - 14;
     
-    // Background
+    // Background (dark)
     ctx.fillStyle = '#1f2937';
-    ctx.fillRect(barX, barY, barWidth, barHeight);
+    ctx.fillRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
     
-    // Health fill
-    ctx.fillStyle = healthPercent > 0.5 ? '#22c55e' : healthPercent > 0.25 ? '#f59e0b' : '#ef4444';
+    // Health fill - green/yellow/red based on health
+    ctx.fillStyle = healthPercent > 0.6 ? '#22c55e' : healthPercent > 0.3 ? '#f59e0b' : '#ef4444';
     ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
     
     // Border
     ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(barX, barY, barWidth, barHeight);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
   }
 }
 

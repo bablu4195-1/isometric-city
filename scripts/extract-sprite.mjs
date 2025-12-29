@@ -45,7 +45,109 @@ const AGE_SPRITE_PACKS = {
   },
 };
 
-// Building sprite map (matching renderConfig.ts)
+// Age-specific building sprite overrides (matching renderConfig.ts AGE_BUILDING_OVERRIDES)
+const AGE_OVERRIDES = {
+  classical: {
+    city_center: { row: 5, col: 2 },
+    market: { row: 3, col: 2 },
+    library: { row: 0, col: 1 },
+    university: { row: 2, col: 0 },
+    temple: { row: 2, col: 2 },
+    senate: { row: 1, col: 4 },
+    barracks: { row: 1, col: 3 },  // Walled military compound with watchtowers
+    stable: { row: 3, col: 4 },
+    dock: { row: 4, col: 4 },
+    mine: { row: 4, col: 2 },
+    smelter: { row: 4, col: 3 },
+    granary: { row: 5, col: 0 },
+    lumber_mill: { row: 4, col: 1 },
+    factory: { row: 4, col: 0 },
+    tower: { row: 2, col: 1 },
+    fort: { row: 2, col: 4 },
+    fortress: { row: 3, col: 0 },
+    castle: { row: 0, col: 0 },
+  },
+  medieval: {
+    city_center: { row: 1, col: 0 },
+    market: { row: 2, col: 0 },
+    library: { row: 0, col: 4 },
+    university: { row: 3, col: 2 },
+    temple: { row: 5, col: 3 },
+    senate: { row: 5, col: 2 },
+    barracks: { row: 1, col: 3 },
+    stable: { row: 1, col: 2 },
+    dock: { row: 5, col: 0 },
+    mine: { row: 4, col: 2 },
+    smelter: { row: 0, col: 2 },
+    granary: { row: 4, col: 1 },
+    lumber_mill: { row: 0, col: 3 },
+    tower: { row: 0, col: 1 },
+    fort: { row: 5, col: 1 },
+    castle: { row: 0, col: 0 },
+  },
+  enlightenment: {
+    city_center: { row: 0, col: 0 },
+    market: { row: 0, col: 3 },
+    library: { row: 0, col: 4 },
+    university: { row: 2, col: 0 },
+    temple: { row: 5, col: 3 },
+    senate: { row: 5, col: 2 },
+    barracks: { row: 1, col: 4 },
+    stable: { row: 5, col: 0 },
+    dock: { row: 2, col: 4 },
+    mine: { row: 4, col: 3 },
+    smelter: { row: 3, col: 3 },
+    granary: { row: 4, col: 1 },
+    lumber_mill: { row: 2, col: 2 },
+    factory: { row: 0, col: 2 },
+    fort: { row: 5, col: 1 },
+  },
+  industrial: {
+    city_center: { row: 5, col: 2 },
+    market: { row: 3, col: 4 },
+    library: { row: 3, col: 2 },
+    university: { row: 2, col: 0 },
+    temple: { row: 1, col: 4 },
+    senate: { row: 5, col: 3 },
+    barracks: { row: 5, col: 1 },
+    stable: { row: 3, col: 1 },
+    dock: { row: 5, col: 0 },
+    mine: { row: 4, col: 2 },
+    smelter: { row: 4, col: 3 },
+    granary: { row: 4, col: 0 },
+    lumber_mill: { row: 0, col: 2 },
+    factory: { row: 0, col: 1 },
+    oil_well: { row: 2, col: 4 },
+    refinery: { row: 4, col: 4 },
+    bunker: { row: 4, col: 0 },
+    fort: { row: 0, col: 3 },
+  },
+  modern: {
+    city_center: { row: 0, col: 1 },
+    small_city: { row: 0, col: 0 },
+    large_city: { row: 0, col: 1 },
+    market: { row: 3, col: 4 },
+    library: { row: 5, col: 3 },
+    university: { row: 2, col: 0 },
+    temple: { row: 0, col: 4 },
+    senate: { row: 5, col: 2 },
+    barracks: { row: 0, col: 3 },  // Fire station (institutional building)
+    airbase: { row: 5, col: 0 },
+    dock: { row: 5, col: 0 },
+    smelter: { row: 0, col: 2 },
+    factory: { row: 4, col: 2 },
+    oil_well: { row: 4, col: 4 },
+    refinery: { row: 4, col: 3 },
+    auto_plant: { row: 1, col: 4 },
+    bunker: { row: 1, col: 3 },
+    // fort/fortress use Medieval fallback in game - not in Modern overrides
+    stable: { row: 4, col: 1 },  // Warehouse/logistics with trucks
+    granary: { row: 4, col: 1 },
+    siege_factory: { row: 4, col: 1 },
+  },
+};
+
+// Default building sprite map (fallback when age override not available)
 const BUILDING_SPRITE_MAP = {
   // City buildings
   city_center: { row: 5, col: 2 },
@@ -54,15 +156,15 @@ const BUILDING_SPRITE_MAP = {
   major_city: { row: 5, col: 2 },
 
   // Economic buildings
-  farm: { row: 5, col: 0 },
-  woodcutters_camp: { row: 3, col: 4 },
+  farm: { row: 0, col: 1 },
+  woodcutters_camp: { row: 3, col: 0 },
   granary: { row: 4, col: 0 },
-  lumber_mill: { row: 4, col: 2 },
+  lumber_mill: { row: 4, col: 1 },
   mine: { row: 4, col: 2 },
   smelter: { row: 4, col: 3 },
-  market: { row: 1, col: 3 },
-  oil_well: { row: 4, col: 3 },
-  refinery: { row: 4, col: 3 },
+  market: { row: 3, col: 2 },
+  oil_well: { row: 2, col: 4 },
+  refinery: { row: 4, col: 4 },
 
   // Knowledge buildings
   library: { row: 0, col: 1 },
@@ -71,28 +173,32 @@ const BUILDING_SPRITE_MAP = {
   senate: { row: 0, col: 0 },
 
   // Military buildings
-  barracks: { row: 2, col: 0 },
-  stable: { row: 3, col: 4 },
-  siege_factory: { row: 4, col: 2 },
+  barracks: { row: 1, col: 3 },
+  stable: { row: 1, col: 2 },
+  siege_factory: { row: 4, col: 1 },
   dock: { row: 4, col: 4 },
-  auto_plant: { row: 4, col: 3 },
-  factory: { row: 4, col: 3 },
-  airbase: { row: 3, col: 3 },
+  auto_plant: { row: 0, col: 1 },
+  factory: { row: 4, col: 2 },
+  airbase: { row: 5, col: 0 },
 
   // Defensive buildings
-  tower: { row: 1, col: 0 },
-  fort: { row: 2, col: 2 },
-  castle: { row: 0, col: 2 },
-  stockade: { row: 1, col: 0 },
-  fortress: { row: 2, col: 2 },
-  bunker: { row: 2, col: 2 },
-
-  // Entertainment
-  amphitheater: { row: 5, col: 4 },
+  tower: { row: 2, col: 1 },
+  fort: { row: 1, col: 3 },
+  castle: { row: 0, col: 0 },
+  stockade: { row: 0, col: 1 },
+  fortress: { row: 1, col: 3 },
+  bunker: { row: 4, col: 0 },
 
   // Roads
   road: { row: 3, col: 2 },
 };
+
+// Get sprite position for a building, checking age override first
+function getSpritePosition(buildingName, age) {
+  const ageOverride = AGE_OVERRIDES[age]?.[buildingName];
+  if (ageOverride) return ageOverride;
+  return BUILDING_SPRITE_MAP[buildingName];
+}
 
 // Building sizes (for multi-tile buildings)
 const BUILDING_SIZES = {
@@ -123,12 +229,14 @@ async function extractSprite(buildingName, age) {
     process.exit(1);
   }
 
-  const spritePos = BUILDING_SPRITE_MAP[buildingName];
+  const spritePos = getSpritePosition(buildingName, age);
   if (!spritePos) {
     console.error(`Unknown building: ${buildingName}`);
     console.error(`Available buildings: ${Object.keys(BUILDING_SPRITE_MAP).join(', ')}`);
     process.exit(1);
   }
+  
+  console.log(`Using age-specific position for ${age}: row=${spritePos.row}, col=${spritePos.col}`);
 
   const projectRoot = path.resolve(__dirname, '..');
   const imagePath = path.join(projectRoot, pack.src);

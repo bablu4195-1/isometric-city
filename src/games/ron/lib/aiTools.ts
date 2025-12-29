@@ -406,21 +406,30 @@ export function generateCondensedGameState(
       population: aiPlayer.population,
       populationCap: aiPlayer.populationCap,
     },
-    myUnits,
-    myBuildings,
-    enemyUnits,
-    enemyBuildings,
+    myUnits: myUnits.slice(0, 20), // Limit to save tokens
+    myBuildings: myBuildings.slice(0, 15),
+    enemyUnits: enemyUnits.slice(0, 10),
+    enemyBuildings: enemyBuildings.slice(0, 10),
     mapSize: state.gridSize,
     availableBuildingTypes,
     availableUnitTypes,
-    territoryTiles: territoryTiles.slice(0, 30), // Limit to avoid huge payloads
+    territoryTiles: territoryTiles.slice(0, 10), // Reduced to save tokens
     emptyTerritoryTiles: territoryTiles
-      .filter(t => !state.grid[t.y]?.[t.x]?.building)
-      .slice(0, 15), // Empty tiles for building
+      .filter(t => {
+        const tile = state.grid[t.y]?.[t.x];
+        if (!tile) return false;
+        if (tile.building) return false;
+        // Filter out non-buildable terrain
+        if (tile.terrain === 'water') return false;
+        if (tile.terrain === 'forest') return false;
+        if (tile.terrain === 'mountain') return false;
+        return true;
+      })
+      .slice(0, 8), // Empty tiles for building
     resourceTiles: {
-      forests: forests.slice(0, 15),
-      metalDeposits: metalDeposits.slice(0, 10),
-      oilDeposits: oilDeposits.slice(0, 10),
+      forests: forests.slice(0, 5),
+      metalDeposits: metalDeposits.slice(0, 5),
+      oilDeposits: oilDeposits.slice(0, 5),
     },
   };
 }
@@ -793,7 +802,7 @@ function getTaskForBuilding(buildingType: RoNBuildingType): string | null {
 
 /**
  * Automatically assign idle/moving citizens to economic buildings
- * This is a high-level tool that makes the AI more effective
+ * AND rebalance workers from over-saturated food to other resources
  */
 export function executeAssignIdleWorkers(
   state: RoNGameState,
@@ -805,11 +814,45 @@ export function executeAssignIdleWorkers(
   }
 
   // Find idle or moving citizens
-  const idleCitizens = state.units.filter(u => 
-    u.ownerId === aiPlayerId && 
-    u.type === 'citizen' && 
+  let idleCitizens = state.units.filter(u =>
+    u.ownerId === aiPlayerId &&
+    u.type === 'citizen' &&
     (u.task === 'idle' || u.task === 'move')
   );
+
+  // SMART REBALANCING: If food rate is high but wood/metal rate is 0, reassign some farmers
+  const foodRate = player.resourceRates.food;
+  const woodRate = player.resourceRates.wood;
+  const metalRate = player.resourceRates.metal;
+  
+  // Check if we have a wood/metal building but no production
+  const hasWoodBuilding = state.grid.flat().some(t => 
+    t?.building?.ownerId === aiPlayerId && 
+    t?.building?.type === 'woodcutters_camp' &&
+    t?.building?.constructionProgress === 100
+  );
+  const hasMineBuilding = state.grid.flat().some(t => 
+    t?.building?.ownerId === aiPlayerId && 
+    t?.building?.type === 'mine' &&
+    t?.building?.constructionProgress === 100
+  );
+  
+  // Find farmers to reassign if we have unproductive resource buildings
+  if (idleCitizens.length === 0 && ((hasWoodBuilding && woodRate === 0) || (hasMineBuilding && metalRate === 0))) {
+    // Find workers on farms
+    const farmWorkers = state.units.filter(u =>
+      u.ownerId === aiPlayerId &&
+      u.type === 'citizen' &&
+      u.task === 'gather_food'
+    );
+    
+    // Take up to 2 farmers to reassign
+    if (farmWorkers.length > 2 && foodRate > 3) {
+      const toReassign = farmWorkers.slice(0, Math.min(2, farmWorkers.length - 2));
+      // Convert them to "idle" temporarily so they get assigned
+      idleCitizens = toReassign.map(u => ({ ...u, task: 'idle' as const, taskTarget: undefined }));
+    }
+  }
 
   if (idleCitizens.length === 0) {
     return { newState: state, result: { success: true, message: 'No idle workers to assign', data: { assigned: 0 } } };
@@ -826,8 +869,9 @@ export function executeAssignIdleWorkers(
     maxWorkers: number;
   }> = [];
 
-  // Resource priority: food > wood > metal > gold > knowledge > oil
-  const resourcePriority: Record<string, number> = {
+  // DYNAMIC resource priority based on current rates
+  // If a resource rate is 0, that resource gets HIGHEST priority
+  const baseResourcePriority: Record<string, number> = {
     'gather_food': 100,
     'gather_wood': 80,
     'gather_metal': 60,
@@ -835,6 +879,18 @@ export function executeAssignIdleWorkers(
     'gather_knowledge': 20,
     'gather_oil': 10,
   };
+  
+  // Boost priority for resources with 0 production rate
+  const resourcePriority: Record<string, number> = { ...baseResourcePriority };
+  if (player.resourceRates.wood === 0) {
+    resourcePriority['gather_wood'] = 200; // Highest priority!
+  }
+  if (player.resourceRates.metal === 0) {
+    resourcePriority['gather_metal'] = 150;
+  }
+  if (player.resourceRates.food === 0) {
+    resourcePriority['gather_food'] = 200;
+  }
 
   // Scan for economic buildings
   for (let y = 0; y < state.gridSize; y++) {

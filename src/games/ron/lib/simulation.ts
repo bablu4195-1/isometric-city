@@ -23,8 +23,9 @@ const RESOURCE_GATHER_RATE = 0.5; // Base gathering per tick per worker
 
 // Border/Territory constants
 const CITY_CENTER_RADIUS = 24; // Base territory radius from city centers (3x larger for warring states style)
-const ATTRITION_DAMAGE = 0.1; // Damage per tick when in enemy territory
-const ATTRITION_TICK_INTERVAL = 20; // Apply attrition every N ticks
+const FORT_RADIUS = 10; // Smaller territory radius for forts/defensive buildings
+const ATTRITION_DAMAGE = 0.02; // Damage per tick when in enemy territory (reduced for slower attrition)
+const ATTRITION_TICK_INTERVAL = 30; // Apply attrition every N ticks (less frequent)
 
 // Auto-work constants for idle villagers
 const IDLE_AUTO_WORK_THRESHOLD = 15; // Ticks of idle before auto-assigning work
@@ -33,59 +34,67 @@ const AUTO_WORK_SEARCH_RADIUS = 20; // Tiles radius to search for nearby work (b
 // City center building types that create territory
 const CITY_CENTER_TYPES: RoNBuildingType[] = ['city_center', 'small_city', 'large_city', 'major_city'];
 
-/**
- * City center cache for performance - avoid scanning entire grid repeatedly
- */
-type CityCenter = { x: number; y: number; ownerId: string };
-let cachedCityCenters: CityCenter[] = [];
-let cityCenterCacheVersion = -1;
+// Fort/defensive building types that extend territory (smaller radius)
+const FORT_TYPES: RoNBuildingType[] = ['tower', 'stockade', 'fort', 'fortress', 'bunker', 'castle'];
 
 /**
- * Extract all city centers from the grid (call once per frame/tick, not per tile)
+ * Territory source - either a city center or a fort
  */
-export function extractCityCenters(grid: RoNTile[][], gridSize: number): CityCenter[] {
-  const centers: CityCenter[] = [];
+type TerritorySource = { x: number; y: number; ownerId: string; radius: number };
+let cachedTerritorySources: TerritorySource[] = [];
+let territoryCacheVersion = -1;
+
+/**
+ * Extract all territory sources from the grid (city centers and forts)
+ * Call once per frame/tick, not per tile for performance.
+ */
+export function extractCityCenters(grid: RoNTile[][], gridSize: number): TerritorySource[] {
+  const sources: TerritorySource[] = [];
   for (let cy = 0; cy < gridSize; cy++) {
     for (let cx = 0; cx < gridSize; cx++) {
       const tile = grid[cy]?.[cx];
-      if (!tile?.building) continue;
+      if (!tile?.building || !tile.building.ownerId) continue;
       
-      if (CITY_CENTER_TYPES.includes(tile.building.type as RoNBuildingType) && tile.building.ownerId) {
-        centers.push({ x: cx, y: cy, ownerId: tile.building.ownerId });
+      const buildingType = tile.building.type as RoNBuildingType;
+      
+      if (CITY_CENTER_TYPES.includes(buildingType)) {
+        sources.push({ x: cx, y: cy, ownerId: tile.building.ownerId, radius: CITY_CENTER_RADIUS });
+      } else if (FORT_TYPES.includes(buildingType)) {
+        sources.push({ x: cx, y: cy, ownerId: tile.building.ownerId, radius: FORT_RADIUS });
       }
     }
   }
-  return centers;
+  return sources;
 }
 
 /**
  * Get the territory owner for a specific tile position.
- * Territory is determined by proximity to city centers.
+ * Territory is determined by proximity to city centers and forts.
  * Returns the player ID who owns the territory, or null if unclaimed.
  * 
- * PERFORMANCE: Pass pre-computed cityCenters array to avoid O(n²) grid scan per call.
+ * PERFORMANCE: Pass pre-computed territorySources array to avoid O(n²) grid scan per call.
  */
 export function getTerritoryOwner(
   grid: RoNTile[][],
   gridSize: number,
   x: number,
   y: number,
-  cityCenters?: CityCenter[]
+  territorySources?: TerritorySource[]
 ): string | null {
-  // Use provided city centers or extract them (fallback for backwards compatibility)
-  const centers = cityCenters ?? extractCityCenters(grid, gridSize);
+  // Use provided sources or extract them (fallback for backwards compatibility)
+  const sources = territorySources ?? extractCityCenters(grid, gridSize);
   
   let closestOwner: string | null = null;
   let closestDistance = Infinity;
   
-  // Find closest city center
-  for (const center of centers) {
-    const dist = Math.sqrt((x - center.x) ** 2 + (y - center.y) ** 2);
+  // Find closest territory source (city center or fort)
+  for (const source of sources) {
+    const dist = Math.sqrt((x - source.x) ** 2 + (y - source.y) ** 2);
     
-    // Only count if within city center radius
-    if (dist <= CITY_CENTER_RADIUS && dist < closestDistance) {
+    // Only count if within this source's radius
+    if (dist <= source.radius && dist < closestDistance) {
       closestDistance = dist;
-      closestOwner = center.ownerId;
+      closestOwner = source.ownerId;
     }
   }
   
@@ -1013,21 +1022,29 @@ function updateUnits(state: RoNGameState): RoNGameState {
       }
     }
     
-    // Auto-attack for military units: if idle or moving (not already attacking/gathering),
-    // check for nearby enemies and engage them
+    // Auto-attack for military units: ALWAYS check for nearby enemies and engage them
+    // Military units should fight back when attacked and engage enemy units automatically
     if (isMilitaryUnit(updatedUnit)) {
-      const isIdleOrMoving = updatedUnit.task === 'idle' || 
-                             (updatedUnit.task === undefined && !updatedUnit.taskTarget);
+      const nearbyEnemies = findNearbyEnemies(updatedUnit, state.units, AUTO_ATTACK_RANGE);
       
-      if (isIdleOrMoving || (updatedUnit.isMoving && updatedUnit.task !== 'attack')) {
-        const nearbyEnemies = findNearbyEnemies(updatedUnit, state.units, AUTO_ATTACK_RANGE);
+      if (nearbyEnemies.length > 0) {
+        const currentTarget = updatedUnit.taskTarget;
+        const closestEnemy = nearbyEnemies[0];
         
-        if (nearbyEnemies.length > 0) {
-          const target = nearbyEnemies[0];
+        // Check if we should switch to attacking this enemy:
+        // 1. Not currently attacking anything
+        // 2. Current target is dead or out of range
+        // 3. A closer enemy is attacking us (prioritize threats)
+        const shouldEngage = 
+          updatedUnit.task !== 'attack' || 
+          !currentTarget ||
+          (typeof currentTarget === 'string' && !state.units.find(u => u.id === currentTarget && u.health > 0));
+        
+        if (shouldEngage) {
           updatedUnit.task = 'attack';
-          updatedUnit.taskTarget = target.id;
-          updatedUnit.targetX = target.x;
-          updatedUnit.targetY = target.y;
+          updatedUnit.taskTarget = closestEnemy.id;
+          updatedUnit.targetX = closestEnemy.x;
+          updatedUnit.targetY = closestEnemy.y;
           updatedUnit.isMoving = true;
           // Reset cooldown so unit can attack immediately when in range
           updatedUnit.attackCooldown = 0;
@@ -1114,10 +1131,10 @@ function updateUnits(state: RoNGameState): RoNGameState {
           const unitIndex = state.units.findIndex(u => u.id === unit.id);
           
           if (updatedUnit.task === 'gather_food') {
-            // Farm workers should be ON or around the farm tile
-            // Broader spread so workers visibly work the surrounding area
+            // Farm workers should be ON the farm tile (within bounds)
+            // Keep spread tight to stay within the 1x1 farm sprite
             const angle = Math.random() * Math.PI * 2;
-            const spreadDist = 0.3 + Math.random() * 1.2; // 0.3 to 1.5 tiles from center
+            const spreadDist = 0.1 + Math.random() * 0.35; // 0.1 to 0.45 tiles from center (stays within farm)
             updatedUnit.x = targetPos.x + 0.5 + Math.cos(angle) * spreadDist;
             updatedUnit.y = targetPos.y + 0.5 + Math.sin(angle) * spreadDist;
           } else if (updatedUnit.task === 'gather_wood' || updatedUnit.task === 'gather_metal') {
@@ -1130,6 +1147,13 @@ function updateUnits(state: RoNGameState): RoNGameState {
             // Library/market/oil workers spread around the building
             const angle = Math.random() * Math.PI * 2;
             const spreadDist = 0.4 + Math.random() * 1.0; // 0.4 to 1.4 tiles from center
+            updatedUnit.x = targetPos.x + 0.5 + Math.cos(angle) * spreadDist;
+            updatedUnit.y = targetPos.y + 0.5 + Math.sin(angle) * spreadDist;
+          } else if (updatedUnit.task === 'gather_fish') {
+            // Fishing boats should stay ON the fishing spot (water tile)
+            // Keep spread very tight to stay within water boundaries
+            const angle = Math.random() * Math.PI * 2;
+            const spreadDist = 0.1 + Math.random() * 0.25; // 0.1 to 0.35 tiles from center
             updatedUnit.x = targetPos.x + 0.5 + Math.cos(angle) * spreadDist;
             updatedUnit.y = targetPos.y + 0.5 + Math.sin(angle) * spreadDist;
           } else if (updatedUnit.task === 'attack') {
@@ -1198,7 +1222,7 @@ function updateUnits(state: RoNGameState): RoNGameState {
         // Find target
         if (typeof updatedUnit.taskTarget === 'string') {
           // Target is a unit ID
-          const targetUnit = state.units.find(u => u.id === updatedUnit.taskTarget);
+          const targetUnit = state.units.find(u => u.id === updatedUnit.taskTarget && u.health > 0);
           if (targetUnit) {
             const dist = Math.sqrt(
               (targetUnit.x - updatedUnit.x) ** 2 + 
@@ -1224,6 +1248,23 @@ function updateUnits(state: RoNGameState): RoNGameState {
               updatedUnit.targetX = targetUnit.x;
               updatedUnit.targetY = targetUnit.y;
               updatedUnit.isMoving = true;
+            }
+          } else {
+            // Target is dead or doesn't exist - find new target or go idle
+            const nearbyEnemies = findNearbyEnemies(updatedUnit, state.units, AUTO_ATTACK_RANGE);
+            if (nearbyEnemies.length > 0) {
+              // Switch to new target
+              const newTarget = nearbyEnemies[0];
+              updatedUnit.taskTarget = newTarget.id;
+              updatedUnit.targetX = newTarget.x;
+              updatedUnit.targetY = newTarget.y;
+              updatedUnit.isMoving = true;
+              updatedUnit.attackCooldown = 0; // Can attack immediately
+            } else {
+              // No more enemies nearby - go idle
+              updatedUnit.task = 'idle';
+              updatedUnit.taskTarget = undefined;
+              updatedUnit.isMoving = false;
             }
           }
         } else if ('x' in updatedUnit.taskTarget) {

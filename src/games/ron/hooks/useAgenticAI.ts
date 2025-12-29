@@ -1,20 +1,19 @@
 /**
- * Rise of Nations - Agentic AI Hook
+ * Rise of Nations - Agentic AI Hook (Simplified)
  * 
- * React hook that manages the agentic AI system.
- * The AI runs continuously and controls its own pacing via wait_ticks.
- * Only re-triggers if the AI stops or encounters errors.
+ * Just calls the AI every few seconds - no complex state management.
  */
 
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { RoNGameState } from '../types/game';
+import { RoNGameState, RoNPlayer } from '../types/game';
+import { Unit } from '../types/units';
 
 export interface AgenticAIConfig {
   enabled: boolean;
   aiPlayerId: string;
-  actionInterval: number; // Base ticks between AI turns (AI can override with wait_ticks)
+  actionInterval: number;
 }
 
 export interface AgenticAIMessage {
@@ -33,14 +32,8 @@ export interface UseAgenticAIResult {
   clearMessages: () => void;
 }
 
-// Backoff configuration
-const MIN_POLL_INTERVAL_MS = 15000;  // 15 seconds minimum between polls
-const MAX_POLL_INTERVAL_MS = 120000; // 2 minutes max backoff
-const RATE_LIMIT_BACKOFF_MULTIPLIER = 2;
+const POLL_INTERVAL_MS = 10000; // 10 seconds between AI calls (agent needs time to think)
 
-/**
- * Hook to run the agentic AI system
- */
 export function useAgenticAI(
   gameState: RoNGameState,
   setGameState: (updater: (prev: RoNGameState) => RoNGameState) => void,
@@ -49,55 +42,26 @@ export function useAgenticAI(
   const [messages, setMessages] = useState<AgenticAIMessage[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [thoughts, setThoughts] = useState<string | null>(null);
   
-  // Refs to track state without causing re-renders
-  const lastActionTickRef = useRef(0);
   const isProcessingRef = useRef(false);
-  const responseIdRef = useRef<string | undefined>(undefined);
   const latestStateRef = useRef(gameState);
+  const responseIdRef = useRef<string | undefined>(undefined);
   
-  // Backoff and pacing refs
-  const currentBackoffRef = useRef(MIN_POLL_INTERVAL_MS);
-  const waitUntilTickRef = useRef(0); // AI-requested wait via wait_ticks tool
-  const consecutiveErrorsRef = useRef(0);
-  const lastPollTimeRef = useRef(0);
-  
-  // Keep latest state ref updated
   useEffect(() => {
     latestStateRef.current = gameState;
   }, [gameState]);
 
-  // Process an AI turn
   const processAITurn = useCallback(async () => {
-    if (isProcessingRef.current) return;
-    if (!config.enabled) return;
+    if (isProcessingRef.current || !config.enabled) return;
     
     const state = latestStateRef.current;
-    const now = Date.now();
-    
-    // Check if game is paused or over
     if (state.gameSpeed === 0 || state.gameOver) return;
     
-    // Respect minimum poll interval (prevents hammering API)
-    if (now - lastPollTimeRef.current < currentBackoffRef.current) return;
-    
-    // Respect AI-requested wait (from wait_ticks tool)
-    if (state.tick < waitUntilTickRef.current) return;
-    
-    // Check if enough ticks have passed since last action
-    if (state.tick - lastActionTickRef.current < config.actionInterval) return;
-    
-    // Check if AI player exists and isn't defeated
     const aiPlayer = state.players.find(p => p.id === config.aiPlayerId);
     if (!aiPlayer || aiPlayer.isDefeated) return;
 
     isProcessingRef.current = true;
     setIsThinking(true);
-    lastActionTickRef.current = state.tick;
-    lastPollTimeRef.current = now;
-
-    console.log('[Agentic AI] Requesting turn at tick', state.tick, '(backoff:', currentBackoffRef.current, 'ms)');
 
     try {
       const response = await fetch('/api/ron-ai', {
@@ -112,58 +76,22 @@ export function useAgenticAI(
 
       const result = await response.json();
 
-      // Check for rate limit error
-      if (result.error?.includes('rate_limit') || response.status === 429) {
-        consecutiveErrorsRef.current++;
-        currentBackoffRef.current = Math.min(
-          currentBackoffRef.current * RATE_LIMIT_BACKOFF_MULTIPLIER,
-          MAX_POLL_INTERVAL_MS
-        );
-        console.warn('[Agentic AI] Rate limited, backing off to', currentBackoffRef.current, 'ms');
-        setLastError(`Rate limited - waiting ${Math.round(currentBackoffRef.current / 1000)}s`);
-        return;
-      }
-
-      console.log('[Agentic AI] Response received:', {
-        success: !result.error,
-        messagesCount: result.messages?.length || 0,
-        hasThoughts: !!result.thoughts,
-        waitTicks: result.waitTicks,
-      });
-
       if (result.error) {
-        console.error('[Agentic AI] Error:', result.error);
-        consecutiveErrorsRef.current++;
-        // Increase backoff on errors
-        currentBackoffRef.current = Math.min(
-          currentBackoffRef.current * 1.5,
-          MAX_POLL_INTERVAL_MS
-        );
         setLastError(result.error);
+        // Reset response ID on errors to start fresh
+        if (result.error.includes('400') || result.error.includes('invalid')) {
+          responseIdRef.current = undefined;
+        }
       } else {
-        // Success - reset backoff
-        consecutiveErrorsRef.current = 0;
-        currentBackoffRef.current = MIN_POLL_INTERVAL_MS;
         setLastError(null);
         
-        // Update response ID for conversation continuity
+        // Save response ID for conversation continuity
         if (result.responseId) {
           responseIdRef.current = result.responseId;
         }
-
-        // Respect AI-requested wait ticks
-        if (result.waitTicks && result.waitTicks > 0) {
-          waitUntilTickRef.current = state.tick + result.waitTicks;
-          console.log('[Agentic AI] AI requested wait until tick', waitUntilTickRef.current);
-        }
-
-        // Store AI thoughts
-        if (result.thoughts) {
-          setThoughts(result.thoughts);
-        }
-
-        // Add any messages from the AI
-        if (result.messages && result.messages.length > 0) {
+        
+        // Add messages
+        if (result.messages?.length > 0) {
           setMessages(prev => [
             ...prev,
             ...result.messages.map((msg: string) => ({
@@ -175,65 +103,120 @@ export function useAgenticAI(
           ]);
         }
 
-        // Update game state with AI's changes
-        if (result.newState && result.newState.tick) {
-          setGameState(() => result.newState);
-          latestStateRef.current = result.newState;
+        // Apply AI changes to CURRENT state (not replace with old state)
+        // The AI modifies units, buildings, resources - we need to merge those changes
+        if (result.newState?.tick) {
+          setGameState((currentState) => {
+            // Don't apply if the response is too old (more than 500 ticks behind)
+            if (currentState.tick - result.newState.tick > 500) {
+              console.log('[AI] Discarding stale response from tick', result.newState.tick, 'current:', currentState.tick);
+              return currentState;
+            }
+            
+            // Merge AI changes into current state
+            // Key changes: units (positions, tasks, new units), buildings, player resources
+            const aiState = result.newState;
+            
+            // Find new units added by AI (queued units that don't exist in current state)
+            const currentUnitIds = new Set(currentState.units.map((u: Unit) => u.id));
+            const newUnits = aiState.units.filter((u: Unit) => !currentUnitIds.has(u.id));
+            
+            // Apply AI's unit task changes to current units
+            const updatedUnits = currentState.units.map(unit => {
+              const aiUnit = aiState.units.find((u: Unit) => u.id === unit.id);
+              if (aiUnit && aiUnit.ownerId === aiState.players.find((p: RoNPlayer) => p.type === 'ai')?.id) {
+                // Only update AI-owned units' tasks/targets
+                return {
+                  ...unit,
+                  task: aiUnit.task,
+                  taskTarget: aiUnit.taskTarget,
+                  targetX: aiUnit.targetX,
+                  targetY: aiUnit.targetY,
+                };
+              }
+              return unit;
+            });
+            
+            // Merge new buildings from AI state
+            const mergedGrid = currentState.grid.map((row, y) =>
+              row.map((tile, x) => {
+                const aiTile = aiState.grid[y]?.[x];
+                // If AI added a building that doesn't exist in current state, add it
+                if (aiTile?.building && !tile.building) {
+                  return { ...tile, building: aiTile.building, ownerId: aiTile.ownerId };
+                }
+                // If AI queued units at a building, update the queue
+                if (tile.building && aiTile?.building && tile.building.type === aiTile.building.type) {
+                  return {
+                    ...tile,
+                    building: {
+                      ...tile.building,
+                      queuedUnits: aiTile.building.queuedUnits,
+                    },
+                  };
+                }
+                return tile;
+              })
+            );
+            
+            // Update AI player resources (they may have spent resources)
+            const mergedPlayers = currentState.players.map(player => {
+              const aiPlayer = aiState.players.find((p: RoNPlayer) => p.id === player.id);
+              if (aiPlayer && player.type === 'ai') {
+                return {
+                  ...player,
+                  resources: aiPlayer.resources,
+                  age: aiPlayer.age,
+                };
+              }
+              return player;
+            });
+            
+            const merged = {
+              ...currentState,
+              units: [...updatedUnits, ...newUnits],
+              grid: mergedGrid,
+              players: mergedPlayers,
+            };
+            
+            latestStateRef.current = merged;
+            return merged;
+          });
         }
       }
     } catch (error) {
-      console.error('[Agentic AI] Network error:', error);
-      consecutiveErrorsRef.current++;
-      currentBackoffRef.current = Math.min(
-        currentBackoffRef.current * 1.5,
-        MAX_POLL_INTERVAL_MS
-      );
-      setLastError(error instanceof Error ? error.message : 'Network error');
+      setLastError(error instanceof Error ? error.message : 'Error');
     } finally {
       isProcessingRef.current = false;
       setIsThinking(false);
     }
-  }, [config.enabled, config.aiPlayerId, config.actionInterval, setGameState]);
+  }, [config.enabled, config.aiPlayerId, setGameState]);
 
-  // Run AI turn check on a timer - checks every 5 seconds but respects backoff
   useEffect(() => {
     if (!config.enabled) return;
 
-    // Poll at 5 second intervals, but processAITurn respects the backoff
-    const interval = setInterval(() => {
-      processAITurn();
-    }, 5000);
-
-    // Trigger initial turn
-    const initialDelay = setTimeout(() => {
-      processAITurn();
-    }, 3000);
+    const interval = setInterval(processAITurn, POLL_INTERVAL_MS);
+    const initial = setTimeout(processAITurn, 2000);
 
     return () => {
       clearInterval(interval);
-      clearTimeout(initialDelay);
+      clearTimeout(initial);
     };
   }, [config.enabled, processAITurn]);
 
-  // Mark a message as read
   const markMessageRead = useCallback((messageId: string) => {
-    setMessages(prev =>
-      prev.map(msg =>
-        msg.id === messageId ? { ...msg, isRead: true } : msg
-      )
-    );
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId ? { ...msg, isRead: true } : msg
+    ));
   }, []);
 
-  // Clear all messages
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-  }, []);
+  const clearMessages = useCallback(() => setMessages([]), []);
 
   return {
     messages,
     isThinking,
     lastError,
-    thoughts,
+    thoughts: null,
     markMessageRead,
     clearMessages,
   };

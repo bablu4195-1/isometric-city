@@ -179,16 +179,18 @@ export const AGE_BUILDING_OVERRIDES: Record<Age, Partial<Record<RoNBuildingType,
     city_center: { row: 5, col: 2 },
     // Market - Row 3, Col 2 is open-air market with stalls
     market: { row: 3, col: 2 },
-    // Library - Row 0, Col 3 is smaller temple/academy
-    library: { row: 0, col: 3 },
+    // Library - Row 0, Col 1 is Parthenon-style temple - impressive!
+    library: { row: 0, col: 1 },
     // University - Row 2, Col 0 is theater/amphitheater (cultural/education)
     university: { row: 2, col: 0 },
     // Temple - Row 2, Col 2 is fire temple/sanctuary
     temple: { row: 2, col: 2 },
-    // Senate - Row 1, Col 3 is large government building
-    senate: { row: 1, col: 3 },
-    // Barracks - Row 2, Col 3 is Colosseum (training arena)
-    barracks: { row: 2, col: 3 },
+    // Senate - Row 1, Col 4 is Greek temple with columns (civic building)
+    senate: { row: 1, col: 4 },
+    // Barracks - Row 1, Col 3 is WALLED MILITARY COMPOUND with watchtowers!
+    barracks: { row: 1, col: 3 },
+    // Stable - Row 3, Col 4 is small temple/cart area
+    stable: { row: 3, col: 4 },
     // Dock - Row 4, Col 4 is dock with crane
     dock: { row: 4, col: 4 },
     // Mine - Row 4, Col 2 is quarry
@@ -197,10 +199,18 @@ export const AGE_BUILDING_OVERRIDES: Record<Age, Partial<Record<RoNBuildingType,
     smelter: { row: 4, col: 3 },
     // Granary - Row 5, Col 0 is warehouse
     granary: { row: 5, col: 0 },
+    // Lumber mill - Row 4, Col 1 is industrial complex
+    lumber_mill: { row: 4, col: 1 },
+    // Factory - Row 4, Col 0 is workshop
+    factory: { row: 4, col: 0 },
+    // Siege factory - Row 4, Col 1 is industrial complex
+    siege_factory: { row: 4, col: 1 },
     // Tower - Row 2, Col 1 is watchtower
     tower: { row: 2, col: 1 },
     // Fort - Row 2, Col 4 is lighthouse/tower
     fort: { row: 2, col: 4 },
+    // Fortress - Row 3, Col 0 is Pantheon-style rotunda
+    fortress: { row: 3, col: 0 },
     // Castle - Row 0, Col 0 is large palace
     castle: { row: 0, col: 0 },
   },
@@ -277,18 +287,18 @@ export const AGE_BUILDING_OVERRIDES: Record<Age, Partial<Record<RoNBuildingType,
     city_center: { row: 5, col: 2 },
     // Market - Row 3, Col 4 is storefront shop
     market: { row: 3, col: 4 },
-    // Library - Row 0, Col 0 is institutional building
-    library: { row: 0, col: 0 },
+    // Library - Row 3, Col 2 is grand Victorian mansion with turret - distinctive!
+    library: { row: 3, col: 2 },
     // University - Row 2, Col 0 is large Victorian school
     university: { row: 2, col: 0 },
     // Temple - Row 1, Col 4 is church with steeple
     temple: { row: 1, col: 4 },
     // Senate - Row 5, Col 3 is classical columns building
     senate: { row: 5, col: 3 },
-    // Barracks - Row 0, Col 2 is red brick building
-    barracks: { row: 0, col: 2 },
-    // Stable - Row 3, Col 3 is cottage (rustic)
-    stable: { row: 3, col: 3 },
+    // Barracks - Row 5, Col 1 is large hangar/military depot
+    barracks: { row: 5, col: 1 },
+    // Stable - Row 3, Col 1 is Victorian house (carriage house feel)
+    stable: { row: 3, col: 1 },
     // Dock - Row 5, Col 0 is train station
     dock: { row: 5, col: 0 },
     // Mine - Row 4, Col 2 is mining complex
@@ -297,8 +307,8 @@ export const AGE_BUILDING_OVERRIDES: Record<Age, Partial<Record<RoNBuildingType,
     smelter: { row: 4, col: 3 },
     // Granary - Row 4, Col 0 is warehouse
     granary: { row: 4, col: 0 },
-    // Lumber mill - Row 4, Col 2 is industrial complex
-    lumber_mill: { row: 4, col: 2 },
+    // Lumber mill - Row 0, Col 2 is red brick industrial building
+    lumber_mill: { row: 0, col: 2 },
     // Factory - Row 0, Col 1 is large factory - PERFECT!
     factory: { row: 0, col: 1 },
     // Oil well - Row 2, Col 4 is oil derrick - PERFECT!
@@ -309,32 +319,38 @@ export const AGE_BUILDING_OVERRIDES: Record<Age, Partial<Record<RoNBuildingType,
     siege_factory: { row: 4, col: 1 },
     // Bunker - Row 4, Col 0 is warehouse/fortified
     bunker: { row: 4, col: 0 },
+    // Fort - Row 0, Col 3 is gray brick building (fortified look)
+    fort: { row: 0, col: 3 },
   },
   modern: {
     // City - Row 0, Col 1 is tall skyscraper
     city_center: { row: 0, col: 1 },
     // Small city - Row 0, Col 0 is glass office tower
     small_city: { row: 0, col: 0 },
-    // Market - Row 4, Col 0 is gas station/convenience
-    market: { row: 4, col: 0 },
-    // Library - Row 2, Col 0 is neoclassical building
-    library: { row: 2, col: 0 },
-    // University - Row 0, Col 3 is brick institution
-    university: { row: 0, col: 3 },
+    // Large city - Row 0, Col 1 dark skyscraper
+    large_city: { row: 0, col: 1 },
+    // Market - Row 3, Col 4 is shop building
+    market: { row: 3, col: 4 },
+    // Library - Row 5, Col: 3 is classical columns building
+    library: { row: 5, col: 3 },
+    // University - Row 2, Col 0 is government/campus complex
+    university: { row: 2, col: 0 },
     // Temple - Row 0, Col 4 is modern church
     temple: { row: 0, col: 4 },
     // Senate - Row 5, Col 2 is domed capitol - PERFECT!
     senate: { row: 5, col: 2 },
-    // Barracks - Row 5, Col 1 is military radar base
-    barracks: { row: 5, col: 1 },
-    // Dock - Row 5, Col 0 is airport (can repurpose)
-    dock: { row: 4, col: 1 },
-    // Mine - Row 4, Col: 2 is factory (no mine visible)
+    // Barracks - Row 0, Col 3 is FIRE STATION (institutional brick building)
+    barracks: { row: 0, col: 3 },
+    // Airbase - Row 5, Col 0 is AIRPORT with runway! Use native sprite
+    airbase: { row: 5, col: 0 },
+    // Dock - Row 5, col 0 is airport area (or use different)
+    dock: { row: 5, col: 0 },
+    // Mine - Row 4, Col 2 is factory (repurpose)
     mine: { row: 4, col: 2 },
-    // Smelter - Row 2, Col 2 is nuclear plant / Row 0, Col 2 is power plant
+    // Smelter - Row 0, Col 2 is power plant
     smelter: { row: 0, col: 2 },
-    // Granary - Row 3, Col 4 is warehouse
-    granary: { row: 3, col: 4 },
+    // Granary - Row 4, Col 1 is warehouse/logistics
+    granary: { row: 4, col: 1 },
     // Factory - Row 4, Col 2 is smokestack factory
     factory: { row: 4, col: 2 },
     // Oil well - Row 4, Col 4 is refinery towers
@@ -343,13 +359,13 @@ export const AGE_BUILDING_OVERRIDES: Record<Age, Partial<Record<RoNBuildingType,
     refinery: { row: 4, col: 3 },
     // Auto plant - Row 1, Col 4 is brick factory
     auto_plant: { row: 1, col: 4 },
-    // Siege factory - Row 4, Col 1 is hangar
+    // Siege factory - Row 4, Col 1 is hangar/warehouse
     siege_factory: { row: 4, col: 1 },
-    // Bunker - Row 5, Col 1 is military base
-    bunker: { row: 5, col: 1 },
-    // Fort/Fortress - Row 5, Col 1 is military compound
-    fort: { row: 5, col: 1 },
-    fortress: { row: 5, col: 1 },
+    // Bunker - Row 1, Col 3 police station (fortified)
+    bunker: { row: 1, col: 3 },
+    // Fort/Fortress - Use Medieval fallback (stone fortress) - removed from overrides
+    // Stable - Row 4, Col 1 is warehouse/logistics depot with trucks!
+    stable: { row: 4, col: 1 },
   },
 };
 
@@ -392,25 +408,81 @@ export const ISOCITY_AIRPORT_SHEET = '/assets/buildings/airport.webp';
 // 3x3 buildings need larger offsets (like IsoCity mall at -1.5)
 // 1x1 economic buildings have smaller offsets
 export const BUILDING_VERTICAL_OFFSETS: Partial<Record<RoNBuildingType, number>> = {
+  // City centers (3x3 buildings)
   city_center: -1.2,
   small_city: -1.2,
-  large_city: -1.3,
-  major_city: -1.4,
-  farm: -0.2,           // 1x1 - small offset
-  woodcutters_camp: -0.2, // 1x1
-  lumber_mill: -0.25,   // 1x1
-  mine: -0.25,          // 1x1
-  barracks: -0.4,
-  library: -0.35,
-  university: -0.55,
-  market: -0.4,
-  tower: -0.2,
+  large_city: -1.5,     // Skyscrapers are tall
+  major_city: -1.6,
+  
+  // Economic buildings (1x1)
+  farm: -0.2,
+  woodcutters_camp: -0.5, // Shifted up 0.3 more
+  lumber_mill: -0.4,
+  mine: -0.3,
+  granary: -0.35,
+  
+  // Industrial buildings (tall smokestacks!)
+  smelter: -1.0,        // Blast furnace is very tall
+  factory: -0.6,        // Smokestacks extend high
+  oil_well: -1.2,       // Oil derricks are tall
+  refinery: -1.3,       // Tall distillation columns
+  oil_platform: -0.8,
+  
+  // Knowledge buildings
+  library: -0.8,
+  university: -0.8,     // Shifted up for better cropping
+  temple: -0.4,
+  senate: -0.5,
+  
+  // Military buildings
+  barracks: -0.8,       // Increased for better cropping
+  stable: -0.7,         // Increased
+  siege_factory: -0.8,  // Increased for lower cropping
+  auto_plant: -0.5,
+  
+  // Defensive buildings
+  tower: -0.5,          // Shifted up 0.2
   fort: -1.2,
   fortress: -1.2,
   castle: -1.2,
-  factory: -0.3,
+  bunker: -0.35,
+  stockade: -0.4,
+  
+  // Special buildings
   airbase: -1.5,
-  dock: -1.5,
+  dock: -1.8,           // Shifted up for lower cropping
+  market: -0.7,         // Increased for better cropping
+};
+
+// Age-specific vertical offset adjustments (added to base offset)
+// Use this for buildings that need different offsets in different eras
+export const AGE_VERTICAL_OFFSETS: Partial<Record<Age, Partial<Record<RoNBuildingType, number>>>> = {
+  classical: {
+    library: -0.5,      // Crop lower for Classical library
+    market: -0.5,       // Crop lower - asset above bleeding through
+    dock: -0.3,         // Additional shift for dock
+    lumber_mill: 0.5,   // Shift DOWN 0.5 tiles (user requested)
+    barracks: -0.3,     // Crop lower
+    stable: -0.3,       // Crop lower
+    tower: -0.2,        // Shift up 0.2
+  },
+  medieval: {
+    market: -0.2,       // Additional shift for market
+    city_center: -0.2,  // Additional shift for city center
+  },
+  enlightenment: {
+    market: 0.2,        // Shift DOWN (well-cropped, just needs position adjustment)
+  },
+  industrial: {
+    market: -1.0,       // Much lower cropping needed - still seeing blue base
+    library: -0.8,      // Crop way lower at top and bottom
+    stable: -0.5,       // Crop lower at top and bottom
+    fort: 0.6,          // Shift DOWN 0.6 tiles
+    siege_factory: -0.3, // Crop 0.3 tiles lower
+  },
+  modern: {
+    market: -0.8,       // Needs grey base + lower cropping
+  },
 };
 
 // Scale adjustments per building type
@@ -428,6 +500,13 @@ export const BUILDING_SCALES: Partial<Record<RoNBuildingType, number>> = {
   fortress: 0.7,
   fort: 0.8,
   airbase: 1.0,
+};
+
+// Age-specific scale adjustments (multiplied with base scale)
+export const AGE_BUILDING_SCALES: Partial<Record<Age, Partial<Record<RoNBuildingType, number>>>> = {
+  medieval: {
+    fort: 1.3,  // Scale up by 30%
+  },
 };
 
 // Get sprite coordinates for a building

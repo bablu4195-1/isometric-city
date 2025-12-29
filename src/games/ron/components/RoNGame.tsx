@@ -233,22 +233,22 @@ function GameContent({ onExit }: { onExit?: () => void }) {
           {/* MiniMap with viewport indicator */}
           <RoNMiniMap onNavigate={handleNavigate} viewport={viewport} />
           
+          {/* Agentic AI Message Panel - positioned left of minimap */}
+          {agenticAI.enabled && (
+            <AIMessagePanel
+              messages={agenticAI.messages}
+              isThinking={agenticAI.isThinking}
+              onMarkRead={markAIMessageRead}
+              onClear={clearAIMessages}
+            />
+          )}
+          
           {/* Building Info Panel - absolute within canvas area like IsoCity's TileInfoPanel */}
           {selectedBuildingPos && (
             <RoNBuildingPanel onClose={() => {}} />
           )}
         </div>
       </div>
-      
-      {/* Agentic AI Message Panel */}
-      {agenticAI.enabled && (
-        <AIMessagePanel
-          messages={agenticAI.messages}
-          isThinking={agenticAI.isThinking}
-          onMarkRead={markAIMessageRead}
-          onClear={clearAIMessages}
-        />
-      )}
     </div>
   );
 }

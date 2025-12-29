@@ -48,17 +48,22 @@ Farms now use age-appropriate sprites from the IsoCity farm sheet:
 |----------|-----|-----|-------------------|
 | city_center | 5 | 2 | Large temple |
 | market | 3 | 2 | Open-air market stalls |
-| library | 0 | 3 | Small temple/academy |
+| **library** | **0** | **1** | **Parthenon-style temple - impressive!** |
 | university | 2 | 0 | Theater/amphitheater |
 | temple | 2 | 2 | Fire temple/sanctuary |
 | senate | 1 | 3 | Large government building |
 | barracks | 2 | 3 | Colosseum (training arena) |
+| stable | 3 | 4 | Small temple/cart area |
 | dock | 4 | 4 | Dock with crane |
 | mine | 4 | 2 | Quarry |
 | smelter | 4 | 3 | Kilns/furnaces |
 | granary | 5 | 0 | Warehouse |
+| lumber_mill | 4 | 1 | Industrial complex |
+| factory | 4 | 0 | Workshop |
+| siege_factory | 4 | 1 | Industrial complex |
 | tower | 2 | 1 | Watchtower |
 | fort | 2 | 4 | Lighthouse/tower |
+| fortress | 3 | 0 | Pantheon-style rotunda |
 | castle | 0 | 0 | Large palace |
 
 ---
@@ -115,21 +120,23 @@ Farms now use age-appropriate sprites from the IsoCity farm sheet:
 |----------|-----|-----|-------------------|
 | city_center | 5 | 2 | Grand city hall with clock tower |
 | market | 3 | 4 | Storefront shop |
-| library | 0 | 0 | Institutional building |
+| **library** | **3** | **2** | **Victorian mansion with turret - distinctive!** |
 | university | 2 | 0 | Large Victorian school |
 | temple | 1 | 4 | Church with steeple |
 | senate | 5 | 3 | Classical columns building |
-| barracks | 0 | 2 | Red brick building |
-| stable | 3 | 3 | Cottage (rustic) |
+| **barracks** | **5** | **1** | **Large hangar/military depot** |
+| stable | 3 | 1 | Victorian house (carriage house) |
 | dock | 5 | 0 | Train station |
 | mine | 4 | 2 | Mining complex |
 | smelter | 4 | 3 | Steel facility |
 | granary | 4 | 0 | Warehouse |
+| lumber_mill | 0 | 2 | Red brick industrial building |
 | **factory** | **0** | **1** | **Large factory - PERFECT!** |
 | **oil_well** | **2** | **4** | **Oil derrick - PERFECT!** |
 | **refinery** | **4** | **4** | **Industrial refinery** |
 | siege_factory | 4 | 1 | Factory |
 | bunker | 4 | 0 | Warehouse/fortified |
+| fort | 0 | 3 | Gray brick building (fortified) |
 
 ---
 
@@ -139,20 +146,24 @@ Farms now use age-appropriate sprites from the IsoCity farm sheet:
 |----------|-----|-----|-------------------|
 | city_center | 0 | 1 | Tall skyscraper |
 | small_city | 0 | 0 | Glass office tower |
-| market | 4 | 0 | Gas station/convenience |
-| library | 2 | 0 | Neoclassical building |
+| large_city | 0 | 1 | Dark skyscraper |
+| market | 1 | 3 | Parking garage/commercial |
+| **library** | **5** | **3** | **Classical columns building** |
 | university | 0 | 3 | Brick institution |
 | temple | 0 | 4 | Modern church |
 | **senate** | **5** | **2** | **Domed capitol - PERFECT!** |
 | barracks | 5 | 1 | Military radar base |
+| **airbase** | **5** | **0** | **AIRPORT with runway - native sprite!** |
 | dock | 4 | 1 | Large hangar |
 | smelter | 0 | 2 | Power plant |
 | factory | 4 | 2 | Smokestack factory |
 | **oil_well** | **4** | **4** | **Refinery towers** |
 | refinery | 4 | 3 | Heavy industrial |
 | auto_plant | 1 | 4 | Brick factory |
+| siege_factory | 4 | 1 | Hangar |
 | bunker | 5 | 1 | Military base |
 | fort/fortress | 5 | 1 | Military compound |
+| stable | 3 | 1 | Suburban house (garage) |
 
 ---
 

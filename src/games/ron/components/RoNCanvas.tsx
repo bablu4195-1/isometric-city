@@ -8,7 +8,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useRoN } from '../context/RoNContext';
-import { AGE_SPRITE_PACKS, BUILDING_SPRITE_MAP, BUILDING_VERTICAL_OFFSETS, BUILDING_SCALES, PLAYER_COLORS, getAgeSpritePosition } from '../lib/renderConfig';
+import { AGE_SPRITE_PACKS, BUILDING_SPRITE_MAP, BUILDING_VERTICAL_OFFSETS, AGE_VERTICAL_OFFSETS, BUILDING_SCALES, PLAYER_COLORS, getAgeSpritePosition } from '../lib/renderConfig';
 import { BUILDING_STATS } from '../types/buildings';
 import { AGE_ORDER } from '../types/ages';
 import { RoNBuildingType } from '../types/buildings';
@@ -183,8 +183,8 @@ function isAdjacentToOil(
   return false;
 }
 
-// Type for pre-computed city centers
-type CityCenter = { x: number; y: number; ownerId: string };
+// Type for pre-computed city centers (matches TerritorySource from simulation.ts)
+type CityCenter = { x: number; y: number; ownerId: string; radius: number };
 
 /**
  * Check if a building placement is valid at the given position.
@@ -275,6 +275,26 @@ const ISOCITY_PARKS_PATH = '/assets/sprites_red_water_new_parks.png';
 const ISOCITY_CONSTRUCTION_PATH = '/assets/sprites_red_water_new_construction.png';
 const ISOCITY_FARM_PATH = '/assets/sprites_red_water_new_farm.webp';
 const ISOCITY_AIRPORT_PATH = '/assets/buildings/airport.webp';
+// Medieval sheet for fallback tower/fort sprites in later ages
+const MEDIEVAL_SHEET_PATH = '/assets/ages/medeival.png';
+// Dense/high-rise buildings sheet for modern city centers
+const ISOCITY_DENSE_PATH = '/assets/sprites_red_water_new_dense.png';
+
+// High-rise building positions for modern city centers (from dense sheet)
+// These are the best office/commercial high-rises in the 5x6 grid
+const MODERN_HIGHRISES: { row: number; col: number }[] = [
+  { row: 0, col: 0 }, // Twisted modern tower
+  { row: 0, col: 1 }, // Green vertical garden (Bosco Verticale)
+  { row: 0, col: 2 }, // Curved glass tower
+  { row: 0, col: 3 }, // Tall office tower
+  { row: 1, col: 0 }, // Modern mixed-use
+  { row: 1, col: 2 }, // Glass office with pool
+  { row: 1, col: 3 }, // Art deco tower
+  { row: 2, col: 0 }, // Dark glass skyscraper
+  { row: 2, col: 1 }, // Twin dark towers
+  { row: 2, col: 2 }, // Gray glass high-rise
+  { row: 3, col: 4 }, // Hotel/office tower
+];
 
 // Farm sprite configuration - use first row of 5 crops randomly
 const FARM_SPRITE_COLS = 5;
@@ -623,6 +643,22 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete, onViewportCh
         setImageLoadVersion(v => v + 1);
       } catch (error) {
         console.error('Failed to load IsoCity airport sprite:', error);
+      }
+
+      // Load Medieval sheet for fallback tower/fort sprites
+      try {
+        await loadSpriteImage(MEDIEVAL_SHEET_PATH, true);
+        setImageLoadVersion(v => v + 1);
+      } catch (error) {
+        console.error('Failed to load Medieval sheet for towers:', error);
+      }
+
+      // Load dense/high-rise sheet for modern city centers
+      try {
+        await loadSpriteImage(ISOCITY_DENSE_PATH, true);
+        setImageLoadVersion(v => v + 1);
+      } catch (error) {
+        console.error('Failed to load dense buildings sheet:', error);
       }
 
       // Load age sprite sheets
@@ -1770,57 +1806,27 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete, onViewportCh
             continue; // Skip regular sprite drawing for dock
           }
           
-          // Special handling for farm - use IsoCity farm sprite sheet with age-specific sprites
-          if (buildingType === 'farm') {
-            const farmSprite = getCachedImage(ISOCITY_FARM_PATH, true);
-            if (farmSprite) {
-              const farmTileWidth = farmSprite.width / FARM_SPRITE_COLS;
-              const farmTileHeight = farmSprite.height / FARM_SPRITE_ROWS;
-
-              // Get age-specific farm position
-              // - Classical: Vineyard (row 3, col 1)
-              // - Medieval: Windmill (row 2, col 4) - ICONIC!
-              // - Enlightenment: Storage barn (row 2, col 2)
-              // - Industrial: Dairy farm with silo (row 1, col 0)
-              // - Modern: Greenhouse (row 3, col 4)
-              const farmPositions: Record<string, { row: number; col: number }> = {
-                classical: { row: 3, col: 1 },
-                medieval: { row: 2, col: 4 },
-                enlightenment: { row: 2, col: 2 },
-                industrial: { row: 1, col: 0 },
-                modern: { row: 3, col: 4 },
-              };
-              const farmPos = farmPositions[playerAge] || { row: 0, col: 1 };
+          // Special handling for Modern city centers - use random high-rise from dense sheet
+          const isCityCenter = buildingType === 'city_center' || buildingType === 'small_city' || 
+                               buildingType === 'large_city' || buildingType === 'major_city';
+          if (isCityCenter && playerAge === 'modern') {
+            const denseSprite = getCachedImage(ISOCITY_DENSE_PATH, true);
+            if (denseSprite) {
+              const denseCols = 5;
+              const denseRows = 6;
+              const denseTileWidth = denseSprite.width / denseCols;
+              const denseTileHeight = denseSprite.height / denseRows;
               
-              const sx = farmPos.col * farmTileWidth;
-              const sy = farmPos.row * farmTileHeight;
-
-              // 1x1 farm - scale to fit tile nicely
-              const scale = 0.9;
-              const destWidth = TILE_WIDTH * scale;
-              const destHeight = destWidth * (farmTileHeight / farmTileWidth);
-
-              // Vertical offset for 1x1 building
-              const buildingOffset = -0.2 * TILE_HEIGHT;
-
-              const drawX = screenX + TILE_WIDTH / 2 - destWidth / 2;
-              const drawY = screenY + TILE_HEIGHT - destHeight + buildingOffset;
-
-              // Farms are instant - no construction phase, always show farm sprite
-              ctx.drawImage(
-                farmSprite,
-                sx, sy, farmTileWidth, farmTileHeight,
-                drawX, drawY, destWidth, destHeight
-              );
-            }
-            continue; // Skip regular sprite drawing for farm
-          }
-          
-          // Special handling for airbase - use IsoCity airport sprite
-          if (buildingType === 'airbase') {
-            const airportSprite = getCachedImage(ISOCITY_AIRPORT_PATH, true);
-            if (airportSprite) {
-              // Get building size from BUILDING_STATS
+              // Use position to get a consistent random high-rise for this building
+              // Hash based on grid position so same building always gets same sprite
+              const buildingHash = (x * 7919 + y * 6271) ^ (x * y);
+              const highRiseIndex = Math.abs(buildingHash) % MODERN_HIGHRISES.length;
+              const highRisePos = MODERN_HIGHRISES[highRiseIndex];
+              
+              const sx = highRisePos.col * denseTileWidth;
+              const sy = highRisePos.row * denseTileHeight;
+              
+              // Get building size
               const buildingStats = BUILDING_STATS[buildingType];
               const buildingSize = buildingStats?.size || { width: 2, height: 2 };
               
@@ -1832,24 +1838,215 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete, onViewportCh
               const drawPosX = screenX + screenOffsetX;
               const drawPosY = screenY + screenOffsetY;
               
-              // Scale airport to fit
-              const scale = 1.2;
-              const destWidth = TILE_WIDTH * scale * buildingSize.width;
-              const destHeight = destWidth * (airportSprite.height / airportSprite.width);
+              // Scale based on city type (larger cities = bigger buildings)
+              const cityScales: Record<string, number> = {
+                city_center: 1.0,
+                small_city: 1.1,
+                large_city: 1.25,
+                major_city: 1.4,
+              };
+              const scale = (cityScales[buildingType] || 1.0) * 1.1;
+              const destWidth = TILE_WIDTH * scale * 2;
+              const destHeight = destWidth * (denseTileHeight / denseTileWidth);
               
-              // Vertical offset
-              const buildingOffset = -0.6 * TILE_HEIGHT;
+              // Vertical positioning
+              const footprintDepth = buildingSize.width + buildingSize.height - 2;
+              const verticalPush = footprintDepth * TILE_HEIGHT * 0.25;
+              
+              // These high-rises are tall, need more offset
+              const buildingOffset = -0.8 * TILE_HEIGHT;
               
               const drawX = drawPosX + TILE_WIDTH / 2 - destWidth / 2;
-              const drawY = drawPosY + TILE_HEIGHT - destHeight + buildingOffset;
+              const drawY = drawPosY + TILE_HEIGHT - destHeight + verticalPush + buildingOffset;
               
               ctx.drawImage(
-                airportSprite,
-                0, 0, airportSprite.width, airportSprite.height,
+                denseSprite,
+                sx, sy, denseTileWidth, denseTileHeight,
+                drawX, drawY, destWidth, destHeight
+              );
+              
+              continue; // Skip regular sprite drawing for modern city center
+            }
+          }
+          
+          // Special handling for farm - use IsoCity farm sprite sheet with age-specific sprites
+          if (buildingType === 'farm') {
+            const farmSprite = getCachedImage(ISOCITY_FARM_PATH, true);
+            if (farmSprite) {
+              const farmTileWidth = farmSprite.width / FARM_SPRITE_COLS;
+              const farmTileHeight = farmSprite.height / FARM_SPRITE_ROWS;
+
+              // Get age-specific farm position and cropping
+              // - Classical: Vineyard (row 3, col 1) - needs top crop
+              // - Medieval: Windmill (row 2, col 4) - ICONIC!
+              // - Enlightenment: Storage barn (row 2, col 2) - needs small top crop
+              // - Industrial: Dairy farm with silo (row 1, col 0)
+              // - Modern: Greenhouse (row 3, col 4)
+              const farmPositions: Record<string, { row: number; col: number; cropTop?: number; offsetUp?: number }> = {
+                classical: { row: 3, col: 1, cropTop: 0.12 },  // Crop 12% from top
+                medieval: { row: 2, col: 4, cropTop: 0.05 },
+                enlightenment: { row: 2, col: 2, cropTop: 0.08, offsetUp: 0.2 },
+                industrial: { row: 1, col: 0 },
+                modern: { row: 3, col: 4 },
+              };
+              const farmConfig = farmPositions[playerAge] || { row: 0, col: 1 };
+              
+              // Apply cropping to avoid asset above bleeding through
+              const cropTop = (farmConfig.cropTop || 0) * farmTileHeight;
+              const sx = farmConfig.col * farmTileWidth;
+              const sy = farmConfig.row * farmTileHeight + cropTop;
+              const srcHeight = farmTileHeight - cropTop;
+
+              // 1x1 farm - scale to fit tile nicely
+              const scale = 0.9;
+              const destWidth = TILE_WIDTH * scale;
+              const destHeight = destWidth * (srcHeight / farmTileWidth);
+
+              // Vertical offset for 1x1 building
+              const baseOffset = -0.2 * TILE_HEIGHT;
+              const extraOffset = (farmConfig.offsetUp || 0) * TILE_HEIGHT;
+              const buildingOffset = baseOffset - extraOffset;
+
+              const drawX = screenX + TILE_WIDTH / 2 - destWidth / 2;
+              const drawY = screenY + TILE_HEIGHT - destHeight + buildingOffset;
+
+              // Farms are instant - no construction phase, always show farm sprite
+              ctx.drawImage(
+                farmSprite,
+                sx, sy, farmTileWidth, srcHeight,
                 drawX, drawY, destWidth, destHeight
               );
             }
-            continue; // Skip regular sprite drawing for airbase
+            continue; // Skip regular sprite drawing for farm
+          }
+          
+          // Special handling for airbase
+          // Modern age has native airport sprite at (5,0), use IsoCity for other ages
+          if (buildingType === 'airbase') {
+            // Check if we have age-specific sprite (Modern has native airport)
+            const ageAirbasePos = getAgeSpritePosition('airbase', playerAge);
+            
+            if (ageAirbasePos && spriteSheet) {
+              // Use age-specific sprite (Modern age has proper airport)
+              // Let it fall through to regular sprite rendering
+            } else {
+              // Use IsoCity airport sprite for pre-modern ages
+              const airportSprite = getCachedImage(ISOCITY_AIRPORT_PATH, true);
+              if (airportSprite) {
+                // Get building size from BUILDING_STATS
+                const buildingStats = BUILDING_STATS[buildingType];
+                const buildingSize = buildingStats?.size || { width: 2, height: 2 };
+
+                // Calculate draw position for multi-tile building
+                const frontmostOffsetX = buildingSize.width - 1;
+                const frontmostOffsetY = buildingSize.height - 1;
+                const screenOffsetX = (frontmostOffsetX - frontmostOffsetY) * (TILE_WIDTH / 2);
+                const screenOffsetY = (frontmostOffsetX + frontmostOffsetY) * (TILE_HEIGHT / 2);
+                const drawPosX = screenX + screenOffsetX;
+                const drawPosY = screenY + screenOffsetY;
+
+                // Scale airport to fit
+                const scale = 1.2;
+                const destWidth = TILE_WIDTH * scale * buildingSize.width;
+                const destHeight = destWidth * (airportSprite.height / airportSprite.width);
+
+                // Vertical offset
+                const buildingOffset = -0.6 * TILE_HEIGHT;
+
+                const drawX = drawPosX + TILE_WIDTH / 2 - destWidth / 2;
+                const drawY = drawPosY + TILE_HEIGHT - destHeight + buildingOffset;
+
+                ctx.drawImage(
+                  airportSprite,
+                  0, 0, airportSprite.width, airportSprite.height,
+                  drawX, drawY, destWidth, destHeight
+                );
+              }
+              continue; // Skip regular sprite drawing for airbase (using IsoCity)
+            }
+          }
+          
+          // Special handling for tower and fort in Modern/Industrial/Enlightenment - use Medieval sprites
+          // These ages have water towers instead of defensive towers, and poor fort sprites
+          const needsMedievalFallback = 
+            (buildingType === 'tower' || buildingType === 'fort' || buildingType === 'fortress') && 
+            (playerAge === 'modern' || playerAge === 'industrial' || playerAge === 'enlightenment');
+          
+          if (needsMedievalFallback) {
+            const medievalSheet = getCachedImage(MEDIEVAL_SHEET_PATH, true);
+            if (medievalSheet) {
+              // Medieval sheet is 5x6 grid
+              const medCols = 5;
+              const medRows = 6;
+              const medTileWidth = medievalSheet.width / medCols;
+              const medTileHeight = medievalSheet.height / medRows;
+              
+              // Medieval sprite positions for tower and fort
+              // Tower: (0,1) - Stone defensive tower with battlements
+              // Fort: (5,1) - Stone fortress compound
+              const medievalPositions: Record<string, { row: number; col: number }> = {
+                tower: { row: 0, col: 1 },
+                fort: { row: 5, col: 1 },
+                fortress: { row: 5, col: 1 },
+              };
+              const medPos = medievalPositions[buildingType] || { row: 0, col: 1 };
+              
+              const sx = medPos.col * medTileWidth;
+              const sy = medPos.row * medTileHeight;
+              
+              // Get building size
+              const buildingStats = BUILDING_STATS[buildingType];
+              const buildingSize = buildingStats?.size || { width: 1, height: 1 };
+              const isMultiTile = buildingSize.width > 1 || buildingSize.height > 1;
+              
+              // Calculate draw position
+              let drawPosX = screenX;
+              let drawPosY = screenY;
+              
+              if (isMultiTile) {
+                const frontmostOffsetX = buildingSize.width - 1;
+                const frontmostOffsetY = buildingSize.height - 1;
+                const screenOffsetX = (frontmostOffsetX - frontmostOffsetY) * (TILE_WIDTH / 2);
+                const screenOffsetY = (frontmostOffsetX + frontmostOffsetY) * (TILE_HEIGHT / 2);
+                drawPosX = screenX + screenOffsetX;
+                drawPosY = screenY + screenOffsetY;
+              }
+              
+              // Scale like other buildings
+              const baseScale = (BUILDING_SCALES[buildingType] || 1) * 1.0;
+              const sizeScale = isMultiTile ? Math.max(buildingSize.width, buildingSize.height) : 1;
+              const scaleMultiplier = baseScale * sizeScale;
+              
+              const destWidth = TILE_WIDTH * 1.2 * scaleMultiplier;
+              const aspectRatio = medTileHeight / medTileWidth;
+              const destHeight = destWidth * aspectRatio;
+              
+              // Vertical positioning
+              let verticalPush: number;
+              if (isMultiTile) {
+                const footprintDepth = buildingSize.width + buildingSize.height - 2;
+                verticalPush = footprintDepth * TILE_HEIGHT * 0.25;
+              } else {
+                verticalPush = destHeight * 0.15;
+              }
+              
+              // Apply building-specific vertical offset (base + age-specific)
+              const baseVertOffset = BUILDING_VERTICAL_OFFSETS[buildingType] ?? 0;
+              const ageVertOffset = AGE_VERTICAL_OFFSETS[playerAge]?.[buildingType] ?? 0;
+              const vertOffset = baseVertOffset + ageVertOffset;
+              verticalPush += vertOffset * TILE_HEIGHT;
+
+              const drawX = drawPosX + TILE_WIDTH / 2 - destWidth / 2;
+              const drawY = drawPosY + TILE_HEIGHT - destHeight + verticalPush;
+
+              ctx.drawImage(
+                medievalSheet,
+                sx, sy, medTileWidth, medTileHeight,
+                drawX, drawY, destWidth, destHeight
+              );
+              
+              continue; // Skip regular sprite drawing
+            }
           }
           
           if (spriteSheet) {
@@ -1900,28 +2097,52 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete, onViewportCh
                 verticalPush = destHeight * 0.15;
               }
               
-              // Apply building-specific vertical offset
-              const vertOffset = BUILDING_VERTICAL_OFFSETS[buildingType] ?? 0;
+              // Apply building-specific vertical offset (base + age-specific)
+              const baseVertOffset = BUILDING_VERTICAL_OFFSETS[buildingType] ?? 0;
+              const ageVertOffset = AGE_VERTICAL_OFFSETS[playerAge]?.[buildingType] ?? 0;
+              const vertOffset = baseVertOffset + ageVertOffset;
               verticalPush += vertOffset * TILE_HEIGHT;
-              
+
               const drawX = drawPosX + TILE_WIDTH / 2 - destWidth / 2;
               const drawY = drawPosY + TILE_HEIGHT - destHeight + verticalPush;
-              
+
               // Use construction sprite for buildings under construction
               const isUnderConstruction = tile.building.constructionProgress < 100;
               const constructionSprite = getCachedImage(ISOCITY_CONSTRUCTION_PATH, true);
               
               if (isUnderConstruction && constructionSprite) {
-                // Use IsoCity construction sprite sheet (same layout as regular sprites)
-                // The construction sheet has the same 5x6 grid layout
+                // Use IsoCity construction sprite sheet with FIXED positions
+                // The construction sheet has the same 5x6 grid layout as IsoCity sprites
+                // We use generic construction/scaffolding sprites, NOT age-sheet positions
                 const constrCols = 5;
                 const constrRows = 6;
                 const constrTileWidth = constructionSprite.width / constrCols;
                 const constrTileHeight = constructionSprite.height / constrRows;
                 
-                // Use the same sprite position but from the construction sheet
-                const constrSx = spritePos.col * constrTileWidth;
-                const constrSy = spritePos.row * constrTileHeight;
+                // Map building types to appropriate IsoCity construction sprites
+                // Based on building size and category:
+                // - Small buildings (1x1): Use row 0, col 2 (small residential)
+                // - Medium buildings (2x2): Use row 2, col 0 (medium house)
+                // - Large buildings (3x3): Use row 4, col 3 (commercial/industrial)
+                // - Military: Use row 3, col 1 (office/institutional)
+                let constrRow = 2;
+                let constrCol = 0;
+                
+                const buildingStats = BUILDING_STATS[buildingType];
+                const bSize = buildingStats?.size || { width: 1, height: 1 };
+                const isLarge = bSize.width >= 3 || bSize.height >= 3;
+                const isSmall = bSize.width <= 1 && bSize.height <= 1;
+                
+                if (isSmall) {
+                  constrRow = 0; constrCol = 2; // Small house construction
+                } else if (isLarge) {
+                  constrRow = 4; constrCol = 3; // Large building construction
+                } else {
+                  constrRow = 2; constrCol = 0; // Medium building construction
+                }
+                
+                const constrSx = constrCol * constrTileWidth;
+                const constrSy = constrRow * constrTileHeight;
                 
                 ctx.drawImage(
                   constructionSprite,
