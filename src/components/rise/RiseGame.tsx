@@ -33,6 +33,13 @@ export default function RiseGame() {
   const ai = state.players.find(p => p.id === 'ai');
   const idleCycleRef = React.useRef(0);
   const selectArmyRef = React.useRef(0);
+  const underAttack = React.useMemo(
+    () =>
+      state.gameStatus === 'playing' &&
+      (state.buildings.some(b => b.ownerId === state.localPlayerId && b.hp < b.maxHp) ||
+        state.units.some(u => u.ownerId === state.localPlayerId && u.hp < u.maxHp)),
+    [state.buildings, state.units, state.localPlayerId, state.gameStatus]
+  );
 
   const panCamera = React.useCallback((dx: number, dy: number) => {
     setOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
@@ -267,6 +274,11 @@ export default function RiseGame() {
             >
               Restart
             </button>
+            {underAttack && (
+              <span className="px-2 py-1 text-xs rounded-md bg-rose-600/40 text-rose-100 border border-rose-500/50">
+                Under attack!
+              </span>
+            )}
             <button
               className="px-2 py-1 text-xs rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200"
               onClick={() => {
