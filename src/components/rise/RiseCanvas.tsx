@@ -230,6 +230,24 @@ export function RiseCanvas({
       drawDiamond(ctx, sx, sy, TW, TH, valid ? 'rgba(34,197,94,0.35)' : 'rgba(248,113,113,0.35)', valid ? '#22c55e' : '#ef4444');
     }
 
+    // Last damage ping (fade over 8s)
+    if (state.lastDamageAt) {
+      const age = state.elapsedSeconds - state.lastDamageAt.time;
+      if (age <= 8) {
+        const { x: sx, y: sy } = gridToScreen(state.lastDamageAt.x, state.lastDamageAt.y, offset);
+        const alpha = Math.max(0, 1 - age / 8);
+        const radius = 26 + age * 2;
+        ctx.strokeStyle = `rgba(239,68,68,${alpha})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(sx, sy - 8, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(sx, sy - 8, radius * 0.6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
     // Last command marker
     if (lastCommand) {
       const { x: sx, y: sy } = gridToScreen(lastCommand.x, lastCommand.y, offset);
