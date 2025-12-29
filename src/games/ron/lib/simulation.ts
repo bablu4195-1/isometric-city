@@ -152,24 +152,27 @@ function updateBuildings(state: RoNGameState): RoNGameState {
       const building = tile.building;
       let updatedBuilding = { ...building };
       
-      // Construction progress
+      // Construction progress - buildings auto-construct, builders speed it up
       if (building.constructionProgress < 100) {
-        // Check if there's a worker building this
-        const hasBuilder = state.units.some(
+        // Count builders assigned to this building
+        const builderCount = state.units.filter(
           u => u.task === 'build' && 
                u.taskTarget && 
                typeof u.taskTarget === 'object' &&
                'x' in u.taskTarget &&
                u.taskTarget.x === x && 
-               u.taskTarget.y === y
-        );
+               u.taskTarget.y === y &&
+               !u.isMoving
+        ).length;
         
-        if (hasBuilder) {
-          updatedBuilding.constructionProgress = Math.min(
-            100,
-            building.constructionProgress + CONSTRUCTION_SPEED
-          );
-        }
+        // Base construction speed + bonus for each builder
+        const baseSpeed = CONSTRUCTION_SPEED * 0.5; // Half speed auto-build
+        const builderBonus = builderCount * CONSTRUCTION_SPEED;
+        
+        updatedBuilding.constructionProgress = Math.min(
+          100,
+          building.constructionProgress + baseSpeed + builderBonus
+        );
       }
       
       // Unit production
@@ -372,11 +375,6 @@ function runAI(state: RoNGameState): RoNGameState {
 
     // Random chance to take an action each tick
     if (Math.random() > actionChance) continue;
-
-    // Log AI activity periodically
-    if (state.tick % 50 === 0) {
-      console.log(`AI ${player.name} (${difficulty}): resources=`, player.resources, 'units=', state.units.filter(u => u.ownerId === player.id).length);
-    }
 
     // AI decision priorities - try multiple actions each tick
     const decisions = [

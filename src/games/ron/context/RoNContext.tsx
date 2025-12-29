@@ -6,6 +6,7 @@
 'use client';
 
 import React, { createContext, useContext, useCallback, useEffect, useState, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import {
   RoNGameState,
   RoNTool,
@@ -22,6 +23,9 @@ import { simulateRoNTick } from '../lib/simulation';
 interface RoNContextValue {
   state: RoNGameState;
   latestStateRef: React.RefObject<RoNGameState>;
+  
+  // SEPARATE building selection state (not affected by simulation)
+  selectedBuildingPos: { x: number; y: number } | null;
   
   // Tool actions
   setTool: (tool: RoNTool) => void;
@@ -64,6 +68,9 @@ const RoNContext = createContext<RoNContextValue | null>(null);
 
 export function RoNProvider({ children }: { children: React.ReactNode }) {
   
+  // SEPARATE state for building selection - NOT touched by simulation at all
+  const [selectedBuildingPos, setSelectedBuildingPos] = useState<{ x: number; y: number } | null>(null);
+  
   // Initialize with a default 2-player game (1 human vs 1 AI)
   const [state, setState] = useState<RoNGameState>(() => 
     createInitialRoNGameState(50, [
@@ -93,7 +100,6 @@ export function RoNProvider({ children }: { children: React.ReactNode }) {
     const timer = setInterval(() => {
       setState(currentState => {
         // Capture current UI state BEFORE simulation
-        const currentSelectedBuilding = currentState.selectedBuildingPos;
         const currentSelectedUnits = currentState.selectedUnitIds;
         const currentTool = currentState.selectedTool;
         const currentPanel = currentState.activePanel;
@@ -104,9 +110,9 @@ export function RoNProvider({ children }: { children: React.ReactNode }) {
         const simulatedState = simulateRoNTick(currentState);
         
         // Restore UI state that simulation shouldn't touch
+        // NOTE: selectedBuildingPos is now in SEPARATE state, not affected by this
         const newState = {
           ...simulatedState,
-          selectedBuildingPos: currentSelectedBuilding,
           selectedUnitIds: currentSelectedUnits,
           selectedTool: currentTool,
           activePanel: currentPanel,
@@ -247,19 +253,19 @@ export function RoNProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
   
-  // Building selection
+  // Building selection - uses SEPARATE state that simulation can't touch
   const selectBuilding = useCallback((pos: { x: number; y: number } | null) => {
-    setState(prev => {
-      // Deselect all units when selecting a building
-      const updatedUnits = pos ? prev.units.map(u => ({ ...u, isSelected: false })) : prev.units;
-      
-      return {
+    // Update the separate building selection state
+    setSelectedBuildingPos(pos);
+    
+    // Also update main state for unit deselection
+    if (pos) {
+      setState(prev => ({
         ...prev,
-        selectedBuildingPos: pos,
-        selectedUnitIds: pos ? [] : prev.selectedUnitIds,
-        units: updatedUnits,
-      };
-    });
+        selectedUnitIds: [],
+        units: prev.units.map(u => ({ ...u, isSelected: false })),
+      }));
+    }
   }, []);
   
   // Place building
@@ -511,6 +517,7 @@ export function RoNProvider({ children }: { children: React.ReactNode }) {
   const value: RoNContextValue = {
     state,
     latestStateRef,
+    selectedBuildingPos,  // SEPARATE state for building selection
     setTool,
     setSpeed,
     setActivePanel,

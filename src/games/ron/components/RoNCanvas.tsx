@@ -37,12 +37,55 @@ import {
   WATER_ASSET_PATH,
 } from '@/components/game/shared';
 
-// Extend window for debug logging
-declare global {
-  interface Window {
-    _ronUnitsLogged?: boolean;
+/**
+ * Find the origin tile of a multi-tile building by searching backwards from a clicked position.
+ * This allows clicking on any part of a 2x2, 3x3, etc. building to select it.
+ */
+function findBuildingOrigin(
+  gridX: number,
+  gridY: number,
+  grid: import('../types/game').RoNTile[][]
+): { originX: number; originY: number; buildingType: string } | null {
+  const maxSize = 4; // Maximum building size to check
+
+  // Check if this tile itself has a building
+  const tile = grid[gridY]?.[gridX];
+  if (tile?.building && tile.building.type !== 'empty' && tile.building.type !== 'grass' && tile.building.type !== 'water') {
+    return { originX: gridX, originY: gridY, buildingType: tile.building.type };
   }
+
+  // Search backwards to find if this tile is part of a larger building
+  for (let dy = 0; dy < maxSize; dy++) {
+    for (let dx = 0; dx < maxSize; dx++) {
+      const originX = gridX - dx;
+      const originY = gridY - dy;
+
+      if (originX < 0 || originY < 0) continue;
+
+      const originTile = grid[originY]?.[originX];
+      if (!originTile?.building) continue;
+
+      const buildingType = originTile.building.type as RoNBuildingType;
+      if (buildingType === 'empty' || buildingType === 'grass' || buildingType === 'water') continue;
+
+      const stats = BUILDING_STATS[buildingType];
+      if (!stats) continue;
+
+      const { width, height } = stats.size;
+
+      // Check if the clicked position falls within this building's footprint
+      if (gridX >= originX && gridX < originX + width &&
+          gridY >= originY && gridY < originY + height) {
+        return { originX, originY, buildingType };
+      }
+    }
+  }
+
+  return null;
 }
+
+// IsoCity sprite sheet path for trees
+const ISOCITY_SPRITE_PATH = '/assets/sprites_red_water_new.png';
 
 interface RoNCanvasProps {
   navigationTarget?: { x: number; y: number } | null;
@@ -107,6 +150,14 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
         console.error('Failed to load water texture:', error);
       }
       
+      // Load IsoCity sprite sheet for trees
+      try {
+        await loadSpriteImage(ISOCITY_SPRITE_PATH, true);
+        setImageLoadVersion(v => v + 1);
+      } catch (error) {
+        console.error('Failed to load IsoCity sprites:', error);
+      }
+      
       // Load age sprite sheets
       const imagesToLoad = Object.values(AGE_SPRITE_PACKS).map(pack => pack.src);
       
@@ -158,18 +209,9 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
         const gameState = latestStateRef.current;
         const targetTile = gameState.grid[gridY]?.[gridX];
         
-        console.log('Right-click action:', { 
-          gridX, gridY, 
-          building: targetTile?.building?.type, 
-          ownerId: targetTile?.ownerId,
-          currentPlayerId: gameState.currentPlayerId,
-          selectedUnits: state.selectedUnitIds.length
-        });
-        
         if (targetTile?.building) {
           // Check if it's an enemy building - attack
           if (targetTile.ownerId && targetTile.ownerId !== gameState.currentPlayerId) {
-            console.log('Attacking enemy building');
             attackTarget({ x: gridX, y: gridY });
           } 
           // Check if it's our own economic building - assign gather task
@@ -192,11 +234,9 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
             }
             
             if (gatherTask) {
-              console.log('Assigning gather task:', gatherTask);
               assignTask(gatherTask as import('../types/units').UnitTask, { x: gridX, y: gridY });
             } else {
               // It's our building but not economic - just move near it
-              console.log('Moving to friendly building');
               moveSelectedUnits(gridX, gridY);
             }
           } else {
@@ -205,7 +245,6 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
           }
         } else {
           // No building - just move
-          console.log('Moving to empty tile');
           moveSelectedUnits(gridX, gridY);
         }
       }
@@ -339,26 +378,22 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
           const gx = Math.floor(gridX);
           const gy = Math.floor(gridY);
           
-          // Check clicked tile and surrounding tiles for buildings (since visuals are offset)
-          let foundBuilding: { x: number; y: number; tile: typeof gameState.grid[0][0] } | null = null;
+          // Use findBuildingOrigin to handle multi-tile buildings (like IsoCity)
+          // This searches backwards to find if this tile is part of a larger building
+          const origin = findBuildingOrigin(gx, gy, gameState.grid);
           
-          // Check in order: exact tile, then nearby tiles
-          const checkOffsets = [[0, 0], [0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [-1, 1], [1, -1], [-1, -1]];
-          for (const [dx, dy] of checkOffsets) {
-            const tx = gx + dx;
-            const ty = gy + dy;
-            const tile = gameState.grid[ty]?.[tx];
-            if (tile?.building && 
-                (tile.ownerId === gameState.currentPlayerId || 
-                 tile.building.ownerId === gameState.currentPlayerId)) {
-              foundBuilding = { x: tx, y: ty, tile };
-              break;
+          if (origin) {
+            // Verify ownership before selecting
+            const originTile = gameState.grid[origin.originY]?.[origin.originX];
+            if (originTile?.ownerId === gameState.currentPlayerId ||
+                originTile?.building?.ownerId === gameState.currentPlayerId) {
+              selectBuilding({ x: origin.originX, y: origin.originY });
+              selectUnits([]);
+            } else {
+              // Building exists but belongs to enemy - don't select, just deselect
+              selectUnits([]);
+              selectBuilding(null);
             }
-          }
-          
-          if (foundBuilding) {
-            selectBuilding({ x: foundBuilding.x, y: foundBuilding.y });
-            selectUnits([]);
           } else {
             selectUnits([]);
             selectBuilding(null);
@@ -379,17 +414,6 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
           offsetRef.current.x / zoomRef.current,
           offsetRef.current.y / zoomRef.current
         );
-        
-        // Debug logging
-        const gameState = latestStateRef.current;
-        console.log('Box selection:', {
-          screenStart: { startX, startY },
-          screenEnd: { endX, endY },
-          gridStart: startGrid,
-          gridEnd: endGrid,
-          units: gameState.units.map(u => ({ id: u.id, x: u.x, y: u.y, ownerId: u.ownerId })),
-          currentPlayerId: gameState.currentPlayerId,
-        });
         
         selectUnitsInArea(
           { x: startGrid.gridX, y: startGrid.gridY },
@@ -540,18 +564,54 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
               ctx.lineWidth = 0.5;
               ctx.stroke();
             } else if (tile.forestDensity > 0) {
-              // Dark green for forest
-              ctx.fillStyle = '#166534';
-              ctx.beginPath();
-              ctx.moveTo(screenX + TILE_WIDTH / 2, screenY);
-              ctx.lineTo(screenX + TILE_WIDTH, screenY + TILE_HEIGHT / 2);
-              ctx.lineTo(screenX + TILE_WIDTH / 2, screenY + TILE_HEIGHT);
-              ctx.lineTo(screenX, screenY + TILE_HEIGHT / 2);
-              ctx.closePath();
-              ctx.fill();
-              ctx.strokeStyle = '#14532d';
-              ctx.lineWidth = 0.5;
-              ctx.stroke();
+              // Draw base grass tile for forest
+              drawGroundTile(ctx, screenX, screenY, 'none', currentZoom, false);
+              
+              // Draw trees on forest tiles using IsoCity's tree sprite
+              const isoCitySprite = getCachedImage(ISOCITY_SPRITE_PATH, true);
+              if (isoCitySprite) {
+                // Tree sprite is at row 3, col 0 in IsoCity's 5x6 grid
+                const treeCols = 5;
+                const treeRows = 6;
+                const treeTileWidth = isoCitySprite.width / treeCols;
+                const treeTileHeight = isoCitySprite.height / treeRows;
+                const treeSx = 0 * treeTileWidth;  // col 0
+                const treeSy = 3 * treeTileHeight; // row 3
+                
+                // Number of trees based on forest density (1-4 trees)
+                const numTrees = Math.min(4, Math.floor(tile.forestDensity / 25) + 1);
+                
+                // Tree positions within the tile (deterministic based on position)
+                const treePositions = [
+                  { dx: 0.5, dy: 0.5 },   // center
+                  { dx: 0.25, dy: 0.35 }, // top-left
+                  { dx: 0.75, dy: 0.35 }, // top-right
+                  { dx: 0.5, dy: 0.7 },   // bottom-center
+                ];
+                
+                // Tree size
+                const treeScale = 0.5;
+                const treeDestWidth = TILE_WIDTH * treeScale;
+                const treeAspect = treeTileHeight / treeTileWidth;
+                const treeDestHeight = treeDestWidth * treeAspect;
+                
+                for (let t = 0; t < numTrees; t++) {
+                  const pos = treePositions[t];
+                  // Use tile position to create slight variation
+                  const seed = (x * 31 + y * 17 + t * 7) % 100;
+                  const offsetX = (seed % 10 - 5) * 0.02 * TILE_WIDTH;
+                  const offsetY = (Math.floor(seed / 10) - 5) * 0.02 * TILE_HEIGHT;
+                  
+                  const treeDrawX = screenX + TILE_WIDTH * pos.dx - treeDestWidth / 2 + offsetX;
+                  const treeDrawY = screenY + TILE_HEIGHT * pos.dy - treeDestHeight + TILE_HEIGHT * 0.3 + offsetY;
+                  
+                  ctx.drawImage(
+                    isoCitySprite,
+                    treeSx, treeSy, treeTileWidth, treeTileHeight,
+                    treeDrawX, treeDrawY, treeDestWidth, treeDestHeight
+                  );
+                }
+              }
             } else {
               // Regular grass tile
               drawGroundTile(ctx, screenX, screenY, zoneType, currentZoom, false);
@@ -631,18 +691,7 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
               );
               
               ctx.globalAlpha = 1;
-              
-              // Debug: draw a border around the building's actual clickable tile
-              ctx.strokeStyle = tile.ownerId === gameState.currentPlayerId ? '#00ff00' : '#ff0000';
-              ctx.lineWidth = 2;
-              ctx.beginPath();
-              ctx.moveTo(screenX + TILE_WIDTH / 2, screenY);
-              ctx.lineTo(screenX + TILE_WIDTH, screenY + TILE_HEIGHT / 2);
-              ctx.lineTo(screenX + TILE_WIDTH / 2, screenY + TILE_HEIGHT);
-              ctx.lineTo(screenX, screenY + TILE_HEIGHT / 2);
-              ctx.closePath();
-              ctx.stroke();
-              
+
               // Health bar for damaged buildings
               if (tile.building.health < tile.building.maxHealth) {
                 const healthPercent = tile.building.health / tile.building.maxHealth;
@@ -655,12 +704,6 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
       }
       
       // Third pass: Draw units
-      // Debug: log unit count once
-      if (gameState.units.length > 0 && !window._ronUnitsLogged) {
-        console.log('RoN Units:', gameState.units.map(u => ({ id: u.id, x: u.x, y: u.y, type: u.type })));
-        window._ronUnitsLogged = true;
-      }
-      
       gameState.units.forEach(unit => {
         const { screenX, screenY } = gridToScreen(unit.x, unit.y, 0, 0);
         
@@ -712,22 +755,26 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
     };
   }, [imageLoadVersion, hoveredTile, selectionBox, latestStateRef]);
   
+  // Match IsoCity's canvas container structure
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div 
+      ref={containerRef} 
+      className="relative w-full h-full overflow-hidden touch-none"
+      style={{ 
+        cursor: isPanningRef.current ? 'grabbing' : 
+                isSelectingRef.current ? 'crosshair' : 
+                'default' 
+      }}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onWheel={handleWheel}
+      onContextMenu={handleContextMenu}
+    >
       <canvas
         ref={canvasRef}
-        className="w-full h-full"
-        style={{ 
-          cursor: isPanningRef.current ? 'grabbing' : 
-                  isSelectingRef.current ? 'crosshair' : 
-                  'default' 
-        }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-        onContextMenu={handleContextMenu}
+        className="absolute top-0 left-0"
       />
     </div>
   );

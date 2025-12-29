@@ -191,7 +191,7 @@ export function createInitialRoNGameState(
       difficulty: config.difficulty,
       color: config.color,
       age: 'ancient' as Age,
-      resources: { food: 200, wood: 200, metal: 0, gold: 150, knowledge: 0, oil: 0 },
+      resources: { food: 200, wood: 500, metal: 0, gold: 150, knowledge: 0, oil: 0 },
       resourceRates: { food: 0, wood: 0, metal: 0, gold: 0, knowledge: 0, oil: 0 },
       storageLimits: { food: 500, wood: 500, metal: 300, gold: 1000, knowledge: 500, oil: 200 },
       population: 0,

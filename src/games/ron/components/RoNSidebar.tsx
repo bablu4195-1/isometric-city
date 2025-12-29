@@ -18,6 +18,7 @@ import { RoNTool, RON_TOOL_INFO } from '../types/game';
 export function RoNSidebar() {
   const { 
     state, 
+    selectedBuildingPos,  // Now from separate state
     setTool, 
     setSpeed, 
     setActivePanel,
@@ -88,9 +89,9 @@ export function RoNSidebar() {
     return buildings;
   }, [ageIndex]);
   
-  // Selected building info
-  const selectedBuilding = state.selectedBuildingPos 
-    ? state.grid[state.selectedBuildingPos.y]?.[state.selectedBuildingPos.x]?.building
+  // Selected building info (uses separate state that simulation can't overwrite)
+  const selectedBuilding = selectedBuildingPos 
+    ? state.grid[selectedBuildingPos.y]?.[selectedBuildingPos.x]?.building
     : null;
   
   // Available units for selected building
@@ -163,7 +164,7 @@ export function RoNSidebar() {
   }, [selectedBuilding, ageIndex]);
   
   return (
-    <div className="w-64 bg-slate-900 border-r border-slate-700 flex flex-col h-screen fixed left-0 top-0 z-40">
+    <div className="w-56 bg-slate-900 border-r border-slate-700 flex flex-col h-screen fixed left-0 top-0 z-40">
       {/* Header - Age Display */}
       <div className="px-4 py-3 border-b border-slate-700 bg-slate-800">
         <div className="flex items-center justify-between">
@@ -291,8 +292,8 @@ export function RoNSidebar() {
                     variant="ghost"
                     disabled={!canAfford || currentPlayer.population >= currentPlayer.populationCap}
                     onClick={() => {
-                      if (state.selectedBuildingPos) {
-                        queueUnit(state.selectedBuildingPos, type);
+                      if (selectedBuildingPos) {
+                        queueUnit(selectedBuildingPos, type);
                       }
                     }}
                     className="justify-between"

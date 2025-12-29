@@ -2,6 +2,7 @@
  * Rise of Nations - Building Info Panel
  * 
  * Displays building information and allows queuing units for production buildings.
+ * Styled to match IsoCity's TileInfoPanel for consistency.
  */
 'use client';
 
@@ -11,21 +12,22 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { CloseIcon } from '@/components/ui/Icons';
 import { BUILDING_STATS, RoNBuildingType, UNIT_PRODUCTION_BUILDINGS } from '../types/buildings';
 import { UNIT_STATS, UnitType } from '../types/units';
-import { ResourceType } from '../types/resources';
+import { ResourceType, RESOURCE_INFO } from '../types/resources';
 
 interface RoNBuildingPanelProps {
   onClose: () => void;
 }
 
 export function RoNBuildingPanel({ onClose }: RoNBuildingPanelProps) {
-  const { state, getCurrentPlayer, queueUnit, selectBuilding } = useRoN();
+  const { state, getCurrentPlayer, queueUnit, selectBuilding, selectedBuildingPos } = useRoN();
   const currentPlayer = getCurrentPlayer();
   
-  if (!state.selectedBuildingPos || !currentPlayer) return null;
+  if (!selectedBuildingPos || !currentPlayer) return null;
   
-  const { x, y } = state.selectedBuildingPos;
+  const { x, y } = selectedBuildingPos;
   const tile = state.grid[y]?.[x];
   
   if (!tile?.building) return null;
@@ -43,7 +45,6 @@ export function RoNBuildingPanel({ onClose }: RoNBuildingPanelProps) {
   
   // Get health bar color
   const healthPercent = (building.health / building.maxHealth) * 100;
-  const healthColor = healthPercent > 60 ? 'bg-green-500' : healthPercent > 30 ? 'bg-yellow-500' : 'bg-red-500';
   
   // Check if we can afford a unit
   const canAffordUnit = (unitType: UnitType): boolean => {
@@ -67,117 +68,129 @@ export function RoNBuildingPanel({ onClose }: RoNBuildingPanelProps) {
     onClose();
   };
   
+  // Count workers at this building (distinguish between traveling and working)
+  const allWorkersHere = state.units.filter(u => 
+    u.ownerId === currentPlayer.id &&
+    u.task?.startsWith('gather_') &&
+    u.taskTarget &&
+    typeof u.taskTarget === 'object' &&
+    'x' in u.taskTarget &&
+    Math.floor(u.taskTarget.x) === x &&
+    Math.floor(u.taskTarget.y) === y
+  );
+  const workingWorkers = allWorkersHere.filter(u => !u.isMoving);
+  const travelingWorkers = allWorkersHere.filter(u => u.isMoving);
+  
   return (
-    <Card className="fixed top-20 right-4 w-80 z-[9999] bg-slate-800/95 border-slate-700 text-white shadow-2xl">
+    <Card className="absolute top-4 right-4 w-72">
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle className="text-sm font-sans capitalize">
           {buildingType.replace(/_/g, ' ')}
         </CardTitle>
-        <Button variant="ghost" size="sm" onClick={handleClose} className="text-slate-400 hover:text-white">
-          ✕
+        <Button variant="ghost" size="icon-sm" onClick={handleClose}>
+          <CloseIcon size={14} />
         </Button>
       </CardHeader>
       
       <CardContent className="space-y-3 text-sm">
-        {/* Location */}
-        <div className="flex justify-between text-slate-400">
-          <span>Location</span>
-          <span className="text-white">({x}, {y})</span>
+        {/* Location - matches IsoCity style */}
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Location</span>
+          <span>({x}, {y})</span>
         </div>
         
-        {/* Health Bar */}
-        <div className="space-y-1">
-          <div className="flex justify-between text-slate-400">
-            <span>Health</span>
-            <span className="text-white">{building.health} / {building.maxHealth}</span>
-          </div>
-          <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
-            <div 
-              className={`h-full transition-all ${healthColor}`}
-              style={{ width: `${healthPercent}%` }}
-            />
-          </div>
+        {/* Owner */}
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Owner</span>
+          <Badge variant={tile.ownerId === currentPlayer.id ? 'default' : 'destructive'}>
+            {tile.ownerId === currentPlayer.id ? 'You' : 'Enemy'}
+          </Badge>
+        </div>
+        
+        {/* Health */}
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Health</span>
+          <span className={healthPercent > 60 ? 'text-green-500' : healthPercent > 30 ? 'text-amber-500' : 'text-red-500'}>
+            {building.health}/{building.maxHealth}
+          </span>
         </div>
         
         {/* Construction Progress */}
         {isConstructing && (
-          <div className="space-y-1">
-            <div className="flex justify-between text-slate-400">
-              <span>Construction</span>
-              <span className="text-yellow-400">{Math.round(building.constructionProgress)}%</span>
-            </div>
-            <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-yellow-500 transition-all"
-                style={{ width: `${building.constructionProgress}%` }}
-              />
-            </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Construction</span>
+            <span className="text-amber-500">{Math.round(building.constructionProgress)}%</span>
           </div>
         )}
         
         {/* Building Level */}
         {building.level > 0 && (
-          <div className="flex justify-between text-slate-400">
-            <span>Level</span>
-            <span className="text-white">{building.level}</span>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Level</span>
+            <span>{building.level}</span>
           </div>
         )}
-        
-        {/* Owner */}
-        <div className="flex justify-between text-slate-400">
-          <span>Owner</span>
-          <Badge variant="outline" className="text-white border-slate-600">
-            {tile.ownerId === currentPlayer.id ? 'You' : 'Enemy'}
-          </Badge>
-        </div>
         
         {/* Building Stats */}
         {buildingStats && (
           <>
-            <Separator className="bg-slate-700" />
-            <div className="text-xs text-slate-500 uppercase tracking-wider">Building Info</div>
-            
             {buildingStats.providesHousing && (
-              <div className="flex justify-between text-slate-400">
-                <span>Housing</span>
-                <span className="text-green-400">+{buildingStats.providesHousing}</span>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Housing</span>
+                <span className="text-green-500">+{buildingStats.providesHousing}</span>
               </div>
             )}
             
             {buildingStats.attackDamage && (
-              <div className="flex justify-between text-slate-400">
-                <span>Attack</span>
-                <span className="text-red-400">{buildingStats.attackDamage}</span>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Attack</span>
+                <span className="text-red-500">{buildingStats.attackDamage}</span>
               </div>
             )}
             
             {buildingStats.attackRange && (
-              <div className="flex justify-between text-slate-400">
-                <span>Range</span>
-                <span className="text-white">{buildingStats.attackRange}</span>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Range</span>
+                <span>{buildingStats.attackRange}</span>
               </div>
             )}
             
             {buildingStats.garrisonSlots && (
-              <div className="flex justify-between text-slate-400">
-                <span>Garrison Slots</span>
-                <span className="text-white">{buildingStats.garrisonSlots}</span>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Garrison</span>
+                <span>{buildingStats.garrisonSlots} slots</span>
               </div>
             )}
           </>
         )}
         
+        {/* Workers Assigned */}
+        {allWorkersHere.length > 0 && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Workers</span>
+            <span>
+              {workingWorkers.length > 0 && (
+                <span className="text-green-500">{workingWorkers.length} working</span>
+              )}
+              {workingWorkers.length > 0 && travelingWorkers.length > 0 && ', '}
+              {travelingWorkers.length > 0 && (
+                <span className="text-amber-500">{travelingWorkers.length} en route</span>
+              )}
+            </span>
+          </div>
+        )}
+        
         {/* Production Queue */}
         {building.queuedUnits.length > 0 && (
           <>
-            <Separator className="bg-slate-700" />
-            <div className="text-xs text-slate-500 uppercase tracking-wider">Production Queue</div>
+            <Separator />
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Production Queue</div>
             <div className="space-y-1">
               {building.queuedUnits.map((unitType, index) => (
-                <div key={index} className="flex justify-between items-center text-slate-300">
-                  <span className="capitalize">{unitType.replace(/_/g, ' ')}</span>
+                <div key={index} className="flex justify-between items-center">
+                  <span className="capitalize text-xs">{unitType.replace(/_/g, ' ')}</span>
                   {index === 0 && (
-                    <div className="w-20 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-blue-500 transition-all"
                         style={{ width: `${building.productionProgress}%` }}
@@ -190,33 +203,35 @@ export function RoNBuildingPanel({ onClose }: RoNBuildingPanelProps) {
           </>
         )}
         
-        {/* Unit Production */}
-        {canProduce && (
+        {/* Unit Production - only for your buildings */}
+        {canProduce && tile.ownerId === currentPlayer.id && (
           <>
-            <Separator className="bg-slate-700" />
-            <div className="text-xs text-slate-500 uppercase tracking-wider">Train Units</div>
-            <div className="grid grid-cols-2 gap-2">
+            <Separator />
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Train Units</div>
+            <div className="grid grid-cols-2 gap-1">
               {producableUnits.map(unitType => {
                 const stats = UNIT_STATS[unitType];
                 const canAfford = canAffordUnit(unitType);
                 const queueFull = building.queuedUnits.length >= 5;
+                const popFull = currentPlayer.population >= currentPlayer.populationCap;
+                const disabled = !canAfford || queueFull || popFull;
                 
                 return (
                   <Button
                     key={unitType}
                     size="sm"
-                    variant={canAfford && !queueFull ? 'default' : 'outline'}
-                    disabled={!canAfford || queueFull}
+                    variant={disabled ? 'outline' : 'default'}
+                    disabled={disabled}
                     onClick={() => handleQueueUnit(unitType)}
-                    className={`text-xs ${canAfford && !queueFull ? 'bg-blue-600 hover:bg-blue-700' : 'opacity-50'}`}
+                    className="h-auto py-1 px-2"
                   >
-                    <div className="flex flex-col items-center">
+                    <div className="flex flex-col items-center text-xs">
                       <span className="capitalize">{unitType.replace(/_/g, ' ')}</span>
                       {stats?.cost && (
-                        <span className="text-[10px] text-slate-300">
+                        <span className="text-[9px] opacity-70">
                           {Object.entries(stats.cost)
                             .filter(([, v]) => v && v > 0)
-                            .map(([r, v]) => `${r[0].toUpperCase()}:${v}`)
+                            .map(([r, v]) => `${RESOURCE_INFO[r as ResourceType]?.icon || r[0]}${v}`)
                             .join(' ')}
                         </span>
                       )}
@@ -226,39 +241,11 @@ export function RoNBuildingPanel({ onClose }: RoNBuildingPanelProps) {
               })}
             </div>
             {currentPlayer.population >= currentPlayer.populationCap && (
-              <div className="text-xs text-red-400 text-center">
-                Population cap reached!
+              <div className="text-xs text-red-500 text-center">
+                Population cap reached
               </div>
             )}
           </>
-        )}
-        
-        {/* Workers at this building */}
-        {tile.ownerId === currentPlayer.id && (
-          (() => {
-            const workersHere = state.units.filter(u => 
-              u.ownerId === currentPlayer.id &&
-              u.task?.startsWith('gather_') &&
-              u.taskTarget &&
-              typeof u.taskTarget === 'object' &&
-              'x' in u.taskTarget &&
-              Math.floor(u.taskTarget.x) === x &&
-              Math.floor(u.taskTarget.y) === y
-            );
-            
-            if (workersHere.length > 0) {
-              return (
-                <>
-                  <Separator className="bg-slate-700" />
-                  <div className="flex justify-between text-slate-400">
-                    <span>Workers Assigned</span>
-                    <span className="text-green-400">{workersHere.length}</span>
-                  </div>
-                </>
-              );
-            }
-            return null;
-          })()
         )}
       </CardContent>
     </Card>

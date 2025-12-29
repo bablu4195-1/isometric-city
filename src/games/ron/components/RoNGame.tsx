@@ -16,7 +16,7 @@ import { AGE_INFO } from '../types/ages';
 import { PLAYER_COLORS } from '../lib/renderConfig';
 
 function GameContent({ onExit }: { onExit?: () => void }) {
-  const { state, getCurrentPlayer, newGame } = useRoN();
+  const { state, getCurrentPlayer, newGame, selectedBuildingPos } = useRoN();
   const [navigationTarget, setNavigationTarget] = useState<{ x: number; y: number } | null>(null);
   
   const currentPlayer = getCurrentPlayer();
@@ -70,15 +70,16 @@ function GameContent({ onExit }: { onExit?: () => void }) {
     );
   }
   
+  // Match IsoCity's layout structure exactly
   return (
-    <div className="w-full h-full flex bg-slate-900">
-      {/* Sidebar */}
+    <div className="w-full h-full min-h-[720px] overflow-hidden bg-slate-900 flex">
+      {/* Sidebar - uses same pattern as IsoCity */}
       <RoNSidebar />
       
-      {/* Main game area */}
-      <div className="flex-1 ml-64 relative">
-        {/* Top bar - players info */}
-        <div className="absolute top-0 left-0 right-0 z-20 bg-slate-800/80 backdrop-blur-sm p-2 flex items-center justify-between">
+      {/* Main game area - uses flex-col like IsoCity */}
+      <div className="flex-1 flex flex-col ml-56">
+        {/* Top bar - as flex child (not absolute) like IsoCity */}
+        <div className="h-12 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4">
           <div className="flex items-center gap-4">
             {state.players.map((player, index) => (
               <div 
@@ -114,33 +115,29 @@ function GameContent({ onExit }: { onExit?: () => void }) {
           </div>
         </div>
         
-        {/* Canvas */}
-        <RoNCanvas 
-          navigationTarget={navigationTarget}
-          onNavigationComplete={() => setNavigationTarget(null)}
-        />
-        
-        {/* MiniMap */}
-        <RoNMiniMap onNavigate={handleNavigate} />
-        
-        {/* Building Info Panel */}
-        {state.selectedBuildingPos && (
-          <>
-            {/* Debug indicator */}
-            <div className="fixed top-0 left-1/2 bg-green-500 text-white px-4 py-2 z-[9999] rounded-b">
-              BUILDING SELECTED: {state.selectedBuildingPos.x}, {state.selectedBuildingPos.y}
-            </div>
+        {/* Canvas area - flex-1 relative like IsoCity */}
+        <div className="flex-1 relative overflow-visible">
+          <RoNCanvas 
+            navigationTarget={navigationTarget}
+            onNavigationComplete={() => setNavigationTarget(null)}
+          />
+          
+          {/* MiniMap */}
+          <RoNMiniMap onNavigate={handleNavigate} />
+          
+          {/* Building Info Panel - absolute within canvas area like IsoCity's TileInfoPanel */}
+          {selectedBuildingPos && (
             <RoNBuildingPanel onClose={() => {}} />
-          </>
-        )}
-        
-        {/* Help overlay */}
-        <div className="absolute bottom-4 left-4 z-20 bg-slate-800/80 backdrop-blur-sm p-2 rounded text-xs text-slate-300">
-          <div>Left Click: Select / Place</div>
-          <div>Right Click: Move / Attack</div>
-          <div>Middle Click / Alt+Drag: Pan</div>
-          <div>Scroll: Zoom</div>
-          <div>Drag: Box Select</div>
+          )}
+          
+          {/* Help overlay */}
+          <div className="absolute bottom-4 left-4 z-20 bg-slate-800/80 backdrop-blur-sm p-2 rounded text-xs text-slate-300">
+            <div>Left Click: Select / Place</div>
+            <div>Right Click: Move / Attack</div>
+            <div>Middle Click / Alt+Drag: Pan</div>
+            <div>Scroll: Zoom</div>
+            <div>Drag: Box Select</div>
+          </div>
         </div>
       </div>
     </div>
