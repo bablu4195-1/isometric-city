@@ -8,7 +8,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useRoN } from '../context/RoNContext';
-import { AGE_SPRITE_PACKS, BUILDING_SPRITE_MAP, BUILDING_VERTICAL_OFFSETS, AGE_VERTICAL_OFFSETS, BUILDING_SCALES, PLAYER_COLORS, getAgeSpritePosition } from '../lib/renderConfig';
+import { AGE_SPRITE_PACKS, BUILDING_SPRITE_MAP, BUILDING_VERTICAL_OFFSETS, AGE_VERTICAL_OFFSETS, BUILDING_SCALES, AGE_BUILDING_SCALES, PLAYER_COLORS, getAgeSpritePosition } from '../lib/renderConfig';
 import { BUILDING_STATS } from '../types/buildings';
 import { AGE_ORDER } from '../types/ages';
 import { RoNBuildingType } from '../types/buildings';
@@ -300,6 +300,83 @@ const MODERN_HIGHRISES: { row: number; col: number }[] = [
 const FARM_SPRITE_COLS = 5;
 const FARM_SPRITE_ROWS = 6;
 const FARM_VARIANTS = 5; // Only use first row (5 variants)
+
+// Grey base tile colors for Industrial/Modern buildings (like IsoCity)
+const GREY_BASE_COLORS = {
+  top: '#6b7280',
+  left: '#4b5563',
+  right: '#9ca3af',
+  stroke: '#374151',
+};
+
+/**
+ * Draw a grey isometric base tile under Industrial/Modern buildings
+ * This provides the concrete/pavement foundation that these buildings should have
+ */
+function drawGreyBase(
+  ctx: CanvasRenderingContext2D,
+  screenX: number,
+  screenY: number,
+  width: number = 1,
+  height: number = 1
+): void {
+  // Draw grey base tiles for each tile in the building footprint
+  for (let dx = 0; dx < width; dx++) {
+    for (let dy = 0; dy < height; dy++) {
+      // Calculate offset for this tile in the footprint
+      const offsetX = (dx - dy) * (TILE_WIDTH / 2);
+      const offsetY = (dx + dy) * (TILE_HEIGHT / 2);
+      const tileX = screenX + offsetX;
+      const tileY = screenY + offsetY;
+      
+      const w = TILE_WIDTH;
+      const h = TILE_HEIGHT;
+      const cx = tileX + w / 2;
+      const cy = tileY + h / 2;
+      
+      // Draw the grey diamond (top face)
+      ctx.fillStyle = GREY_BASE_COLORS.top;
+      ctx.beginPath();
+      ctx.moveTo(cx, tileY);           // Top
+      ctx.lineTo(tileX + w, cy);       // Right
+      ctx.lineTo(cx, tileY + h);       // Bottom
+      ctx.lineTo(tileX, cy);           // Left
+      ctx.closePath();
+      ctx.fill();
+      
+      // Left side (slightly darker)
+      ctx.fillStyle = GREY_BASE_COLORS.left;
+      ctx.beginPath();
+      ctx.moveTo(tileX, cy);
+      ctx.lineTo(cx, tileY + h);
+      ctx.lineTo(cx, tileY + h + 2);
+      ctx.lineTo(tileX, cy + 2);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Right side (lighter)
+      ctx.fillStyle = GREY_BASE_COLORS.right;
+      ctx.beginPath();
+      ctx.moveTo(tileX + w, cy);
+      ctx.lineTo(cx, tileY + h);
+      ctx.lineTo(cx, tileY + h + 2);
+      ctx.lineTo(tileX + w, cy + 2);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Stroke outline
+      ctx.strokeStyle = GREY_BASE_COLORS.stroke;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, tileY);
+      ctx.lineTo(tileX + w, cy);
+      ctx.lineTo(cx, tileY + h);
+      ctx.lineTo(tileX, cy);
+      ctx.closePath();
+      ctx.stroke();
+    }
+  }
+}
 
 // Check if a tile has a dock or is part of a dock's footprint (for beach exclusion)
 function hasDock(grid: import('../types/game').RoNTile[][], gridX: number, gridY: number, gridSize: number): boolean {
@@ -1759,6 +1836,18 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete, onViewportCh
           // Draw building sprite
           const buildingType = tile.building.type as RoNBuildingType;
           
+          // Draw grey base for Industrial and Modern era buildings (except farms, roads, etc.)
+          const needsGreyBase = (playerAge === 'industrial' || playerAge === 'modern') && 
+            buildingType !== 'farm' && 
+            buildingType !== 'road' && 
+            buildingType !== 'dock' &&
+            buildingType !== 'woodcutters_camp';
+          if (needsGreyBase) {
+            const buildingStats = BUILDING_STATS[buildingType];
+            const buildingSize = buildingStats?.size || { width: 1, height: 1 };
+            drawGreyBase(ctx, screenX, screenY, buildingSize.width, buildingSize.height);
+          }
+          
           // Special handling for dock - use IsoCity marina sprite from parks sheet (2x2)
           // Water is already drawn in terrain pass for dock tiles
           if (buildingType === 'dock') {
@@ -2012,8 +2101,10 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete, onViewportCh
                 drawPosY = screenY + screenOffsetY;
               }
               
-              // Scale like other buildings
-              const baseScale = (BUILDING_SCALES[buildingType] || 1) * 1.0;
+              // Scale like other buildings (with age-specific scale)
+              const buildingBaseScale = BUILDING_SCALES[buildingType] || 1;
+              const ageScale = AGE_BUILDING_SCALES[playerAge]?.[buildingType] || 1;
+              const baseScale = buildingBaseScale * ageScale * 1.0;
               const sizeScale = isMultiTile ? Math.max(buildingSize.width, buildingSize.height) : 1;
               const scaleMultiplier = baseScale * sizeScale;
               
@@ -2079,8 +2170,10 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete, onViewportCh
                 drawPosY = screenY + screenOffsetY;
               }
               
-              // Scale based on building size
-              const baseScale = (BUILDING_SCALES[buildingType] || 1) * spritePack.globalScale;
+              // Scale based on building size (with age-specific scale)
+              const buildingBaseScale = BUILDING_SCALES[buildingType] || 1;
+              const ageScale = AGE_BUILDING_SCALES[playerAge]?.[buildingType] || 1;
+              const baseScale = buildingBaseScale * ageScale * spritePack.globalScale;
               const sizeScale = isMultiTile ? Math.max(buildingSize.width, buildingSize.height) : 1;
               const scaleMultiplier = baseScale * sizeScale;
               

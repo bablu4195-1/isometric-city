@@ -364,7 +364,7 @@ export const BUILDING_STATS: Record<RoNBuildingType, BuildingStats> = {
     cost: { wood: 150, metal: 100 }, 
     maxHealth: 1500, 
     buildTime: 100, 
-    minAge: 'classical', 
+    minAge: 'medieval',  // Not available in Classical era
     size: { width: 2, height: 2 },
     attackDamage: 20,
     attackRange: 6,

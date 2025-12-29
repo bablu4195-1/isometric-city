@@ -261,6 +261,8 @@ export interface CondensedGameState {
   }>;
   territoryTiles: Array<{ x: number; y: number }>;
   emptyTerritoryTiles: Array<{ x: number; y: number }>; // Empty tiles you can build on
+  tilesNearForest: Array<{ x: number; y: number }>; // Good for woodcutters_camp
+  tilesNearMetal: Array<{ x: number; y: number }>; // Good for mine
   resourceTiles: {
     forests: Array<{ x: number; y: number; density: number }>;
     metalDeposits: Array<{ x: number; y: number }>;
@@ -426,6 +428,49 @@ export function generateCondensedGameState(
         return true;
       })
       .slice(0, 8), // Empty tiles for building
+    // Find tiles ADJACENT to forests (good for woodcutters_camp)
+    tilesNearForest: territoryTiles
+      .filter(t => {
+        const tile = state.grid[t.y]?.[t.x];
+        // Must be buildable (no building, not water/forest/mountain, no forestDensity)
+        if (!tile || tile.building) return false;
+        if (tile.terrain === 'water' || tile.terrain === 'forest' || tile.terrain === 'mountain') return false;
+        if (tile.forestDensity > 0) return false; // Can't build on tiles with trees
+        if (tile.hasMetalDeposit || tile.hasOilDeposit) return false;
+        // Check if adjacent to a forest
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const adj = state.grid[t.y + dy]?.[t.x + dx];
+            if (adj && (adj.forestDensity > 0 || adj.terrain === 'forest')) {
+              return true;
+            }
+          }
+        }
+        return false;
+      })
+      .slice(0, 5),
+    // Find tiles ADJACENT to metal deposits (good for mine)
+    tilesNearMetal: territoryTiles
+      .filter(t => {
+        const tile = state.grid[t.y]?.[t.x];
+        // Must be buildable
+        if (!tile || tile.building) return false;
+        if (tile.terrain === 'water' || tile.terrain === 'forest' || tile.terrain === 'mountain') return false;
+        if (tile.forestDensity > 0 || tile.hasMetalDeposit || tile.hasOilDeposit) return false;
+        // Check if adjacent to metal
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const adj = state.grid[t.y + dy]?.[t.x + dx];
+            if (adj && adj.hasMetalDeposit) {
+              return true;
+            }
+          }
+        }
+        return false;
+      })
+      .slice(0, 5),
     resourceTiles: {
       forests: forests.slice(0, 5),
       metalDeposits: metalDeposits.slice(0, 5),
@@ -522,7 +567,8 @@ export function executeBuildBuilding(
     ownerId: aiPlayerId,
     health: stats.maxHealth,
     maxHealth: stats.maxHealth,
-    constructionProgress: bType === 'farm' || bType === 'dock' ? 100 : 0,
+    // Economic buildings and small military buildings are instant for AI, others need construction
+    constructionProgress: ['farm', 'dock', 'woodcutters_camp', 'mine', 'barracks'].includes(bType) ? 100 : 0,
     queuedUnits: [] as string[],
     productionProgress: 0,
     garrisonedUnits: [] as string[],
@@ -846,11 +892,14 @@ export function executeAssignIdleWorkers(
       u.task === 'gather_food'
     );
     
-    // Take up to 2 farmers to reassign
-    if (farmWorkers.length > 2 && foodRate > 3) {
-      const toReassign = farmWorkers.slice(0, Math.min(2, farmWorkers.length - 2));
-      // Convert them to "idle" temporarily so they get assigned
+    // Take farmers to reassign to wood/metal (keep at least 1 farmer for food)
+    if (farmWorkers.length >= 2) {
+      // Reassign half of farmers (at least 1) to fix 0 wood/metal rate
+      const numToReassign = Math.max(1, Math.floor(farmWorkers.length / 2));
+      const toReassign = farmWorkers.slice(0, numToReassign);
+      // Convert them to "idle" temporarily so they get assigned to wood/metal
       idleCitizens = toReassign.map(u => ({ ...u, task: 'idle' as const, taskTarget: undefined }));
+      console.log(`[assign_workers] Rebalancing: moving ${numToReassign} workers from food to wood/metal`);
     }
   }
 
@@ -940,9 +989,12 @@ export function executeAssignIdleWorkers(
   let assigned = 0;
   const newUnits = [...state.units];
   
+  // Sort buildings by priority (highest first) before assigning
+  economicBuildings.sort((a, b) => b.priority - a.priority);
+  
   for (const citizen of idleCitizens) {
-    // Find closest building with capacity, prioritizing food
-    let bestBuilding = economicBuildings.find(b => b.currentWorkers < b.maxWorkers);
+    // Find highest priority building with capacity
+    const bestBuilding = economicBuildings.find(b => b.currentWorkers < b.maxWorkers);
     
     if (!bestBuilding) break;
 

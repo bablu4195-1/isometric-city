@@ -135,9 +135,14 @@ const SYSTEM_PROMPT = `You are an expert AI opponent in a Rise of Nations-style 
 4. **Train citizens** - More workers = faster economy = bigger army
 
 ## BUILDING PRIORITIES:
-- Early game: 1-2 woodcutters_camp, 2-3 farms, then barracks
-- If pop capped: mine (for metal) → small_city
+- Early game: 1-2 woodcutters_camp (use tiles marked "near forest"!), 2-3 farms, then barracks
+- If pop capped: mine (use tiles marked "near metal"!) → small_city
 - Military: barracks → train militia
+
+## IMPORTANT: BUILD LOCATIONS
+- woodcutters_camp MUST be built on tiles "near forest" to produce wood!
+- mine MUST be built on tiles "near metal" to produce metal!
+- Other buildings can go on any general buildable tile
 
 ## COMMUNICATION:
 Send taunting messages to intimidate your opponent! Be creative and aggressive.
@@ -262,7 +267,9 @@ ${condensed.myBuildings.map(b => `- ${b.type} at (${b.x},${b.y})`).join('\n') ||
 - Military: ${condensed.myUnits.filter(u => u.type !== 'citizen').map(u => `${u.type}[${u.id}]`).join(', ') || 'none'}
 
 ## BUILDABLE TILES:
-${(condensed.emptyTerritoryTiles || []).slice(0, 8).map(t => `(${t.x},${t.y})`).join(', ')}
+General: ${(condensed.emptyTerritoryTiles || []).slice(0, 5).map(t => `(${t.x},${t.y})`).join(', ')}
+🌲 For woodcutters_camp (near forest): ${(condensed.tilesNearForest || []).slice(0, 4).map(t => `(${t.x},${t.y})`).join(', ') || 'none in territory'}
+⛏️ For mine (near metal): ${(condensed.tilesNearMetal || []).slice(0, 4).map(t => `(${t.x},${t.y})`).join(', ') || 'none in territory'}
 
 ## ENEMY POSITIONS:
 ${condensed.enemyBuildings.slice(0, 5).map(b => `- ${b.type} at (${b.x},${b.y})`).join('\n') || '(not visible)'}
