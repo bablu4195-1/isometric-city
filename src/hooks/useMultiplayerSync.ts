@@ -63,6 +63,9 @@ export function useMultiplayerSync() {
   const lastActionRef = useRef<string | null>(null);
   const initialStateLoadedRef = useRef(false);
   
+  // Track if this is the room creator (they have canonical state, don't need to wait for initialState)
+  const isRoomCreatorRef = useRef(false);
+  
   // Batching for placements - use refs to avoid stale closures
   const placementBufferRef = useRef<Array<{ x: number; y: number; tool: Tool }>>([]);
   const flushTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -73,11 +76,26 @@ export function useMultiplayerSync() {
     multiplayerRef.current = multiplayer;
   }, [multiplayer]);
 
+  // Track room creator status - creators have canonical state and don't need to wait for initialState
+  useEffect(() => {
+    if (multiplayer?.provider?.isCreator) {
+      isRoomCreatorRef.current = true;
+      // Room creators already have the canonical state, mark as loaded
+      initialStateLoadedRef.current = true;
+    }
+  }, [multiplayer?.provider?.isCreator]);
+
   // Load initial state when joining a room (received from other players)
   // This can happen even if we already loaded from cache - network state takes priority
   const lastInitialStateRef = useRef<string | null>(null);
   useEffect(() => {
     if (!multiplayer || !multiplayer.initialState) return;
+    
+    // Room creators have canonical state, don't overwrite with received state
+    if (isRoomCreatorRef.current) {
+      initialStateLoadedRef.current = true;
+      return;
+    }
     
     // Only load if this is a new state (prevent duplicate loads of same state)
     const stateKey = JSON.stringify(multiplayer.initialState.tick || 0);
@@ -267,6 +285,20 @@ export function useMultiplayerSync() {
   const lastIndexUpdateRef = useRef<number>(0);
   useEffect(() => {
     if (!multiplayer || multiplayer.connectionState !== 'connected') return;
+    
+    // IMPORTANT: Don't sync state until we've loaded the initial state from the network/database
+    // This prevents the race condition where empty default state overwrites the actual game state
+    if (!initialStateLoadedRef.current) {
+      console.log('[useMultiplayerSync] Skipping state sync - initial state not yet loaded');
+      return;
+    }
+    
+    // Additional validation: ensure the state has meaningful data before syncing
+    // This is a safety check to prevent syncing obviously empty/default states
+    if (!game.state.grid || game.state.grid.length === 0 || !game.state.stats) {
+      console.warn('[useMultiplayerSync] Skipping state sync - state appears invalid or empty');
+      return;
+    }
     
     const now = Date.now();
     if (now - lastUpdateRef.current < 2000) return; // Throttle to 2 second intervals

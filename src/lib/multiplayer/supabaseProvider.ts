@@ -147,9 +147,11 @@ export class MultiplayerProvider {
             
             // When a new player joins, send them the current state via broadcast
             // This ensures they get the latest state (database might be stale)
-            if (this.gameState) {
+            // IMPORTANT: Only broadcast if we have valid state (prevents race condition
+            // where empty state overwrites real game data)
+            if (this.gameState && this.isValidGameState(this.gameState)) {
               setTimeout(() => {
-                if (!this.destroyed && this.gameState) {
+                if (!this.destroyed && this.gameState && this.isValidGameState(this.gameState)) {
                   this.channel.send({
                     type: 'broadcast',
                     event: 'state-sync',
@@ -193,11 +195,13 @@ export class MultiplayerProvider {
         // 2. We're NOT the creator (creators have the canonical state, should never be overwritten)
         // 3. We haven't already received initial state (prevent multiple overwrites)
         // 4. It's not from ourselves (extra safety)
-        // 5. State is valid
-        if (to === this.peerId && !this.isCreator && !this.hasReceivedInitialState && from !== this.peerId && state && this.options.onStateReceived) {
+        // 5. State is valid and has meaningful data (prevents race condition with empty state)
+        if (to === this.peerId && !this.isCreator && !this.hasReceivedInitialState && from !== this.peerId && state && this.isValidGameState(state) && this.options.onStateReceived) {
           this.hasReceivedInitialState = true;
           this.gameState = state;
           this.options.onStateReceived(state);
+        } else if (to === this.peerId && state && !this.isValidGameState(state)) {
+          console.warn('[Multiplayer] Rejected invalid state-sync from peer - state appears empty or malformed');
         }
       });
 
@@ -236,6 +240,13 @@ export class MultiplayerProvider {
    * Update the game state and save to database (throttled)
    */
   updateGameState(state: GameState): void {
+    // IMPORTANT: Validate state before updating to prevent race condition
+    // where empty/default state overwrites real game data
+    if (!this.isValidGameState(state)) {
+      console.warn('[Multiplayer] Rejected invalid state update - preventing data loss');
+      return;
+    }
+    
     this.gameState = state;
     
     const now = Date.now();
@@ -277,6 +288,29 @@ export class MultiplayerProvider {
     if (this.options.onPlayersChange) {
       this.options.onPlayersChange(Array.from(this.players.values()));
     }
+  }
+
+  /**
+   * Validate that a game state has meaningful data and isn't an empty/default state.
+   * This prevents race conditions where empty state is broadcast to new players.
+   */
+  private isValidGameState(state: GameState): boolean {
+    // Check for essential properties
+    if (!state || !state.grid || !state.stats) {
+      return false;
+    }
+    
+    // Check that grid has content
+    if (!Array.isArray(state.grid) || state.grid.length === 0) {
+      return false;
+    }
+    
+    // Check for valid gridSize
+    if (typeof state.gridSize !== 'number' || state.gridSize <= 0) {
+      return false;
+    }
+    
+    return true;
   }
 
   destroy(): void {
