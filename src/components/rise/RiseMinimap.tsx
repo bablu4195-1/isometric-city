@@ -30,6 +30,7 @@ export function RiseMinimap({
     ctx.clearRect(0, 0, size, size);
     const gSize = state.gridSize;
     const scale = size / gSize;
+    const alertAge = state.lastDamageAt ? state.elapsedSeconds - state.lastDamageAt.time : Infinity;
 
     // tiles
     for (let y = 0; y < gSize; y++) {
@@ -52,6 +53,20 @@ export function RiseMinimap({
       ctx.setLineDash([3, 3]);
       ctx.strokeRect(x1 * scale, y1 * scale, (x2 - x1 + 1) * scale, (y2 - y1 + 1) * scale);
       ctx.setLineDash([]);
+    }
+
+    // alert ping (last damage)
+    if (state.lastDamageAt && alertAge <= 8) {
+      const alpha = Math.max(0, 1 - alertAge / 8);
+      const pingSize = scale * 4;
+      ctx.strokeStyle = `rgba(239,68,68,${alpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(state.lastDamageAt.x * scale, state.lastDamageAt.y * scale, pingSize, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(state.lastDamageAt.x * scale, state.lastDamageAt.y * scale, pingSize * 0.4, 0, Math.PI * 2);
+      ctx.stroke();
     }
 
     // buildings
