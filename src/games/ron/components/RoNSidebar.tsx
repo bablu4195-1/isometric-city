@@ -5,15 +5,17 @@
  */
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useRoN } from '../context/RoNContext';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { AGE_INFO, AGE_ORDER } from '../types/ages';
+import { AGE_INFO, AGE_ORDER, Age } from '../types/ages';
 import { RESOURCE_INFO, ResourceType } from '../types/resources';
 import { BUILDING_STATS, RoNBuildingType } from '../types/buildings';
 import { UNIT_STATS, UnitType } from '../types/units';
 import { RoNTool, RON_TOOL_INFO } from '../types/game';
+import { SettingsIcon } from '@/components/ui/Icons';
+import { RoNSettingsPanel } from './RoNSettingsPanel';
 
 export function RoNSidebar() {
   const { 
@@ -26,6 +28,8 @@ export function RoNSidebar() {
     getCurrentPlayer,
     queueUnit,
   } = useRoN();
+  
+  const [showSettings, setShowSettings] = useState(false);
   
   const currentPlayer = getCurrentPlayer();
   if (!currentPlayer) return null;
@@ -305,13 +309,22 @@ export function RoNSidebar() {
         </div>
       </ScrollArea>
       
-      {/* Selected Units Info */}
-      {state.selectedUnitIds.length > 0 && (
-        <div className="px-4 py-2 border-t border-slate-700">
-          <div className="text-sm text-white">
-            {state.selectedUnitIds.length} unit(s) selected
-          </div>
-        </div>
+      {/* Settings Button */}
+      <div className="px-4 py-2 border-t border-slate-700">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2"
+          onClick={() => setShowSettings(true)}
+        >
+          <SettingsIcon size={16} />
+          <span>Settings</span>
+        </Button>
+      </div>
+      
+      {/* Settings Panel Modal */}
+      {showSettings && (
+        <RoNSettingsPanel onClose={() => setShowSettings(false)} />
       )}
     </div>
   );

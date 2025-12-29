@@ -144,10 +144,16 @@ function isBuildingPlacementValid(
   return true;
 }
 
-// IsoCity sprite sheet paths for trees, pier, and construction
+// IsoCity sprite sheet paths for trees, pier, construction, and farms
 const ISOCITY_SPRITE_PATH = '/assets/sprites_red_water_new.png';
 const ISOCITY_PARKS_PATH = '/assets/sprites_red_water_new_parks.png';
 const ISOCITY_CONSTRUCTION_PATH = '/assets/sprites_red_water_new_construction.png';
+const ISOCITY_FARM_PATH = '/assets/sprites_red_water_new_farm.webp';
+
+// Farm sprite configuration - use first row of 5 crops randomly
+const FARM_SPRITE_COLS = 5;
+const FARM_SPRITE_ROWS = 6;
+const FARM_VARIANTS = 5; // Only use first row (5 variants)
 
 // Check if a tile is adjacent to water (for dock placement)
 function isAdjacentToWater(grid: import('../types/game').RoNTile[][], x: number, y: number, width: number, height: number): boolean {
@@ -513,6 +519,14 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
         console.error('Failed to load IsoCity construction sprites:', error);
       }
       
+      // Load IsoCity farm sprite sheet
+      try {
+        await loadSpriteImage(ISOCITY_FARM_PATH, true);
+        setImageLoadVersion(v => v + 1);
+      } catch (error) {
+        console.error('Failed to load IsoCity farm sprites:', error);
+      }
+      
       // Load age sprite sheets
       const imagesToLoad = Object.values(AGE_SPRITE_PACKS).map(pack => pack.src);
       
@@ -562,17 +576,20 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
       
       if (state.selectedUnitIds.length > 0) {
         const gameState = latestStateRef.current;
-        const targetTile = gameState.grid[gridY]?.[gridX];
         
-        if (targetTile?.building) {
+        // Use findBuildingOrigin to handle multi-tile buildings (clicking any part of 2x2, 3x3, etc.)
+        const buildingOrigin = findBuildingOrigin(gridX, gridY, gameState.grid);
+        
+        if (buildingOrigin) {
+          const originTile = gameState.grid[buildingOrigin.originY]?.[buildingOrigin.originX];
+          const buildingType = buildingOrigin.buildingType;
+          
           // Check if it's an enemy building - attack
-          if (targetTile.ownerId && targetTile.ownerId !== gameState.currentPlayerId) {
-            attackTarget({ x: gridX, y: gridY });
+          if (originTile?.ownerId && originTile.ownerId !== gameState.currentPlayerId) {
+            attackTarget({ x: buildingOrigin.originX, y: buildingOrigin.originY });
           } 
           // Check if it's our own economic building - assign gather task
-          else if (targetTile.ownerId === gameState.currentPlayerId) {
-            const buildingType = targetTile.building.type;
-            
+          else if (originTile?.ownerId === gameState.currentPlayerId) {
             // Determine gather task based on building type
             let gatherTask: string | null = null;
             
@@ -589,7 +606,7 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
             }
             
             if (gatherTask) {
-              assignTask(gatherTask as import('../types/units').UnitTask, { x: gridX, y: gridY });
+              assignTask(gatherTask as import('../types/units').UnitTask, { x: buildingOrigin.originX, y: buildingOrigin.originY });
             } else {
               // It's our building but not economic - just move near it
               moveSelectedUnits(gridX, gridY);
@@ -788,50 +805,38 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
       
       
       if (dx < 3 && dy < 3) {
-        // Single click - select unit or building at position
+        // Single click - select building only (units require drag box selection)
         const { gridX, gridY } = screenToGrid(
           startX / zoomRef.current,
           startY / zoomRef.current,
           offsetRef.current.x / zoomRef.current,
           offsetRef.current.y / zoomRef.current
         );
-        
+
         const gameState = latestStateRef.current;
+        const gx = Math.floor(gridX);
+        const gy = Math.floor(gridY);
+
+        // Use findBuildingOrigin to handle multi-tile buildings (like IsoCity)
+        // This searches backwards to find if this tile is part of a larger building
+        const origin = findBuildingOrigin(gx, gy, gameState.grid);
         
-        // Find units near this position (generous 1.5 tile radius)
-        const clickedUnits = gameState.units.filter(u => 
-          Math.abs(u.x - gridX) < 1.5 && 
-          Math.abs(u.y - gridY) < 1.5 &&
-          u.ownerId === gameState.currentPlayerId
-        );
-        
-        if (clickedUnits.length > 0) {
-          selectUnits(clickedUnits.map(u => u.id));
-          selectBuilding(null);
-        } else {
-          const gx = Math.floor(gridX);
-          const gy = Math.floor(gridY);
-          
-          // Use findBuildingOrigin to handle multi-tile buildings (like IsoCity)
-          // This searches backwards to find if this tile is part of a larger building
-          const origin = findBuildingOrigin(gx, gy, gameState.grid);
-          
-          if (origin) {
-            // Verify ownership before selecting
-            const originTile = gameState.grid[origin.originY]?.[origin.originX];
-            if (originTile?.ownerId === gameState.currentPlayerId ||
-                originTile?.building?.ownerId === gameState.currentPlayerId) {
-              selectBuilding({ x: origin.originX, y: origin.originY });
-              selectUnits([]);
-            } else {
-              // Building exists but belongs to enemy - don't select, just deselect
-              selectUnits([]);
-              selectBuilding(null);
-            }
+        if (origin) {
+          // Verify ownership before selecting
+          const originTile = gameState.grid[origin.originY]?.[origin.originX];
+          if (originTile?.ownerId === gameState.currentPlayerId ||
+              originTile?.building?.ownerId === gameState.currentPlayerId) {
+            selectBuilding({ x: origin.originX, y: origin.originY });
+            selectUnits([]);
           } else {
+            // Building exists but belongs to enemy - don't select, just deselect
             selectUnits([]);
             selectBuilding(null);
           }
+        } else {
+          // Clicked on empty tile - deselect everything
+          selectUnits([]);
+          selectBuilding(null);
         }
       } else {
         // Box selection - convert screen box to raw grid coordinates (non-rounded)
@@ -1017,88 +1022,125 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
               // Deterministic seed for this tile
               const seed = x * 1000 + y;
               
-              // Draw clustered, rounded mountain peaks (5-7 per tile, tightly packed)
-              const numMountains = 5 + (seed % 3);
+              // Draw clustered mountain peaks (6-8 per tile, tightly packed, taller)
+              const numMountains = 6 + (seed % 3);
               
-              // Tighter cluster positions near center
+              // Tighter cluster positions near center with varying heights
               const mountainPositions = [
-                { dx: 0.5, dy: 0.30, sizeMult: 1.6, heightMult: 1.0 },   // Back center - widest
-                { dx: 0.38, dy: 0.35, sizeMult: 1.3, heightMult: 0.85 }, // Back left
-                { dx: 0.62, dy: 0.35, sizeMult: 1.3, heightMult: 0.9 },  // Back right
-                { dx: 0.45, dy: 0.48, sizeMult: 1.1, heightMult: 0.75 }, // Mid left
-                { dx: 0.55, dy: 0.48, sizeMult: 1.2, heightMult: 0.8 },  // Mid right
-                { dx: 0.5, dy: 0.55, sizeMult: 1.0, heightMult: 0.7 },   // Front center
-                { dx: 0.35, dy: 0.52, sizeMult: 0.8, heightMult: 0.6 },  // Front left edge
+                { dx: 0.5, dy: 0.28, sizeMult: 1.4, heightMult: 1.3 },   // Back center - tallest
+                { dx: 0.35, dy: 0.32, sizeMult: 1.2, heightMult: 1.1 }, // Back left
+                { dx: 0.65, dy: 0.32, sizeMult: 1.2, heightMult: 1.15 },  // Back right
+                { dx: 0.42, dy: 0.42, sizeMult: 1.0, heightMult: 0.9 }, // Mid left
+                { dx: 0.58, dy: 0.44, sizeMult: 1.1, heightMult: 0.95 },  // Mid right
+                { dx: 0.5, dy: 0.52, sizeMult: 0.9, heightMult: 0.8 },   // Front center
+                { dx: 0.32, dy: 0.50, sizeMult: 0.7, heightMult: 0.65 },  // Front left edge
+                { dx: 0.68, dy: 0.48, sizeMult: 0.75, heightMult: 0.7 },  // Front right edge
               ];
               
-              // Draw mountains (no internal ridge lines)
+              // Draw mountains with more detail
               for (let m = 0; m < Math.min(numMountains, mountainPositions.length); m++) {
                 const pos = mountainPositions[m];
                 const mSeed = seed * 7 + m * 13;
                 
                 // Tight clustering with minimal randomization
-                const baseX = screenX + TILE_WIDTH * pos.dx + ((mSeed % 6) - 3) * 0.3;
+                const baseX = screenX + TILE_WIDTH * pos.dx + ((mSeed % 5) - 2.5) * 0.4;
                 const baseY = screenY + TILE_HEIGHT * pos.dy + ((mSeed * 3 % 4) - 2) * 0.2;
                 
-                // Wider, shorter mountains (less pointy)
-                const baseWidth = (16 + (mSeed % 6)) * pos.sizeMult;
-                const peakHeight = (10 + (mSeed * 2 % 6)) * pos.heightMult;
-                const peakX = baseX;
+                // Taller mountains with some width variation
+                const baseWidth = (14 + (mSeed % 5)) * pos.sizeMult;
+                const peakHeight = (16 + (mSeed * 2 % 8)) * pos.heightMult;
+                const peakX = baseX + ((mSeed % 3) - 1) * 0.5; // Slight peak offset
                 const peakY = baseY - peakHeight;
                 
-                // Left face (shadow) - wider angle
-                ctx.fillStyle = '#52525b';
+                // Left face (shadow) with rocky texture
+                ctx.fillStyle = '#4a4a52';
                 ctx.beginPath();
                 ctx.moveTo(peakX, peakY);
-                ctx.lineTo(baseX - baseWidth * 0.55, baseY);
+                // Add a slight ridge on the left face
+                const leftRidgeX = baseX - baseWidth * 0.3;
+                const leftRidgeY = baseY - peakHeight * 0.4;
+                ctx.lineTo(leftRidgeX, leftRidgeY);
+                ctx.lineTo(baseX - baseWidth * 0.5, baseY);
                 ctx.lineTo(baseX, baseY);
                 ctx.closePath();
                 ctx.fill();
                 
-                // Right face (lit) - wider angle
+                // Right face (lit) with subtle detail
                 ctx.fillStyle = '#9ca3af';
                 ctx.beginPath();
                 ctx.moveTo(peakX, peakY);
-                ctx.lineTo(baseX + baseWidth * 0.55, baseY);
+                // Add a slight ridge on the right face
+                const rightRidgeX = baseX + baseWidth * 0.25;
+                const rightRidgeY = baseY - peakHeight * 0.35;
+                ctx.lineTo(rightRidgeX, rightRidgeY);
+                ctx.lineTo(baseX + baseWidth * 0.5, baseY);
                 ctx.lineTo(baseX, baseY);
                 ctx.closePath();
                 ctx.fill();
                 
-                // Snow cap only on the tallest
-                if (pos.heightMult >= 1.0 && m === 0) {
-                  const snowHeight = peakHeight * 0.3;
-                  ctx.fillStyle = '#e5e5e5';
+                // Add a darker ridge line on larger mountains
+                if (pos.heightMult > 0.8) {
+                  ctx.fillStyle = '#3f3f46';
                   ctx.beginPath();
                   ctx.moveTo(peakX, peakY);
-                  ctx.lineTo(peakX - baseWidth * 0.12, peakY + snowHeight);
-                  ctx.lineTo(peakX + baseWidth * 0.12, peakY + snowHeight);
+                  ctx.lineTo(peakX - 1, peakY + peakHeight * 0.5);
+                  ctx.lineTo(peakX + 1, peakY + peakHeight * 0.5);
                   ctx.closePath();
                   ctx.fill();
                 }
+                
+                // Snow cap on taller peaks
+                if (pos.heightMult >= 1.0) {
+                  const snowHeight = peakHeight * 0.25;
+                  ctx.fillStyle = '#f5f5f5';
+                  ctx.beginPath();
+                  ctx.moveTo(peakX, peakY);
+                  ctx.lineTo(peakX - baseWidth * 0.1, peakY + snowHeight);
+                  ctx.lineTo(peakX + baseWidth * 0.1, peakY + snowHeight);
+                  ctx.closePath();
+                  ctx.fill();
+                  
+                  // Snow drip effect
+                  if (pos.heightMult >= 1.2) {
+                    ctx.fillStyle = '#e5e5e5';
+                    ctx.beginPath();
+                    ctx.arc(peakX - 2, peakY + snowHeight + 2, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                  }
+                }
               }
               
-              // More ore deposits (black squares) at base - 5-7 deposits
-              const numOreDeposits = 5 + (seed % 3);
+              // Smaller ore deposits (dark diamonds) at base - 4-6 deposits
+              const numOreDeposits = 4 + (seed % 3);
               const orePositions = [
-                { dx: 0.25, dy: 0.68 },
-                { dx: 0.4, dy: 0.72 },
-                { dx: 0.55, dy: 0.70 },
-                { dx: 0.7, dy: 0.68 },
-                { dx: 0.35, dy: 0.62 },
-                { dx: 0.6, dy: 0.65 },
-                { dx: 0.5, dy: 0.75 },
+                { dx: 0.28, dy: 0.70 },
+                { dx: 0.42, dy: 0.74 },
+                { dx: 0.58, dy: 0.72 },
+                { dx: 0.72, dy: 0.70 },
+                { dx: 0.38, dy: 0.66 },
+                { dx: 0.62, dy: 0.68 },
               ];
               
               for (let o = 0; o < Math.min(numOreDeposits, orePositions.length); o++) {
                 const oPos = orePositions[o];
                 const oSeed = seed * 11 + o * 17;
-                const oreX = screenX + TILE_WIDTH * oPos.dx + ((oSeed % 6) - 3) * 0.4;
-                const oreY = screenY + TILE_HEIGHT * oPos.dy + ((oSeed * 2 % 4) - 2) * 0.3;
-                const oreSize = 3 + (oSeed % 3);
+                const oreX = screenX + TILE_WIDTH * oPos.dx + ((oSeed % 4) - 2) * 0.3;
+                const oreY = screenY + TILE_HEIGHT * oPos.dy + ((oSeed * 2 % 3) - 1) * 0.2;
+                const oreSize = 1.5 + (oSeed % 2); // Smaller ore pieces
                 
-                // Black ore square
-                ctx.fillStyle = '#1c1917';
-                ctx.fillRect(oreX - oreSize / 2, oreY - oreSize / 2, oreSize, oreSize);
+                // Dark ore diamond shape (more interesting than square)
+                ctx.fillStyle = '#18181b';
+                ctx.beginPath();
+                ctx.moveTo(oreX, oreY - oreSize);
+                ctx.lineTo(oreX + oreSize, oreY);
+                ctx.lineTo(oreX, oreY + oreSize);
+                ctx.lineTo(oreX - oreSize, oreY);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Tiny metallic glint
+                ctx.fillStyle = '#71717a';
+                ctx.fillRect(oreX - 0.5, oreY - 0.5, 1, 1);
               }
               
               // More grey boulders/circles at bottom - 7-10 boulders
@@ -1387,6 +1429,67 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
               }
             }
             continue; // Skip regular sprite drawing for dock
+          }
+          
+          // Special handling for farm - use IsoCity farm sprite sheet with random crop
+          if (buildingType === 'farm') {
+            const farmSprite = getCachedImage(ISOCITY_FARM_PATH, true);
+            if (farmSprite) {
+              const farmTileWidth = farmSprite.width / FARM_SPRITE_COLS;
+              const farmTileHeight = farmSprite.height / FARM_SPRITE_ROWS;
+              
+              // Use deterministic random based on tile position for consistent appearance
+              const variantIndex = ((x * 7 + y * 13) % FARM_VARIANTS);
+              const sx = variantIndex * farmTileWidth;
+              const sy = 0; // First row only
+              
+              // Get building size from BUILDING_STATS
+              const buildingStats = BUILDING_STATS[buildingType];
+              const buildingSize = buildingStats?.size || { width: 2, height: 2 };
+              
+              // Calculate draw position for multi-tile building
+              const frontmostOffsetX = buildingSize.width - 1;
+              const frontmostOffsetY = buildingSize.height - 1;
+              const screenOffsetX = (frontmostOffsetX - frontmostOffsetY) * (TILE_WIDTH / 2);
+              const screenOffsetY = (frontmostOffsetX + frontmostOffsetY) * (TILE_HEIGHT / 2);
+              const drawPosX = screenX + screenOffsetX;
+              const drawPosY = screenY + screenOffsetY;
+              
+              // Scale and position like IsoCity farms
+              const scale = 1.1; // Slightly larger
+              const destWidth = TILE_WIDTH * scale * Math.max(buildingSize.width, buildingSize.height);
+              const destHeight = destWidth * (farmTileHeight / farmTileWidth);
+              
+              // Vertical offset
+              const verticalPush = (buildingSize.width + buildingSize.height - 2) * TILE_HEIGHT * 0.5;
+              const buildingOffset = -0.3 * TILE_HEIGHT; // Farms offset
+              
+              const drawX = drawPosX + TILE_WIDTH / 2 - destWidth / 2;
+              const drawY = drawPosY + TILE_HEIGHT - destHeight + verticalPush + buildingOffset;
+              
+              // Use construction sprite for farm under construction
+              const isUnderConstruction = tile.building.constructionProgress < 100;
+              const constructionSprite = getCachedImage(ISOCITY_CONSTRUCTION_PATH, true);
+              
+              if (isUnderConstruction && constructionSprite) {
+                const constrCols = 5;
+                const constrRows = 6;
+                const constrTileWidth = constructionSprite.width / constrCols;
+                const constrTileHeight = constructionSprite.height / constrRows;
+                ctx.drawImage(
+                  constructionSprite,
+                  0, 0, constrTileWidth, constrTileHeight,
+                  drawX, drawY, destWidth, destHeight
+                );
+              } else {
+                ctx.drawImage(
+                  farmSprite,
+                  sx, sy, farmTileWidth, farmTileHeight,
+                  drawX, drawY, destWidth, destHeight
+                );
+              }
+            }
+            continue; // Skip regular sprite drawing for farm
           }
           
           if (spriteSheet) {
