@@ -142,17 +142,31 @@ function GameContent({ onExit }: { onExit?: () => void }) {
           </div>
           
           {/* Right section: Tick, Debug, and Exit - fixed width to prevent jitter */}
-          <div className="flex items-center gap-2 min-w-[160px] justify-end">
+          <div className="flex items-center gap-2 min-w-[200px] justify-end">
             <span className="text-muted-foreground text-xs font-mono tabular-nums w-16 text-right">
               {state.tick}
             </span>
-            <Button 
-              size="sm" 
-              variant="outline" 
+            <Button
+              size="sm"
+              variant="outline"
               onClick={debugAddResources}
               title="Add 50 of each resource (debug)"
             >
               +50
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => newGame({
+                gridSize: 50,
+                playerConfigs: [
+                  { name: 'Player', type: 'human', color: '#3b82f6' },
+                  { name: 'AI Opponent', type: 'ai', difficulty: 'medium', color: '#ef4444' },
+                ],
+              })}
+              title="Reset game (debug)"
+            >
+              Reset
             </Button>
             {onExit && (
               <Button size="sm" variant="ghost" onClick={onExit}>

@@ -132,13 +132,51 @@ function isBuildingPlacementValid(
   if (buildingType === 'woodcutters_camp') {
     return isAdjacentToForest(gridX, gridY, grid, gridSize);
   }
-  
+
+  // Dock must be adjacent to water
+  if (buildingType === 'dock') {
+    const buildingSize = BUILDING_STATS[buildingType]?.size || { width: 1, height: 1 };
+    return isAdjacentToWater(grid, gridX, gridY, buildingSize.width, buildingSize.height);
+  }
+
   // Other buildings - add more validation as needed
   return true;
 }
 
-// IsoCity sprite sheet path for trees
+// IsoCity sprite sheet paths for trees, pier, and construction
 const ISOCITY_SPRITE_PATH = '/assets/sprites_red_water_new.png';
+const ISOCITY_PARKS_PATH = '/assets/sprites_red_water_new_parks.png';
+const ISOCITY_CONSTRUCTION_PATH = '/assets/sprites_red_water_new_construction.png';
+
+// Check if a tile is adjacent to water (for dock placement)
+function isAdjacentToWater(grid: import('../types/game').RoNTile[][], x: number, y: number, width: number, height: number): boolean {
+  const directions = [
+    [-1, 0], [1, 0], [0, -1], [0, 1], // Cardinal
+  ];
+  
+  // Check all edges of the building footprint
+  for (let dx = 0; dx < width; dx++) {
+    for (let dy = 0; dy < height; dy++) {
+      const tileX = x + dx;
+      const tileY = y + dy;
+      
+      for (const [ddx, ddy] of directions) {
+        const checkX = tileX + ddx;
+        const checkY = tileY + ddy;
+        
+        // Skip if checking within the building footprint
+        if (checkX >= x && checkX < x + width && checkY >= y && checkY < y + height) continue;
+        
+        if (checkY >= 0 && checkY < grid.length && checkX >= 0 && checkX < grid[0].length) {
+          if (grid[checkY][checkX].terrain === 'water') {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
 
 /**
  * Draw a road tile with proper corners/turns based on adjacent roads.
@@ -360,6 +398,22 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
         setImageLoadVersion(v => v + 1);
       } catch (error) {
         console.error('Failed to load IsoCity sprites:', error);
+      }
+
+      // Load IsoCity parks sprite sheet for pier/dock
+      try {
+        await loadSpriteImage(ISOCITY_PARKS_PATH, true);
+        setImageLoadVersion(v => v + 1);
+      } catch (error) {
+        console.error('Failed to load IsoCity parks sprites:', error);
+      }
+
+      // Load IsoCity construction sprite sheet
+      try {
+        await loadSpriteImage(ISOCITY_CONSTRUCTION_PATH, true);
+        setImageLoadVersion(v => v + 1);
+      } catch (error) {
+        console.error('Failed to load IsoCity construction sprites:', error);
       }
       
       // Load age sprite sheets
@@ -1033,8 +1087,75 @@ export function RoNCanvas({ navigationTarget, onNavigationComplete }: RoNCanvasP
           if (!isTileVisible(screenX, screenY, viewBounds)) continue;
           
           // Draw building sprite
+          const buildingType = tile.building.type as RoNBuildingType;
+          
+          // Special handling for dock - use IsoCity pier sprite from parks sheet
+          if (buildingType === 'dock') {
+            const parksSprite = getCachedImage(ISOCITY_PARKS_PATH, true);
+            if (parksSprite) {
+              // Pier is at row 4, col 1 in the 5x6 parks grid
+              const parksCols = 5;
+              const parksRows = 6;
+              const parksTileWidth = parksSprite.width / parksCols;
+              const parksTileHeight = parksSprite.height / parksRows;
+              
+              const pierRow = 4;
+              const pierCol = 1;
+              const sx = pierCol * parksTileWidth;
+              // Crop top slightly to avoid bleeding from adjacent row
+              const sy = pierRow * parksTileHeight + parksTileHeight * 0.2;
+              const sh = parksTileHeight * 0.8;
+              
+              // Draw water tile underneath the dock
+              const waterTexture = getCachedImage(WATER_ASSET_PATH);
+              if (waterTexture) {
+                const imgW = waterTexture.naturalWidth || waterTexture.width;
+                const imgH = waterTexture.naturalHeight || waterTexture.height;
+                const tileCenterX = screenX + TILE_WIDTH / 2;
+                const tileCenterY = screenY + TILE_HEIGHT / 2;
+                const cropScale = 0.35;
+                const cropW = imgW * cropScale;
+                const cropH = imgH * cropScale;
+                const aspectRatio = cropH / cropW;
+                const destWidth = TILE_WIDTH * 1.15;
+                const destHeight = destWidth * aspectRatio;
+                
+                ctx.globalAlpha = 0.9;
+                ctx.drawImage(
+                  waterTexture,
+                  0, 0, cropW, cropH,
+                  Math.round(tileCenterX - destWidth / 2),
+                  Math.round(tileCenterY - destHeight / 2),
+                  Math.round(destWidth),
+                  Math.round(destHeight)
+                );
+                ctx.globalAlpha = 1;
+              }
+              
+              // Draw pier sprite
+              const scale = 1.2;
+              const destWidth = TILE_WIDTH * scale;
+              const destHeight = destWidth * (sh / parksTileWidth);
+              const drawX = screenX + TILE_WIDTH / 2 - destWidth / 2;
+              const drawY = screenY + TILE_HEIGHT - destHeight + (-0.1 * TILE_HEIGHT);
+              
+              // Construction progress transparency
+              if (tile.building.constructionProgress < 100) {
+                ctx.globalAlpha = 0.4 + (tile.building.constructionProgress / 100) * 0.6;
+              }
+              
+              ctx.drawImage(
+                parksSprite,
+                sx, sy, parksTileWidth, sh,
+                drawX, drawY, destWidth, destHeight
+              );
+              
+              ctx.globalAlpha = 1;
+            }
+            continue; // Skip regular sprite drawing for dock
+          }
+          
           if (spriteSheet) {
-            const buildingType = tile.building.type as RoNBuildingType;
             const spritePos = BUILDING_SPRITE_MAP[buildingType];
             
             if (spritePos && spritePos.row >= 0) {

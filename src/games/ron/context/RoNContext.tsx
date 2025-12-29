@@ -7,6 +7,8 @@
 
 import React, { createContext, useContext, useCallback, useEffect, useState, useRef } from 'react';
 import { flushSync } from 'react-dom';
+import { decompressFromUTF16 } from 'lz-string';
+import { serializeAndCompressAsync } from '@/lib/saveWorkerManager';
 import {
   RoNGameState,
   RoNTool,
@@ -19,6 +21,102 @@ import { Resources, ResourceType, BASE_GATHER_RATES } from '../types/resources';
 import { RoNBuilding, RoNBuildingType, BUILDING_STATS, ECONOMIC_BUILDINGS } from '../types/buildings';
 import { Unit, UnitType, UnitTask, UNIT_STATS } from '../types/units';
 import { simulateRoNTick } from '../lib/simulation';
+
+// Storage keys for RoN (separate from IsoCity)
+const RON_STORAGE_KEY = 'ron-game-state';
+
+/**
+ * Load RoN game state from localStorage
+ * Supports both compressed (lz-string) and uncompressed (legacy) formats
+ */
+function loadRoNGameState(): RoNGameState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = localStorage.getItem(RON_STORAGE_KEY);
+    if (saved) {
+      // Try to decompress first (new format)
+      let jsonString = decompressFromUTF16(saved);
+
+      // Check if decompression returned valid-looking JSON
+      if (!jsonString || !jsonString.startsWith('{')) {
+        // Check if the saved string itself looks like JSON (legacy uncompressed format)
+        if (saved.startsWith('{')) {
+          jsonString = saved;
+        } else {
+          // Data is corrupted - clear it and return null
+          console.error('Corrupted RoN save data detected, clearing...');
+          localStorage.removeItem(RON_STORAGE_KEY);
+          return null;
+        }
+      }
+
+      const parsed = JSON.parse(jsonString);
+      
+      // Validate basic structure
+      if (parsed && parsed.grid && parsed.gridSize && parsed.players) {
+        return parsed as RoNGameState;
+      } else {
+        localStorage.removeItem(RON_STORAGE_KEY);
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load RoN game state:', e);
+    try {
+      localStorage.removeItem(RON_STORAGE_KEY);
+    } catch (clearError) {
+      console.error('Failed to clear corrupted RoN game state:', clearError);
+    }
+  }
+  return null;
+}
+
+/**
+ * Save RoN game state to localStorage with lz-string compression
+ * Uses Web Worker for serialization and compression
+ */
+async function saveRoNGameStateAsync(state: RoNGameState): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  // Validate state before saving
+  if (!state || !state.grid || !state.gridSize || !state.players) {
+    console.error('Invalid RoN game state, cannot save');
+    return;
+  }
+
+  try {
+    // Serialize + Compress using Web Worker
+    const compressed = await serializeAndCompressAsync(state);
+
+    // Check size limit (5MB)
+    if (compressed.length > 5 * 1024 * 1024) {
+      console.error('Compressed RoN game state too large to save:', compressed.length, 'chars');
+      return;
+    }
+
+    // Write to localStorage
+    try {
+      localStorage.setItem(RON_STORAGE_KEY, compressed);
+    } catch (quotaError) {
+      if (quotaError instanceof DOMException && (quotaError.code === 22 || quotaError.code === 1014)) {
+        console.warn('localStorage quota exceeded for RoN');
+      }
+    }
+  } catch (e) {
+    console.error('Failed to save RoN game state:', e);
+  }
+}
+
+/**
+ * Clear RoN saved game state
+ */
+function clearRoNGameState(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(RON_STORAGE_KEY);
+  } catch (e) {
+    console.error('Failed to clear RoN game state:', e);
+  }
+}
 
 interface RoNContextValue {
   state: RoNGameState;
@@ -70,20 +168,78 @@ interface RoNContextValue {
 const RoNContext = createContext<RoNContextValue | null>(null);
 
 export function RoNProvider({ children }: { children: React.ReactNode }) {
-  
+
   // SEPARATE state for building selection - NOT touched by simulation at all
   const [selectedBuildingPos, setSelectedBuildingPos] = useState<{ x: number; y: number } | null>(null);
-  
+
+  // Track if we've loaded from localStorage
+  const [isStateReady, setIsStateReady] = useState(false);
+  const hasLoadedRef = useRef(false);
+
   // Initialize with a default 2-player game (1 human vs 1 AI)
-  const [state, setState] = useState<RoNGameState>(() => 
+  const [state, setState] = useState<RoNGameState>(() =>
     createInitialRoNGameState(50, [
       { name: 'Player', type: 'human', color: '#3b82f6' },
       { name: 'AI Opponent', type: 'ai', difficulty: 'medium', color: '#ef4444' },
     ])
   );
-  
+
   const latestStateRef = useRef(state);
   latestStateRef.current = state;
+
+  // Track state changes for auto-save
+  const stateChangedRef = useRef(false);
+  const saveInProgressRef = useRef(false);
+  const lastSaveTimeRef = useRef(0);
+  const skipNextSaveRef = useRef(false);
+
+  // Load game state from localStorage on mount
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
+    const saved = loadRoNGameState();
+    if (saved) {
+      skipNextSaveRef.current = true; // Don't save immediately after loading
+      setState(saved);
+    }
+    setIsStateReady(true);
+  }, []);
+
+  // Auto-save game state periodically
+  useEffect(() => {
+    if (!isStateReady) return;
+    
+    // Mark state as changed
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
+    stateChangedRef.current = true;
+  }, [state, isStateReady]);
+
+  // Save loop - save every 5 seconds if state changed
+  useEffect(() => {
+    if (!isStateReady) return;
+
+    const saveInterval = setInterval(() => {
+      const now = Date.now();
+      const timeSinceLastSave = now - lastSaveTimeRef.current;
+      
+      // Only save if state changed and at least 5 seconds since last save
+      if (stateChangedRef.current && !saveInProgressRef.current && timeSinceLastSave >= 5000) {
+        stateChangedRef.current = false;
+        saveInProgressRef.current = true;
+        
+        saveRoNGameStateAsync(latestStateRef.current).finally(() => {
+          lastSaveTimeRef.current = Date.now();
+          saveInProgressRef.current = false;
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(saveInterval);
+  }, [isStateReady]);
   
   // Simulation loop
   useEffect(() => {
@@ -555,7 +711,11 @@ export function RoNProvider({ children }: { children: React.ReactNode }) {
       color: string;
     }>;
   }) => {
+    // Clear saved state when starting a new game
+    clearRoNGameState();
+    
     const newState = createInitialRoNGameState(config.gridSize, config.playerConfigs);
+    skipNextSaveRef.current = true; // Will save on next state change cycle
     setState(newState);
   }, []);
   
