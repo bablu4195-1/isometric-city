@@ -187,9 +187,12 @@ function drawMilitaryUnit(
   tick: number
 ): void {
   const stats = UNIT_STATS[unit.type];
-  // Naval units are larger, air units medium, land units smaller
+  // Naval units largest, cavalry/tanks and air medium-large, infantry smaller
+  const isTankOrVehicle = unit.type.includes('tank') || unit.type.includes('armored');
   const baseScale = stats.category === 'naval' ? 1.0 : 
-                    stats.category === 'air' ? 0.7 : 0.5;
+                    stats.category === 'air' ? 0.8 :
+                    stats.category === 'cavalry' ? (isTankOrVehicle ? 1.0 : 0.7) :
+                    stats.category === 'siege' ? 0.8 : 0.5;
   const scale = baseScale;
   const animPhase = (tick * 0.1 + parseInt(unit.id.slice(-4), 16)) % (Math.PI * 2);
 
@@ -235,7 +238,7 @@ function shadeColor(color: string, percent: number): string {
 }
 
 /**
- * Draw infantry soldier with weapon and shield
+ * Draw infantry soldier with unique appearance per unit type
  */
 function drawInfantryUnit(
   ctx: CanvasRenderingContext2D,
@@ -247,128 +250,575 @@ function drawInfantryUnit(
   scale: number,
   animPhase: number
 ): void {
-  const bodyHeight = 10 * scale;
-  const bodyWidth = 5 * scale;
-  const headRadius = 2.5 * scale;
-  const legLength = 4 * scale;
-  
-  let legOffset = 0;
-  let armSwing = 0;
-  if (unit.isMoving) {
-    legOffset = Math.sin(animPhase * 3) * 2 * scale;
-    armSwing = Math.sin(animPhase * 3) * 0.2;
+  // Dispatch to specific infantry drawing function
+  switch (unit.type) {
+    case 'militia':
+      drawMilitia(ctx, centerX, centerY, color, darkerColor, scale, animPhase, unit.isMoving);
+      break;
+    case 'hoplite':
+      drawHoplite(ctx, centerX, centerY, color, darkerColor, scale, animPhase, unit.isMoving);
+      break;
+    case 'pikeman':
+      drawPikeman(ctx, centerX, centerY, color, darkerColor, scale, animPhase, unit.isMoving);
+      break;
+    case 'swordsman':
+      drawSwordsman(ctx, centerX, centerY, color, darkerColor, scale, animPhase, unit.isMoving);
+      break;
+    case 'musketeer':
+      drawMusketeer(ctx, centerX, centerY, color, darkerColor, scale, animPhase, unit.isMoving);
+      break;
+    case 'rifleman':
+      drawRifleman(ctx, centerX, centerY, color, darkerColor, scale, animPhase, unit.isMoving);
+      break;
+    case 'assault_infantry':
+      drawAssaultInfantry(ctx, centerX, centerY, color, darkerColor, scale, animPhase, unit.isMoving);
+      break;
+    default:
+      drawGenericInfantry(ctx, centerX, centerY, color, darkerColor, scale, animPhase, unit.isMoving);
   }
+}
+
+// ============ INFANTRY UNIT SPRITES ============
+
+function drawGenericInfantry(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, phase: number, moving: boolean): void {
+  const bodyHeight = 10 * s;
+  const bodyWidth = 5 * s;
+  const headRadius = 2.5 * s;
+  const legLength = 4 * s;
+  const legOffset = moving ? Math.sin(phase * 3) * 2 * s : 0;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + legLength + 1, bodyWidth * 0.8, bodyWidth * 0.3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs
+  ctx.strokeStyle = '#3d3d3d';
+  ctx.lineWidth = 2.5 * s;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - bodyWidth * 0.25, cy);
+  ctx.lineTo(cx - bodyWidth * 0.25 + legOffset * 0.4, cy + legLength);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + bodyWidth * 0.25, cy);
+  ctx.lineTo(cx + bodyWidth * 0.25 - legOffset * 0.4, cy + legLength);
+  ctx.stroke();
+
+  // Boots
+  ctx.fillStyle = '#2d2d2d';
+  ctx.beginPath();
+  ctx.arc(cx - bodyWidth * 0.25 + legOffset * 0.4, cy + legLength, 1.2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + bodyWidth * 0.25 - legOffset * 0.4, cy + legLength, 1.2 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(cx - bodyWidth * 0.5, cy - bodyHeight * 0.7, bodyWidth, bodyHeight * 0.8, 1 * s);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#e8d4b8';
+  ctx.beginPath();
+  ctx.arc(cx, cy - bodyHeight * 0.7 - headRadius * 0.5, headRadius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawMilitia(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, phase: number, moving: boolean): void {
+  const legOffset = moving ? Math.sin(phase * 3) * 2 * s : 0;
   
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.2)';
   ctx.beginPath();
-  ctx.ellipse(centerX, centerY + legLength + 1, bodyWidth * 0.8, bodyWidth * 0.3, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy + 5 * s, 4 * s, 1.5 * s, 0, 0, Math.PI * 2);
   ctx.fill();
-  
-  // Legs (dark pants)
-  ctx.strokeStyle = '#3d3d3d';
-  ctx.lineWidth = 2.5 * scale;
+
+  // Legs (peasant brown)
+  ctx.strokeStyle = '#8b7355';
+  ctx.lineWidth = 2 * s;
   ctx.lineCap = 'round';
-  
   ctx.beginPath();
-  ctx.moveTo(centerX - bodyWidth * 0.25, centerY);
-  ctx.lineTo(centerX - bodyWidth * 0.25 + legOffset * 0.4, centerY + legLength);
+  ctx.moveTo(cx - 1.5 * s, cy);
+  ctx.lineTo(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s);
   ctx.stroke();
-  
   ctx.beginPath();
-  ctx.moveTo(centerX + bodyWidth * 0.25, centerY);
-  ctx.lineTo(centerX + bodyWidth * 0.25 - legOffset * 0.4, centerY + legLength);
+  ctx.moveTo(cx + 1.5 * s, cy);
+  ctx.lineTo(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s);
   ctx.stroke();
-  
-  // Boots
-  ctx.fillStyle = '#2d2d2d';
+
+  // Body (rough tunic)
+  ctx.fillStyle = '#a0522d';
   ctx.beginPath();
-  ctx.arc(centerX - bodyWidth * 0.25 + legOffset * 0.4, centerY + legLength, 1.2 * scale, 0, Math.PI * 2);
+  ctx.roundRect(cx - 3 * s, cy - 6 * s, 6 * s, 7 * s, 1 * s);
   ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#e8d4b8';
   ctx.beginPath();
-  ctx.arc(centerX + bodyWidth * 0.25 - legOffset * 0.4, centerY + legLength, 1.2 * scale, 0, Math.PI * 2);
+  ctx.arc(cx, cy - 8 * s, 2.5 * s, 0, Math.PI * 2);
   ctx.fill();
-  
-  // Body/torso (uniform)
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.roundRect(centerX - bodyWidth * 0.5, centerY - bodyHeight * 0.7, bodyWidth, bodyHeight * 0.8, 1 * scale);
-  ctx.fill();
-  
-  // Uniform detail stripe
-  ctx.fillStyle = darkerColor;
-  ctx.fillRect(centerX - bodyWidth * 0.1, centerY - bodyHeight * 0.6, bodyWidth * 0.2, bodyHeight * 0.6);
-  
-  // Shield (left arm)
-  ctx.fillStyle = darkerColor;
-  ctx.beginPath();
-  ctx.ellipse(centerX - bodyWidth * 0.8, centerY - bodyHeight * 0.3, bodyWidth * 0.4, bodyHeight * 0.35, 0.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#fbbf24';
-  ctx.lineWidth = 0.5 * scale;
-  ctx.stroke();
-  
-  // Right arm with sword/spear
-  ctx.save();
-  ctx.translate(centerX + bodyWidth * 0.5, centerY - bodyHeight * 0.5);
-  ctx.rotate(armSwing + 0.3);
-  
-  // Arm
-  ctx.strokeStyle = '#e8beac';
-  ctx.lineWidth = 2 * scale;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(bodyWidth * 0.6, bodyHeight * 0.3);
-  ctx.stroke();
-  
-  // Sword handle
+
+  // Pitchfork/club
   ctx.strokeStyle = '#5c4033';
-  ctx.lineWidth = 1.5 * scale;
+  ctx.lineWidth = 1.5 * s;
   ctx.beginPath();
-  ctx.moveTo(bodyWidth * 0.5, bodyHeight * 0.2);
-  ctx.lineTo(bodyWidth * 0.5, bodyHeight * 0.5);
+  ctx.moveTo(cx + 4 * s, cy - 10 * s);
+  ctx.lineTo(cx + 4 * s, cy + 2 * s);
   ctx.stroke();
-  
-  // Sword blade
-  ctx.strokeStyle = '#c0c0c0';
-  ctx.lineWidth = 1.8 * scale;
+  // Prongs
   ctx.beginPath();
-  ctx.moveTo(bodyWidth * 0.5, bodyHeight * 0.5);
-  ctx.lineTo(bodyWidth * 0.5, bodyHeight * 1.2);
+  ctx.moveTo(cx + 3 * s, cy - 10 * s);
+  ctx.lineTo(cx + 4 * s, cy - 8 * s);
+  ctx.lineTo(cx + 5 * s, cy - 10 * s);
   ctx.stroke();
+}
+
+function drawHoplite(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, phase: number, moving: boolean): void {
+  const legOffset = moving ? Math.sin(phase * 3) * 2 * s : 0;
   
-  // Blade tip
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 5 * s, 5 * s, 2 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs (bronze greaves)
+  ctx.strokeStyle = '#cd853f';
+  ctx.lineWidth = 2.5 * s;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - 1.5 * s, cy);
+  ctx.lineTo(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + 1.5 * s, cy);
+  ctx.lineTo(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+
+  // Large round shield (aspis)
+  ctx.fillStyle = '#8b0000';
+  ctx.beginPath();
+  ctx.arc(cx - 3 * s, cy - 3 * s, 5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  // Shield rim
+  ctx.strokeStyle = '#cd853f';
+  ctx.lineWidth = 1 * s;
+  ctx.stroke();
+  // Lambda symbol
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 1.2 * s;
+  ctx.beginPath();
+  ctx.moveTo(cx - 5 * s, cy - 6 * s);
+  ctx.lineTo(cx - 3 * s, cy);
+  ctx.lineTo(cx - 1 * s, cy - 6 * s);
+  ctx.stroke();
+
+  // Body (bronze cuirass)
+  ctx.fillStyle = '#cd853f';
+  ctx.beginPath();
+  ctx.roundRect(cx - 2.5 * s, cy - 7 * s, 5 * s, 7 * s, 1 * s);
+  ctx.fill();
+
+  // Head with corinthian helmet
+  ctx.fillStyle = '#cd853f';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 9 * s, 3 * s, 0, Math.PI * 2);
+  ctx.fill();
+  // Helmet crest (red plume)
+  ctx.fillStyle = '#dc143c';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 12 * s, 1 * s, 3 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Face slit
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(cx - 1 * s, cy - 10 * s, 2 * s, 2 * s);
+
+  // Spear (dory)
+  ctx.strokeStyle = '#5c4033';
+  ctx.lineWidth = 1.5 * s;
+  ctx.beginPath();
+  ctx.moveTo(cx + 4 * s, cy - 14 * s);
+  ctx.lineTo(cx + 4 * s, cy + 3 * s);
+  ctx.stroke();
+  // Spear point
   ctx.fillStyle = '#c0c0c0';
   ctx.beginPath();
-  ctx.moveTo(bodyWidth * 0.5 - 1 * scale, bodyHeight * 1.2);
-  ctx.lineTo(bodyWidth * 0.5, bodyHeight * 1.4);
-  ctx.lineTo(bodyWidth * 0.5 + 1 * scale, bodyHeight * 1.2);
+  ctx.moveTo(cx + 4 * s, cy - 14 * s);
+  ctx.lineTo(cx + 3 * s, cy - 12 * s);
+  ctx.lineTo(cx + 5 * s, cy - 12 * s);
   ctx.closePath();
   ctx.fill();
+}
+
+function drawPikeman(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, phase: number, moving: boolean): void {
+  const legOffset = moving ? Math.sin(phase * 3) * 2 * s : 0;
   
-  ctx.restore();
-  
-  // Head
-  ctx.fillStyle = '#e8beac';
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
   ctx.beginPath();
-  ctx.arc(centerX, centerY - bodyHeight * 0.8 - headRadius, headRadius, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy + 5 * s, 4 * s, 1.5 * s, 0, 0, Math.PI * 2);
   ctx.fill();
-  
-  // Helmet
-  ctx.fillStyle = '#71717a';
+
+  // Legs
+  ctx.strokeStyle = '#4a4a4a';
+  ctx.lineWidth = 2 * s;
+  ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.arc(centerX, centerY - bodyHeight * 0.8 - headRadius - headRadius * 0.2, headRadius * 1.1, Math.PI * 1.1, Math.PI * 1.9);
-  ctx.fill();
-  
-  // Helmet crest/plume
+  ctx.moveTo(cx - 1.5 * s, cy);
+  ctx.lineTo(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + 1.5 * s, cy);
+  ctx.lineTo(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+
+  // Body (padded armor)
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.ellipse(centerX, centerY - bodyHeight * 0.8 - headRadius * 2.5, headRadius * 0.3, headRadius * 0.8, 0, 0, Math.PI * 2);
+  ctx.roundRect(cx - 3 * s, cy - 6 * s, 6 * s, 7 * s, 1 * s);
+  ctx.fill();
+  // Quilted pattern
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = 0.5 * s;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cx - 3 * s, cy - 4 * s + i * 2 * s);
+    ctx.lineTo(cx + 3 * s, cy - 4 * s + i * 2 * s);
+    ctx.stroke();
+  }
+
+  // Head with kettle helmet
+  ctx.fillStyle = '#808080';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 8 * s, 2.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  // Brim
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 6 * s, 3.5 * s, 1 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Very long pike
+  ctx.strokeStyle = '#5c4033';
+  ctx.lineWidth = 1.5 * s;
+  ctx.beginPath();
+  ctx.moveTo(cx + 3 * s, cy - 18 * s);
+  ctx.lineTo(cx + 3 * s, cy + 4 * s);
+  ctx.stroke();
+  // Pike head
+  ctx.fillStyle = '#c0c0c0';
+  ctx.beginPath();
+  ctx.moveTo(cx + 3 * s, cy - 18 * s);
+  ctx.lineTo(cx + 2 * s, cy - 15 * s);
+  ctx.lineTo(cx + 4 * s, cy - 15 * s);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawSwordsman(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, phase: number, moving: boolean): void {
+  const legOffset = moving ? Math.sin(phase * 3) * 2 * s : 0;
+  const swordSwing = Math.sin(phase * 4) * 0.3;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 5 * s, 4 * s, 1.5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs (chainmail leggings)
+  ctx.strokeStyle = '#6b6b6b';
+  ctx.lineWidth = 2.5 * s;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - 1.5 * s, cy);
+  ctx.lineTo(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + 1.5 * s, cy);
+  ctx.lineTo(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+
+  // Body (chainmail hauberk)
+  ctx.fillStyle = '#808080';
+  ctx.beginPath();
+  ctx.roundRect(cx - 3 * s, cy - 7 * s, 6 * s, 8 * s, 1 * s);
+  ctx.fill();
+  // Surcoat
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx - 2.5 * s, cy - 5 * s);
+  ctx.lineTo(cx + 2.5 * s, cy - 5 * s);
+  ctx.lineTo(cx + 2.5 * s, cy + 2 * s);
+  ctx.lineTo(cx - 2.5 * s, cy + 2 * s);
+  ctx.closePath();
+  ctx.fill();
+
+  // Head with great helm
+  ctx.fillStyle = '#a0a0a0';
+  ctx.beginPath();
+  ctx.roundRect(cx - 2.5 * s, cy - 11 * s, 5 * s, 5 * s, 0.5 * s);
+  ctx.fill();
+  // Eye slits
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(cx - 2 * s, cy - 9 * s, 4 * s, 0.8 * s);
+  // Cross on helm
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 0.8 * s;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 10 * s);
+  ctx.lineTo(cx, cy - 7 * s);
+  ctx.moveTo(cx - 1.5 * s, cy - 8.5 * s);
+  ctx.lineTo(cx + 1.5 * s, cy - 8.5 * s);
+  ctx.stroke();
+
+  // Sword
+  ctx.save();
+  ctx.translate(cx + 4 * s, cy - 4 * s);
+  ctx.rotate(swordSwing);
+  ctx.fillStyle = '#c0c0c0';
+  ctx.fillRect(-0.8 * s, -8 * s, 1.6 * s, 10 * s);
+  // Crossguard
+  ctx.fillStyle = '#ffd700';
+  ctx.fillRect(-2.5 * s, 1 * s, 5 * s, 1.5 * s);
+  // Handle
+  ctx.fillStyle = '#5c4033';
+  ctx.fillRect(-0.6 * s, 2 * s, 1.2 * s, 3 * s);
+  ctx.restore();
+
+  // Shield
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx - 5 * s, cy - 6 * s);
+  ctx.lineTo(cx - 5 * s, cy + 1 * s);
+  ctx.lineTo(cx - 2 * s, cy + 3 * s);
+  ctx.lineTo(cx - 2 * s, cy - 6 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#808080';
+  ctx.lineWidth = 0.5 * s;
+  ctx.stroke();
+}
+
+function drawMusketeer(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, phase: number, moving: boolean): void {
+  const legOffset = moving ? Math.sin(phase * 3) * 2 * s : 0;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 5 * s, 4 * s, 1.5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs (breeches and stockings)
+  ctx.strokeStyle = '#f5f5dc';
+  ctx.lineWidth = 2 * s;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - 1.5 * s, cy);
+  ctx.lineTo(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + 1.5 * s, cy);
+  ctx.lineTo(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+
+  // Boots with cuffs
+  ctx.fillStyle = '#2d2d2d';
+  ctx.beginPath();
+  ctx.arc(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s, 1.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s, 1.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body (doublet with sash)
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(cx - 3 * s, cy - 7 * s, 6 * s, 8 * s, 1 * s);
+  ctx.fill();
+  // Sash
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath();
+  ctx.moveTo(cx - 3 * s, cy - 5 * s);
+  ctx.lineTo(cx + 3 * s, cy - 2 * s);
+  ctx.lineTo(cx + 3 * s, cy - 1 * s);
+  ctx.lineTo(cx - 3 * s, cy - 4 * s);
+  ctx.closePath();
+  ctx.fill();
+
+  // Head with wide-brimmed hat
+  ctx.fillStyle = '#e8d4b8';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 9 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  // Hat
+  ctx.fillStyle = '#2d2d2d';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 10 * s, 4 * s, 1.5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx, cy - 11 * s, 2 * s, Math.PI, 0);
+  ctx.fill();
+  // Feather
+  ctx.fillStyle = '#dc143c';
+  ctx.beginPath();
+  ctx.ellipse(cx + 2 * s, cy - 13 * s, 0.8 * s, 3 * s, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Musket
+  ctx.fillStyle = '#5c4033';
+  ctx.fillRect(cx + 3 * s, cy - 8 * s, 1.5 * s, 12 * s);
+  ctx.fillStyle = '#4a4a4a';
+  ctx.fillRect(cx + 3.2 * s, cy - 8 * s, 1.1 * s, 8 * s);
+}
+
+function drawRifleman(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, phase: number, moving: boolean): void {
+  const legOffset = moving ? Math.sin(phase * 3) * 2 * s : 0;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 5 * s, 4 * s, 1.5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs (khaki trousers with puttees)
+  ctx.strokeStyle = '#c3b091';
+  ctx.lineWidth = 2.5 * s;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - 1.5 * s, cy);
+  ctx.lineTo(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + 1.5 * s, cy);
+  ctx.lineTo(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+
+  // Body (military tunic)
+  ctx.fillStyle = '#556b2f';
+  ctx.beginPath();
+  ctx.roundRect(cx - 3 * s, cy - 7 * s, 6 * s, 8 * s, 1 * s);
+  ctx.fill();
+  // Belt with ammo pouches
+  ctx.fillStyle = '#5c4033';
+  ctx.fillRect(cx - 3 * s, cy - 1 * s, 6 * s, 1.5 * s);
+  // Pouch
+  ctx.fillRect(cx - 2 * s, cy - 0.5 * s, 1.5 * s, 2 * s);
+  ctx.fillRect(cx + 0.5 * s, cy - 0.5 * s, 1.5 * s, 2 * s);
+
+  // Head with peaked cap/brodie helmet
+  ctx.fillStyle = '#e8d4b8';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 9 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  // Helmet
+  ctx.fillStyle = '#556b2f';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 10 * s, 2.5 * s, Math.PI, 0);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - 8.5 * s, 3 * s, 0.8 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Rifle
+  ctx.fillStyle = '#5c4033';
+  ctx.fillRect(cx + 2.5 * s, cy - 10 * s, 1.2 * s, 14 * s);
+  ctx.fillStyle = '#3d3d3d';
+  ctx.fillRect(cx + 2.7 * s, cy - 10 * s, 0.8 * s, 10 * s);
+  // Bayonet
+  ctx.fillStyle = '#c0c0c0';
+  ctx.beginPath();
+  ctx.moveTo(cx + 3.1 * s, cy - 10 * s);
+  ctx.lineTo(cx + 2.5 * s, cy - 12 * s);
+  ctx.lineTo(cx + 3.7 * s, cy - 12 * s);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawAssaultInfantry(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, phase: number, moving: boolean): void {
+  const legOffset = moving ? Math.sin(phase * 3) * 2 * s : 0;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 5 * s, 4 * s, 1.5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs (camo pattern)
+  ctx.strokeStyle = '#4a5d23';
+  ctx.lineWidth = 2.5 * s;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - 1.5 * s, cy);
+  ctx.lineTo(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + 1.5 * s, cy);
+  ctx.lineTo(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+
+  // Combat boots
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.arc(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s, 1.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s, 1.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body (tactical vest over camo)
+  ctx.fillStyle = '#4a5d23';
+  ctx.beginPath();
+  ctx.roundRect(cx - 3 * s, cy - 7 * s, 6 * s, 8 * s, 1 * s);
+  ctx.fill();
+  // Vest
+  ctx.fillStyle = '#3d4a28';
+  ctx.beginPath();
+  ctx.roundRect(cx - 2.5 * s, cy - 6 * s, 5 * s, 6 * s, 0.5 * s);
+  ctx.fill();
+  // Pouches
+  ctx.fillStyle = '#2d3a1c';
+  ctx.fillRect(cx - 2 * s, cy - 4 * s, 1.2 * s, 2 * s);
+  ctx.fillRect(cx - 0.5 * s, cy - 4 * s, 1.2 * s, 2 * s);
+  ctx.fillRect(cx + 1 * s, cy - 4 * s, 1.2 * s, 2 * s);
+
+  // Head with modern helmet + NVG mount
+  ctx.fillStyle = '#e8d4b8';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 9 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  // Helmet
+  ctx.fillStyle = '#4a5d23';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 10 * s, 2.8 * s, Math.PI, 0);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx, cy - 10 * s, 2.5 * s, Math.PI * 0.8, Math.PI * 0.2);
+  ctx.fill();
+  // NVG mount
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(cx - 0.8 * s, cy - 12 * s, 1.6 * s, 2 * s);
+
+  // Assault rifle
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(cx + 2 * s, cy - 6 * s, 1.5 * s, 8 * s);
+  // Magazine
+  ctx.fillRect(cx + 1.5 * s, cy - 2 * s, 1 * s, 3 * s);
+  // Stock
+  ctx.fillRect(cx + 2.2 * s, cy + 1 * s, 1 * s, 3 * s);
+  // Barrel
+  ctx.fillRect(cx + 2.3 * s, cy - 8 * s, 0.9 * s, 3 * s);
+  // Suppressor
+  ctx.fillStyle = '#2d2d2d';
+  ctx.beginPath();
+  ctx.roundRect(cx + 2.1 * s, cy - 10 * s, 1.3 * s, 3 * s, 0.3 * s);
   ctx.fill();
 }
 
 /**
- * Draw ranged unit with bow or gun
+ * Draw ranged unit with unique appearance per unit type
  */
 function drawRangedUnit(
   ctx: CanvasRenderingContext2D,
@@ -380,108 +830,240 @@ function drawRangedUnit(
   scale: number,
   animPhase: number
 ): void {
-  const bodyHeight = 10 * scale;
-  const bodyWidth = 5 * scale;
-  const headRadius = 2.5 * scale;
-  const legLength = 4 * scale;
-  
-  const isModern = unit.type.includes('rifle') || unit.type.includes('machine') || unit.type.includes('gunner');
-  
-  let legOffset = 0;
-  if (unit.isMoving) {
-    legOffset = Math.sin(animPhase * 3) * 2 * scale;
+  // Dispatch to specific ranged unit drawing function
+  switch (unit.type) {
+    case 'archer':
+      drawArcher(ctx, centerX, centerY, color, darkerColor, scale, animPhase, unit.isMoving);
+      break;
+    case 'crossbowman':
+      drawCrossbowman(ctx, centerX, centerY, color, darkerColor, scale, animPhase, unit.isMoving);
+      break;
+    default:
+      drawGenericRanged(ctx, centerX, centerY, color, darkerColor, scale, animPhase, unit.isMoving);
   }
+}
+
+// ============ RANGED UNIT SPRITES ============
+
+function drawGenericRanged(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, phase: number, moving: boolean): void {
+  const legOffset = moving ? Math.sin(phase * 3) * 2 * s : 0;
   
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.2)';
   ctx.beginPath();
-  ctx.ellipse(centerX, centerY + legLength + 1, bodyWidth * 0.8, bodyWidth * 0.3, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy + 5 * s, 4 * s, 1.5 * s, 0, 0, Math.PI * 2);
   ctx.fill();
-  
+
   // Legs
   ctx.strokeStyle = '#4a5568';
-  ctx.lineWidth = 2.5 * scale;
+  ctx.lineWidth = 2.5 * s;
   ctx.lineCap = 'round';
-  
   ctx.beginPath();
-  ctx.moveTo(centerX - bodyWidth * 0.25, centerY);
-  ctx.lineTo(centerX - bodyWidth * 0.25 + legOffset * 0.4, centerY + legLength);
+  ctx.moveTo(cx - 1.5 * s, cy);
+  ctx.lineTo(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s);
   ctx.stroke();
-  
   ctx.beginPath();
-  ctx.moveTo(centerX + bodyWidth * 0.25, centerY);
-  ctx.lineTo(centerX + bodyWidth * 0.25 - legOffset * 0.4, centerY + legLength);
+  ctx.moveTo(cx + 1.5 * s, cy);
+  ctx.lineTo(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s);
   ctx.stroke();
-  
+
   // Body
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.roundRect(centerX - bodyWidth * 0.5, centerY - bodyHeight * 0.7, bodyWidth, bodyHeight * 0.8, 1 * scale);
+  ctx.roundRect(cx - 2.5 * s, cy - 7 * s, 5 * s, 8 * s, 1 * s);
   ctx.fill();
-  
-  // Weapon
-  if (isModern) {
-    // Rifle/gun
-    ctx.strokeStyle = '#3d3d3d';
-    ctx.lineWidth = 2 * scale;
-    ctx.beginPath();
-    ctx.moveTo(centerX + bodyWidth * 0.3, centerY - bodyHeight * 0.4);
-    ctx.lineTo(centerX + bodyWidth * 1.8, centerY - bodyHeight * 0.6);
-    ctx.stroke();
-    
-    // Gun stock
-    ctx.strokeStyle = '#5c4033';
-    ctx.lineWidth = 2.5 * scale;
-    ctx.beginPath();
-    ctx.moveTo(centerX + bodyWidth * 0.3, centerY - bodyHeight * 0.3);
-    ctx.lineTo(centerX + bodyWidth * 0.8, centerY - bodyHeight * 0.15);
-    ctx.stroke();
-  } else {
-    // Bow
-    ctx.strokeStyle = '#8b4513';
-    ctx.lineWidth = 1.5 * scale;
-    ctx.beginPath();
-    ctx.arc(centerX + bodyWidth * 0.8, centerY - bodyHeight * 0.3, bodyHeight * 0.5, -Math.PI * 0.4, Math.PI * 0.4);
-    ctx.stroke();
-    
-    // Bowstring
-    ctx.strokeStyle = '#d4a574';
-    ctx.lineWidth = 0.5 * scale;
-    ctx.beginPath();
-    ctx.moveTo(centerX + bodyWidth * 0.8 + Math.cos(-Math.PI * 0.4) * bodyHeight * 0.5, 
-               centerY - bodyHeight * 0.3 + Math.sin(-Math.PI * 0.4) * bodyHeight * 0.5);
-    ctx.lineTo(centerX + bodyWidth * 0.8 + Math.cos(Math.PI * 0.4) * bodyHeight * 0.5,
-               centerY - bodyHeight * 0.3 + Math.sin(Math.PI * 0.4) * bodyHeight * 0.5);
-    ctx.stroke();
-    
-    // Quiver on back
-    ctx.fillStyle = '#8b4513';
-    ctx.beginPath();
-    ctx.roundRect(centerX - bodyWidth * 0.9, centerY - bodyHeight * 0.6, bodyWidth * 0.3, bodyHeight * 0.5, 0.5 * scale);
-    ctx.fill();
-    
-    // Arrows in quiver
-    ctx.strokeStyle = '#d4a574';
-    ctx.lineWidth = 0.5 * scale;
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath();
-      ctx.moveTo(centerX - bodyWidth * 0.85 + i * 1 * scale, centerY - bodyHeight * 0.6);
-      ctx.lineTo(centerX - bodyWidth * 0.85 + i * 1 * scale, centerY - bodyHeight * 0.85);
-      ctx.stroke();
-    }
-  }
-  
+
   // Head
-  ctx.fillStyle = '#e8beac';
+  ctx.fillStyle = '#e8d4b8';
   ctx.beginPath();
-  ctx.arc(centerX, centerY - bodyHeight * 0.8 - headRadius, headRadius, 0, Math.PI * 2);
+  ctx.arc(cx, cy - 9 * s, 2 * s, 0, Math.PI * 2);
   ctx.fill();
+
+  // Bow
+  ctx.strokeStyle = '#8b4513';
+  ctx.lineWidth = 1.5 * s;
+  ctx.beginPath();
+  ctx.arc(cx + 4 * s, cy - 3 * s, 5 * s, -Math.PI * 0.4, Math.PI * 0.4);
+  ctx.stroke();
+}
+
+function drawArcher(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, phase: number, moving: boolean): void {
+  const legOffset = moving ? Math.sin(phase * 3) * 2 * s : 0;
+  const drawPhase = Math.sin(phase * 2) * 0.2; // Slight draw animation
   
-  // Hat/cap
-  ctx.fillStyle = darkerColor;
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
   ctx.beginPath();
-  ctx.arc(centerX, centerY - bodyHeight * 0.8 - headRadius - headRadius * 0.3, headRadius * 1.0, Math.PI * 1.15, Math.PI * 1.85);
+  ctx.ellipse(cx, cy + 5 * s, 4 * s, 1.5 * s, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  // Legs (light leggings)
+  ctx.strokeStyle = '#c3b091';
+  ctx.lineWidth = 2 * s;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - 1.5 * s, cy);
+  ctx.lineTo(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + 1.5 * s, cy);
+  ctx.lineTo(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+
+  // Quiver on back
+  ctx.fillStyle = '#5c4033';
+  ctx.fillRect(cx - 4 * s, cy - 6 * s, 2 * s, 7 * s);
+  // Arrow feathers showing
+  ctx.fillStyle = '#f5f5dc';
+  ctx.fillRect(cx - 3.8 * s, cy - 7 * s, 0.5 * s, 1.5 * s);
+  ctx.fillRect(cx - 3 * s, cy - 7 * s, 0.5 * s, 1.5 * s);
+  ctx.fillRect(cx - 2.2 * s, cy - 7 * s, 0.5 * s, 1.5 * s);
+
+  // Body (leather jerkin)
+  ctx.fillStyle = '#8b7355';
+  ctx.beginPath();
+  ctx.roundRect(cx - 2.5 * s, cy - 6 * s, 5 * s, 7 * s, 1 * s);
+  ctx.fill();
+  // Green hood/cloak
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx - 2 * s, cy - 6 * s);
+  ctx.lineTo(cx + 2 * s, cy - 6 * s);
+  ctx.lineTo(cx + 1 * s, cy - 3 * s);
+  ctx.lineTo(cx - 1 * s, cy - 3 * s);
+  ctx.closePath();
+  ctx.fill();
+
+  // Head with hood
+  ctx.fillStyle = '#e8d4b8';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 8 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  // Hood over head
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 9 * s, 2.5 * s, Math.PI, 0);
+  ctx.fill();
+
+  // Longbow (large curved)
+  ctx.strokeStyle = '#8b4513';
+  ctx.lineWidth = 1.5 * s;
+  ctx.beginPath();
+  ctx.arc(cx + 4 * s, cy - 2 * s, 6 * s, -Math.PI * 0.45, Math.PI * 0.45);
+  ctx.stroke();
+  // Bowstring
+  ctx.strokeStyle = '#d4a574';
+  ctx.lineWidth = 0.5 * s;
+  const bowR = 6 * s;
+  ctx.beginPath();
+  ctx.moveTo(cx + 4 * s + Math.cos(-Math.PI * 0.45) * bowR, cy - 2 * s + Math.sin(-Math.PI * 0.45) * bowR);
+  ctx.lineTo(cx + 4 * s - drawPhase * 2 * s, cy - 2 * s);
+  ctx.lineTo(cx + 4 * s + Math.cos(Math.PI * 0.45) * bowR, cy - 2 * s + Math.sin(Math.PI * 0.45) * bowR);
+  ctx.stroke();
+
+  // Arrow being held
+  ctx.strokeStyle = '#5c4033';
+  ctx.lineWidth = 0.8 * s;
+  ctx.beginPath();
+  ctx.moveTo(cx + 4 * s - drawPhase * 2 * s, cy - 2 * s);
+  ctx.lineTo(cx + 9 * s, cy - 3 * s);
+  ctx.stroke();
+  // Arrowhead
+  ctx.fillStyle = '#c0c0c0';
+  ctx.beginPath();
+  ctx.moveTo(cx + 9 * s, cy - 3 * s);
+  ctx.lineTo(cx + 10 * s, cy - 2.5 * s);
+  ctx.lineTo(cx + 10 * s, cy - 3.5 * s);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawCrossbowman(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, dark: string, s: number, phase: number, moving: boolean): void {
+  const legOffset = moving ? Math.sin(phase * 3) * 2 * s : 0;
+  
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 5 * s, 4 * s, 1.5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs
+  ctx.strokeStyle = '#4a4a4a';
+  ctx.lineWidth = 2.5 * s;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - 1.5 * s, cy);
+  ctx.lineTo(cx - 1.5 * s + legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + 1.5 * s, cy);
+  ctx.lineTo(cx + 1.5 * s - legOffset * 0.3, cy + 4 * s);
+  ctx.stroke();
+
+  // Body (padded gambeson)
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(cx - 3 * s, cy - 6 * s, 6 * s, 7 * s, 1 * s);
+  ctx.fill();
+  // Quilted lines
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = 0.5 * s;
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cx - 3 * s, cy - 5 * s + i * 1.5 * s);
+    ctx.lineTo(cx + 3 * s, cy - 5 * s + i * 1.5 * s);
+    ctx.stroke();
+  }
+
+  // Head with simple cap
+  ctx.fillStyle = '#e8d4b8';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 8 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  // Cap
+  ctx.fillStyle = '#8b0000';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 9 * s, 2.2 * s, Math.PI, 0);
+  ctx.fill();
+
+  // Crossbow (horizontal)
+  // Stock
+  ctx.fillStyle = '#5c4033';
+  ctx.fillRect(cx + 1 * s, cy - 4 * s, 7 * s, 2 * s);
+  // Bow limbs (metal)
+  ctx.strokeStyle = '#808080';
+  ctx.lineWidth = 1.5 * s;
+  ctx.beginPath();
+  ctx.moveTo(cx + 7 * s, cy - 6 * s);
+  ctx.lineTo(cx + 5 * s, cy - 3 * s);
+  ctx.lineTo(cx + 7 * s, cy);
+  ctx.stroke();
+  // String
+  ctx.strokeStyle = '#d4a574';
+  ctx.lineWidth = 0.5 * s;
+  ctx.beginPath();
+  ctx.moveTo(cx + 7 * s, cy - 6 * s);
+  ctx.lineTo(cx + 2 * s, cy - 3 * s);
+  ctx.lineTo(cx + 7 * s, cy);
+  ctx.stroke();
+  // Bolt
+  ctx.fillStyle = '#3d3d3d';
+  ctx.fillRect(cx + 2 * s, cy - 3.5 * s, 5 * s, 1 * s);
+  // Bolt head
+  ctx.fillStyle = '#c0c0c0';
+  ctx.beginPath();
+  ctx.moveTo(cx + 7 * s, cy - 3 * s);
+  ctx.lineTo(cx + 8 * s, cy - 2.5 * s);
+  ctx.lineTo(cx + 8 * s, cy - 3.5 * s);
+  ctx.closePath();
+  ctx.fill();
+
+  // Pavise shield on back
+  ctx.fillStyle = '#1e3a5f';
+  ctx.fillRect(cx - 5 * s, cy - 7 * s, 2.5 * s, 8 * s);
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 0.5 * s;
+  ctx.strokeRect(cx - 5 * s, cy - 7 * s, 2.5 * s, 8 * s);
 }
 
 /**

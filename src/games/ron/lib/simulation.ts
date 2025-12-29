@@ -28,8 +28,8 @@ const ATTRITION_DAMAGE = 0.1; // Damage per tick when in enemy territory
 const ATTRITION_TICK_INTERVAL = 20; // Apply attrition every N ticks
 
 // Auto-work constants for idle villagers
-const IDLE_AUTO_WORK_THRESHOLD = 20; // Ticks of idle before auto-assigning work
-const AUTO_WORK_SEARCH_RADIUS = 6; // Tiles radius to search for nearby work
+const IDLE_AUTO_WORK_THRESHOLD = 15; // Ticks of idle before auto-assigning work
+const AUTO_WORK_SEARCH_RADIUS = 20; // Tiles radius to search for nearby work (broad search)
 
 // City center building types that create territory
 const CITY_CENTER_TYPES: RoNBuildingType[] = ['city_center', 'small_city', 'large_city', 'major_city'];
@@ -856,8 +856,11 @@ function updateUnits(state: RoNGameState): RoNGameState {
         }
         
         // Check if idle long enough to auto-assign work
+        // Add per-unit randomization to prevent all citizens triggering at once
+        const unitIdHash = parseInt(updatedUnit.id.slice(-4), 16) % 10;
+        const idleThreshold = IDLE_AUTO_WORK_THRESHOLD + unitIdHash;
         const idleDuration = state.tick - updatedUnit.idleSince;
-        if (idleDuration >= IDLE_AUTO_WORK_THRESHOLD) {
+        if (idleDuration >= idleThreshold) {
           // Find nearby economic building to work at
           // Pass newUnits (already processed this tick) + remaining original units for accurate capacity check
           // This ensures that if unit A was just assigned to a building, unit B will see that assignment
