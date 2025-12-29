@@ -108,6 +108,16 @@ export function TileInfoPanel({
             </div>
           </>
         )}
+
+        {tile.building.abandoned && (
+          <>
+            <Separator />
+            <div className="flex justify-between text-red-400">
+              <span>Abandoned</span>
+              <span className="capitalize">{tile.building.abandonmentReason}</span>
+            </div>
+          </>
+        )}
         
         <Separator />
         <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Service Coverage</div>
