@@ -32,15 +32,25 @@
 //   FOR EACH ROW
 //   EXECUTE FUNCTION update_updated_at();
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string';
 import { GameState } from '@/types/game';
 import { serializeAndCompressForDBAsync } from '@/lib/saveWorkerManager';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+// Lazy-initialize Supabase client to avoid errors when env vars are not set
+let _supabaseClient: SupabaseClient | null = null;
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+function getSupabase(): SupabaseClient {
+  if (!_supabaseClient) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase environment variables not configured. Multiplayer features are disabled.');
+    }
+    _supabaseClient = createClient(supabaseUrl, supabaseKey);
+  }
+  return _supabaseClient;
+}
 
 // Maximum city size limit for Supabase storage (20MB)
 const MAX_CITY_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
@@ -97,7 +107,7 @@ export async function createGameRoom(
     // Check if city size exceeds limit before saving
     checkCitySize(compressed);
     
-    const { error } = await supabase
+    const { error } = await getSupabase()
       .from('game_rooms')
       .insert({
         room_code: roomCode.toUpperCase(),
@@ -129,7 +139,7 @@ export async function loadGameRoom(
   roomCode: string
 ): Promise<{ gameState: GameState; cityName: string } | null> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('game_rooms')
       .select('game_state, city_name')
       .eq('room_code', roomCode.toUpperCase())
@@ -170,7 +180,7 @@ export async function updateGameRoom(
     // Check if city size exceeds limit before saving
     checkCitySize(compressed);
     
-    const { error } = await supabase
+    const { error } = await getSupabase()
       .from('game_rooms')
       .update({ game_state: compressed })
       .eq('room_code', roomCode.toUpperCase());
@@ -196,7 +206,7 @@ export async function updateGameRoom(
  */
 export async function roomExists(roomCode: string): Promise<boolean> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('game_rooms')
       .select('room_code')
       .eq('room_code', roomCode.toUpperCase())
@@ -216,7 +226,7 @@ export async function updatePlayerCount(
   count: number
 ): Promise<void> {
   try {
-    await supabase
+    await getSupabase()
       .from('game_rooms')
       .update({ player_count: count })
       .eq('room_code', roomCode.toUpperCase());
