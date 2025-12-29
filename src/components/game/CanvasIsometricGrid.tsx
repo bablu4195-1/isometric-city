@@ -2677,6 +2677,15 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
             screenX: e.clientX,
             screenY: e.clientY,
           });
+        } else if (tile?.building.abandoned) {
+          // Abandoned building
+          setHoveredIncident({
+            x: gridX,
+            y: gridY,
+            type: 'fire', // Using 'fire' for styling, but it's an abandonment
+            screenX: e.clientX,
+            screenY: e.clientY,
+          });
         } else {
           // No incident at this tile
           setHoveredIncident(null);
@@ -3200,17 +3209,21 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
                   <SafetyIcon size={14} className="text-blue-400" />
                 )}
                 <span className="text-xs font-semibold text-sidebar-foreground">
-                  {hoveredIncident.type === 'fire'
+                  {grid[hoveredIncident.y][hoveredIncident.x].building.abandoned
+                    ? 'Building Abandoned'
+                    : hoveredIncident.type === 'fire'
                     ? getFireNameForTile(hoveredIncident.x, hoveredIncident.y)
                     : hoveredIncident.crimeType
-                      ? getCrimeName(hoveredIncident.crimeType)
-                      : gt('Incident')}
+                    ? getCrimeName(hoveredIncident.crimeType)
+                    : gt('Incident')}
                 </span>
               </div>
               
               {/* Description */}
               <p className="text-[11px] text-muted-foreground leading-tight">
-                {hoveredIncident.type === 'fire'
+                {grid[hoveredIncident.y][hoveredIncident.x].building.abandoned
+                  ? `Reason: ${grid[hoveredIncident.y][hoveredIncident.x].building.abandonmentReason}`
+                  : hoveredIncident.type === 'fire'
                   ? getFireDescriptionForTile(hoveredIncident.x, hoveredIncident.y)
                   : hoveredIncident.crimeType
                     ? getCrimeDescription(hoveredIncident.crimeType)

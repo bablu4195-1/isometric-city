@@ -1527,6 +1527,7 @@ function evolveBuilding(grid: Tile[][], x: number, y: number, services: ServiceC
 
     if (Math.random() < abandonmentChance + utilityPenalty + levelPenalty) {
       building.abandoned = true;
+      building.abandonmentReason = utilityPenalty > 0 ? 'utilities' : 'demand';
       building.population = 0;
       building.jobs = 0;
       return building;

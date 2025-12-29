@@ -44,6 +44,7 @@ export interface Building {
   age: number;
   constructionProgress: number;
   abandoned: boolean;
+  abandonmentReason?: 'demand' | 'utilities';
   flipped?: boolean;
   cityId?: string;
   bridgeType?: BridgeType;
