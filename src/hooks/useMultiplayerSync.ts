@@ -76,6 +76,7 @@ export function useMultiplayerSync() {
   // Load initial state when joining a room (received from other players)
   // This can happen even if we already loaded from cache - network state takes priority
   const lastInitialStateRef = useRef<string | null>(null);
+  const pendingStateKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!multiplayer || !multiplayer.initialState) return;
     
@@ -90,10 +91,21 @@ export function useMultiplayerSync() {
     const success = game.loadState(stateString);
     
     if (success) {
-      initialStateLoadedRef.current = true;
+      // Don't set initialStateLoadedRef immediately - mark as pending
+      // and let the next effect confirm the state has actually changed
+      pendingStateKeyRef.current = stateKey;
       lastInitialStateRef.current = stateKey;
     }
   }, [multiplayer, multiplayer?.initialState, game]);
+
+  // Confirm that the state has actually been loaded by React before allowing sync
+  useEffect(() => {
+    if (pendingStateKeyRef.current !== null && game.state.tick !== undefined) {
+      // State has been applied, now it's safe to enable sync
+      initialStateLoadedRef.current = true;
+      pendingStateKeyRef.current = null;
+    }
+  }, [game.state]);
 
   // Apply a remote action to the local game state
   const applyRemoteAction = useCallback((action: GameAction) => {
