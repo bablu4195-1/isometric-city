@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Firework, FactorySmog, WorldRenderState, TILE_WIDTH, TILE_HEIGHT } from './types';
+import { Firework, FactorySmog, Cloud, CloudPuff, CloudType, WorldRenderState, TILE_WIDTH, TILE_HEIGHT } from './types';
 import { BuildingType } from '@/types/game';
 import {
   FIREWORK_BUILDINGS,
@@ -29,6 +29,33 @@ import {
   SMOG_MAX_PARTICLES_PER_FACTORY_MOBILE,
   SMOG_MIN_ZOOM,
   FIREWORK_MIN_ZOOM,
+  CLOUD_MIN_ZOOM,
+  CLOUD_MAX_ZOOM,
+  CLOUD_FADE_ZOOM,
+  CLOUD_MAX_COVERAGE,
+  CLOUD_COVERAGE_FADE_END,
+  CLOUD_MAX_COUNT,
+  CLOUD_MAX_COUNT_MOBILE,
+  CLOUD_SPAWN_INTERVAL,
+  CLOUD_SPAWN_INTERVAL_MOBILE,
+  CLOUD_SPEED_MIN,
+  CLOUD_SPEED_MAX,
+  CLOUD_SCALE_MIN,
+  CLOUD_SCALE_MAX,
+  CLOUD_PUFF_COUNT_MIN,
+  CLOUD_PUFF_COUNT_MAX,
+  CLOUD_PUFF_SIZE_MIN,
+  CLOUD_PUFF_SIZE_MAX,
+  CLOUD_WIDTH,
+  CLOUD_DESPAWN_MARGIN,
+  CLOUD_WIND_ANGLE,
+  CLOUD_LAYER_SPEEDS,
+  CLOUD_LAYER_OPACITY,
+  CLOUD_NIGHT_OPACITY_MULT,
+  CLOUD_TYPE_WEIGHTS_BY_HOUR,
+  CLOUD_TYPE_WEIGHTS_DEFAULT,
+  CLOUD_TYPES_ORDERED,
+  CLOUD_TYPE_CONFIG,
 } from './constants';
 import { gridToScreen } from './utils';
 import { findFireworkBuildings, findSmogFactories } from './gridFinders';
@@ -42,6 +69,9 @@ export interface EffectsSystemRefs {
   fireworkLastHourRef: React.MutableRefObject<number>;
   factorySmogRef: React.MutableRefObject<FactorySmog[]>;
   smogLastGridVersionRef: React.MutableRefObject<number>;
+  cloudsRef: React.MutableRefObject<Cloud[]>;
+  cloudIdRef: React.MutableRefObject<number>;
+  cloudSpawnTimerRef: React.MutableRefObject<number>;
 }
 
 export interface EffectsSystemState {
@@ -63,6 +93,9 @@ export function useEffectsSystems(
     fireworkLastHourRef,
     factorySmogRef,
     smogLastGridVersionRef,
+    cloudsRef,
+    cloudIdRef,
+    cloudSpawnTimerRef,
   } = refs;
 
   const { worldStateRef, gridVersionRef, isMobile } = systemState;
@@ -601,11 +634,461 @@ export function useEffectsSystems(
     ctx.restore();
   }, [worldStateRef, factorySmogRef]);
 
+  // Pick cloud type based on time-of-day weights (climate diversity)
+  const pickCloudType = useCallback((currentHour: number): CloudType => {
+    const hour = Math.floor(currentHour) % 24;
+    const weights = CLOUD_TYPE_WEIGHTS_BY_HOUR[hour] ?? CLOUD_TYPE_WEIGHTS_DEFAULT;
+    const total = weights.reduce((a, b) => a + b, 0);
+    let r = Math.random() * total;
+    for (let i = 0; i < CLOUD_TYPES_ORDERED.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return CLOUD_TYPES_ORDERED[i];
+    }
+    return CLOUD_TYPES_ORDERED[0];
+  }, []);
+
+  // Small jitter helper - keeps patterns coherent while adding natural variation
+  const jitter = (base: number, range: number) => base + (Math.random() - 0.5) * range;
+
+  // Generate cloud puffs with proper geometric patterns - coherent, natural grouping per type
+  const generateCloudPuffs = useCallback((cloudType: CloudType): CloudPuff[] => {
+    const cfg = CLOUD_TYPE_CONFIG[cloudType];
+    const [sxMin, sxMax] = cfg.puffStretchX;
+    const [syMin, syMax] = cfg.puffStretchY;
+    const stretchX = () => sxMin + Math.random() * (sxMax - sxMin);
+    const stretchY = () => syMin + Math.random() * (syMax - syMin);
+    const puffs: CloudPuff[] = [];
+
+    switch (cloudType) {
+      case 'cumulus': {
+        // Coherent cotton-ball cluster: 1 large center, ring of medium, outer accents. Heavy overlap.
+        // Center (dominant)
+        puffs.push({ offsetX: jitter(0, 6), offsetY: jitter(0, 5), size: jitter(42, 10), opacity: 0.9, stretchX: undefined, stretchY: undefined });
+        // Inner ring (4–5 medium, tight cluster around center)
+        const innerCount = 4 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < innerCount; i++) {
+          const angle = (i / innerCount) * Math.PI * 2 + 0.3;
+          const dist = jitter(18, 6);
+          puffs.push({
+            offsetX: Math.cos(angle) * dist + jitter(0, 5),
+            offsetY: Math.sin(angle) * dist * 0.7 + jitter(0, 4),
+            size: jitter(32, 8),
+            opacity: 0.75 + Math.random() * 0.2,
+          });
+        }
+        // Outer accents (2–3 smaller, extend the cluster naturally)
+        const outerCount = 2 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < outerCount; i++) {
+          const angle = (i / outerCount) * Math.PI * 2 + 0.7;
+          const dist = jitter(38, 8);
+          puffs.push({
+            offsetX: Math.cos(angle) * dist + jitter(0, 6),
+            offsetY: Math.sin(angle) * dist * 0.6 + jitter(0, 5),
+            size: jitter(24, 6),
+            opacity: 0.6 + Math.random() * 0.25,
+          });
+        }
+        break;
+      }
+
+      case 'stratus': {
+        // Horizontal band/layer: row of wide flat puffs, heavily overlapping. Y tight, X spans wide.
+        const count = 7 + Math.floor(Math.random() * 4);
+        const span = 130;
+        for (let i = 0; i < count; i++) {
+          const t = count > 1 ? i / (count - 1) - 0.5 : 0;
+          puffs.push({
+            offsetX: t * span + jitter(0, 10),
+            offsetY: jitter(2, 6),
+            size: jitter(48, 12),
+            opacity: 0.7 + Math.random() * 0.2,
+            stretchX: stretchX(),
+            stretchY: stretchY(),
+          });
+        }
+        break;
+      }
+
+      case 'cirrus': {
+        // Wispy line: 3–4 elongated puffs along a gentle curve (not scattered)
+        const points = [[-40, 3], [-15, -1], [10, 2], [38, -2]]; // gentle S-curve
+        const n = 2 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < n; i++) {
+          const [ox, oy] = points[i];
+          puffs.push({
+            offsetX: jitter(ox, 8),
+            offsetY: jitter(oy, 4),
+            size: jitter(28, 6),
+            opacity: 0.5 + Math.random() * 0.3,
+            stretchX: stretchX(),
+            stretchY: stretchY(),
+          });
+        }
+        break;
+      }
+
+      case 'cumulonimbus': {
+        // Vertical tower: base (dark) at bottom, middle transition, bright anvil on top
+        // Base row (2–3 large, portion: base)
+        puffs.push({ offsetX: jitter(-18, 6), offsetY: jitter(22, 5), size: jitter(38, 8), opacity: 0.85, portion: 'base' });
+        puffs.push({ offsetX: jitter(12, 6), offsetY: jitter(18, 5), size: jitter(36, 8), opacity: 0.85, portion: 'base' });
+        // Middle (2 medium, mix)
+        puffs.push({ offsetX: jitter(-8, 5), offsetY: jitter(6, 4), size: jitter(32, 6), opacity: 0.8, portion: 'base' });
+        puffs.push({ offsetX: jitter(10, 5), offsetY: jitter(2, 4), size: jitter(30, 6), opacity: 0.8, portion: 'top' });
+        // Anvil top (1–2 smaller, portion: top)
+        puffs.push({ offsetX: jitter(0, 8), offsetY: jitter(-12, 4), size: jitter(28, 6), opacity: 0.9, portion: 'top' });
+        puffs.push({ offsetX: jitter(-15, 6), offsetY: jitter(-8, 4), size: jitter(24, 4), opacity: 0.85, portion: 'top' });
+        break;
+      }
+
+      case 'altocumulus': {
+        // Mackerel / regular pattern: 2 offset rows, rhythmic spacing (not random scatter)
+        const row1X = [-50, -25, 0, 25, 50];
+        const row2X = [-38, -12, 12, 38]; // half-phase offset
+        for (const x of row1X) {
+          puffs.push({
+            offsetX: jitter(x, 6),
+            offsetY: jitter(-5, 3),
+            size: jitter(26, 6),
+            opacity: 0.65 + Math.random() * 0.2,
+            stretchX: stretchX(),
+            stretchY: stretchY(),
+          });
+        }
+        for (const x of row2X) {
+          puffs.push({
+            offsetX: jitter(x, 6),
+            offsetY: jitter(6, 3),
+            size: jitter(24, 5),
+            opacity: 0.6 + Math.random() * 0.2,
+            stretchX: stretchX(),
+            stretchY: stretchY(),
+          });
+        }
+        break;
+      }
+
+      default: {
+        // Fallback: simple cluster similar to cumulus
+        puffs.push({ offsetX: 0, offsetY: 0, size: 40, opacity: 0.85 });
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2;
+          puffs.push({ offsetX: Math.cos(a) * 20 + jitter(0, 5), offsetY: Math.sin(a) * 14 + jitter(0, 4), size: jitter(30, 6), opacity: 0.7 });
+        }
+      }
+    }
+
+    return puffs;
+  }, []);
+
+  // Spawn a new cloud - at random upwind edge, or at overridePosition (for cloud groups).
+  // overrideCloudType: when spawning a companion in a group, use same type as lead for coherent banks.
+  const spawnCloud = useCallback((currentHour: number, opts?: { position?: { x: number; y: number }; cloudType?: CloudType }) => {
+    const { canvasSize, zoom, offset } = worldStateRef.current;
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    
+    const cloudType = opts?.cloudType ?? pickCloudType(currentHour);
+    const cfg = CLOUD_TYPE_CONFIG[cloudType];
+    
+    const viewWidth = canvasSize.width / (dpr * zoom);
+    const viewHeight = canvasSize.height / (dpr * zoom);
+    const viewLeft = -offset.x / zoom;
+    const viewTop = -offset.y / zoom;
+    
+    const windX = Math.cos(CLOUD_WIND_ANGLE);
+    const windY = Math.sin(CLOUD_WIND_ANGLE);
+    
+    // Use override (for group companion) or compute from edge
+    let spawnX: number;
+    let spawnY: number;
+    if (opts?.position) {
+      spawnX = opts.position.x;
+      spawnY = opts.position.y;
+    } else if (Math.random() < 0.5) {
+      spawnX = viewLeft - CLOUD_WIDTH;
+      spawnY = viewTop + Math.random() * viewHeight;
+    } else {
+      spawnX = viewLeft + Math.random() * viewWidth * 0.5;
+      spawnY = viewTop + viewHeight + CLOUD_WIDTH * 0.5;
+    }
+    
+    const layer = cfg.layerRestriction >= 0 ? cfg.layerRestriction : Math.floor(Math.random() * 3);
+    const speed = (CLOUD_SPEED_MIN + Math.random() * (CLOUD_SPEED_MAX - CLOUD_SPEED_MIN)) * cfg.speedMult;
+    const scale = cfg.scaleMin + Math.random() * (cfg.scaleMax - cfg.scaleMin);
+    const opacity = cfg.opacityMin + Math.random() * (cfg.opacityMax - cfg.opacityMin);
+    
+    const cloud: Cloud = {
+      id: cloudIdRef.current++,
+      x: spawnX,
+      y: spawnY,
+      vx: windX * speed * CLOUD_LAYER_SPEEDS[layer],
+      vy: windY * speed * CLOUD_LAYER_SPEEDS[layer],
+      scale,
+      opacity: opacity * CLOUD_LAYER_OPACITY[layer],
+      puffs: generateCloudPuffs(cloudType),
+      layer,
+      cloudType,
+    };
+    
+    cloudsRef.current.push(cloud);
+    return { x: spawnX, y: spawnY, cloudType }; // For potential group companion (same type)
+  }, [worldStateRef, cloudIdRef, cloudsRef, generateCloudPuffs, pickCloudType]);
+
+  // Update clouds - spawn new ones and move existing
+  const updateClouds = useCallback((delta: number, currentHour: number) => {
+    const { canvasSize, zoom, offset, speed: gameSpeed } = worldStateRef.current;
+    
+    // Don't update when game is paused
+    if (gameSpeed === 0) {
+      return;
+    }
+    
+    // Skip clouds when very zoomed out
+    if (zoom < CLOUD_MIN_ZOOM) {
+      cloudsRef.current = [];
+      return;
+    }
+    
+    const maxClouds = isMobile ? CLOUD_MAX_COUNT_MOBILE : CLOUD_MAX_COUNT;
+    const spawnInterval = isMobile ? CLOUD_SPAWN_INTERVAL_MOBILE : CLOUD_SPAWN_INTERVAL;
+    
+    // Spawn new clouds (type varies by time of day). Sometimes spawn in pairs for natural cloud banks/groups.
+    cloudSpawnTimerRef.current += delta;
+    if (cloudSpawnTimerRef.current >= spawnInterval && cloudsRef.current.length < maxClouds) {
+      cloudSpawnTimerRef.current = 0;
+      const pos = spawnCloud(currentHour);
+      // 28% chance to spawn a companion cloud nearby for natural cloud banks (same type implied by same hour/weights)
+      if (cloudsRef.current.length < maxClouds && Math.random() < 0.28) {
+        // Companion upwind and slightly offset (so they drift as a loose group)
+        // Wind is NE: offset backwards (SW) = negative in wind direction
+        const windX = Math.cos(CLOUD_WIND_ANGLE);
+        const windY = Math.sin(CLOUD_WIND_ANGLE);
+        const alongWind = -(55 + Math.random() * 35); // 55–90px upwind
+        const perp = (Math.random() - 0.5) * 44;      // ±22px perpendicular
+        const companionX = pos.x + windX * alongWind + (-windY) * perp;
+        const companionY = pos.y + windY * alongWind + windX * perp;
+        spawnCloud(currentHour, { position: { x: companionX, y: companionY }, cloudType: pos.cloudType });
+        // Slightly longer gap after a group so we get rhythm: clear patches between banks
+        cloudSpawnTimerRef.current = -spawnInterval * 0.4;
+      }
+    }
+    
+    // Update existing clouds
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const viewWidth = canvasSize.width / (dpr * zoom);
+    const viewHeight = canvasSize.height / (dpr * zoom);
+    const viewLeft = -offset.x / zoom;
+    const viewTop = -offset.y / zoom;
+    const viewRight = viewLeft + viewWidth;
+    const viewBottom = viewTop + viewHeight;
+    
+    cloudsRef.current = cloudsRef.current.filter(cloud => {
+      // Move cloud
+      cloud.x += cloud.vx * delta;
+      cloud.y += cloud.vy * delta;
+      
+      // Remove if too far past viewport
+      if (cloud.x > viewRight + CLOUD_DESPAWN_MARGIN ||
+          cloud.y < viewTop - CLOUD_DESPAWN_MARGIN) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [worldStateRef, cloudsRef, cloudSpawnTimerRef, isMobile, spawnCloud]);
+
+  // Get gradient color stops for a cloud type and portion (for cumulonimbus base/top)
+  const getCloudGradientStops = (cloudType: CloudType, portion: 'base' | 'top' | undefined, puffOpacity: number): [number, string][] => {
+    switch (cloudType) {
+      case 'cumulus':
+        // Bright white, fair-weather
+        return [
+          [0, `rgba(255, 255, 255, ${puffOpacity})`],
+          [0.4, `rgba(250, 250, 252, ${puffOpacity * 0.9})`],
+          [0.7, `rgba(245, 245, 250, ${puffOpacity * 0.5})`],
+          [1, `rgba(240, 240, 248, 0)`],
+        ];
+      case 'stratus':
+        // Gray overcast, flat layered
+        return [
+          [0, `rgba(220, 222, 228, ${puffOpacity})`],
+          [0.35, `rgba(200, 204, 212, ${puffOpacity * 0.9})`],
+          [0.65, `rgba(185, 190, 200, ${puffOpacity * 0.5})`],
+          [1, `rgba(175, 180, 192, 0)`],
+        ];
+      case 'cirrus':
+        // Wispy, faint icy white, high altitude
+        return [
+          [0, `rgba(255, 255, 255, ${puffOpacity * 0.9})`],
+          [0.3, `rgba(248, 250, 255, ${puffOpacity * 0.6})`],
+          [0.6, `rgba(240, 245, 252, ${puffOpacity * 0.25})`],
+          [1, `rgba(235, 240, 250, 0)`],
+        ];
+      case 'cumulonimbus':
+        // Storm cloud: dark base, bright anvil top
+        if (portion === 'base') {
+          return [
+            [0, `rgba(120, 125, 140, ${puffOpacity})`],
+            [0.3, `rgba(100, 108, 125, ${puffOpacity * 0.9})`],
+            [0.6, `rgba(85, 92, 110, ${puffOpacity * 0.5})`],
+            [1, `rgba(70, 78, 95, 0)`],
+          ];
+        }
+        // Top / anvil: bright white
+        return [
+          [0, `rgba(255, 255, 255, ${puffOpacity})`],
+          [0.4, `rgba(248, 248, 252, ${puffOpacity * 0.85})`],
+          [0.7, `rgba(240, 242, 248, ${puffOpacity * 0.4})`],
+          [1, `rgba(235, 238, 245, 0)`],
+        ];
+      case 'altocumulus':
+        // Patchy mackerel sky, gray-white
+        return [
+          [0, `rgba(238, 240, 245, ${puffOpacity})`],
+          [0.4, `rgba(225, 228, 235, ${puffOpacity * 0.85})`],
+          [0.7, `rgba(210, 215, 225, ${puffOpacity * 0.45})`],
+          [1, `rgba(200, 206, 218, 0)`],
+        ];
+      default:
+        return [[0, `rgba(255,255,255,${puffOpacity})`], [1, `rgba(240,240,245,0)`]];
+    }
+  };
+
+  // Draw a single puff (circle or ellipse based on stretch)
+  const drawPuff = (ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, stretchX: number, stretchY: number, gradient: CanvasGradient) => {
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    const rx = radius * stretchX;
+    const ry = radius * stretchY;
+    if (Math.abs(rx - ry) < 0.5) {
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+    } else {
+      ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+    }
+    ctx.fill();
+  };
+
+  // Draw clouds - distinct rendering per cloud type for climate diversity
+  const drawClouds = useCallback((ctx: CanvasRenderingContext2D, currentHour: number) => {
+    const { offset: currentOffset, zoom: currentZoom, canvasSize } = worldStateRef.current;
+    const canvas = ctx.canvas;
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    
+    // Skip if no clouds or zoomed out too far
+    if (cloudsRef.current.length === 0 || currentZoom < CLOUD_MIN_ZOOM) {
+      return;
+    }
+    
+    // Zoom-based fade: when zoomed in enough (focusing on city), clouds fade out
+    // Fully visible when zoom <= CLOUD_MAX_ZOOM, fade to 0 between MAX and FADE, invisible above FADE
+    let zoomOpacity = 1;
+    if (currentZoom > CLOUD_FADE_ZOOM) {
+      return; // Don't draw at all when fully zoomed in
+    } else if (currentZoom > CLOUD_MAX_ZOOM) {
+      zoomOpacity = 1 - (currentZoom - CLOUD_MAX_ZOOM) / (CLOUD_FADE_ZOOM - CLOUD_MAX_ZOOM);
+    }
+    
+    // Night opacity modifier
+    const isNight = currentHour >= 20 || currentHour < 6;
+    const isDusk = currentHour >= 18 && currentHour < 20;
+    const isDawn = currentHour >= 6 && currentHour < 8;
+    let nightMult = 1.0;
+    if (isNight) nightMult = CLOUD_NIGHT_OPACITY_MULT;
+    else if (isDusk) nightMult = 1.0 - (1.0 - CLOUD_NIGHT_OPACITY_MULT) * ((currentHour - 18) / 2);
+    else if (isDawn) nightMult = CLOUD_NIGHT_OPACITY_MULT + (1.0 - CLOUD_NIGHT_OPACITY_MULT) * ((currentHour - 6) / 2);
+    
+    ctx.save();
+    ctx.scale(dpr * currentZoom, dpr * currentZoom);
+    ctx.translate(currentOffset.x / currentZoom, currentOffset.y / currentZoom);
+    
+    const viewWidth = canvas.width / (dpr * currentZoom);
+    const viewHeight = canvas.height / (dpr * currentZoom);
+    const viewLeft = -currentOffset.x / currentZoom - CLOUD_WIDTH;
+    const viewTop = -currentOffset.y / currentZoom - CLOUD_WIDTH;
+    const viewRight = viewWidth - currentOffset.x / currentZoom + CLOUD_WIDTH;
+    const viewBottom = viewHeight - currentOffset.y / currentZoom + CLOUD_WIDTH;
+    const viewportArea = viewWidth * viewHeight;
+    
+    const sortedClouds = [...cloudsRef.current].sort((a, b) => a.layer - b.layer);
+    
+    // Estimate cloud coverage: sum approximate area of visible clouds / viewport area
+    // When coverage exceeds CLOUD_MAX_COVERAGE, fade clouds so they don't obscure the city
+    let totalCloudArea = 0;
+    for (const cloud of sortedClouds) {
+      if (cloud.x < viewLeft || cloud.x > viewRight || cloud.y < viewTop || cloud.y > viewBottom) continue;
+      // Approximate each cloud's footprint: max puff extent squared (puffs overlap so we undercount)
+      let maxExtent = 0;
+      for (const puff of cloud.puffs) {
+        const rx = puff.size * cloud.scale * (puff.stretchX ?? 1);
+        const ry = puff.size * cloud.scale * (puff.stretchY ?? 1);
+        const extent = Math.sqrt(puff.offsetX * puff.offsetX + puff.offsetY * puff.offsetY) + Math.max(rx, ry);
+        if (extent > maxExtent) maxExtent = extent;
+      }
+      totalCloudArea += Math.PI * maxExtent * maxExtent; // circular footprint
+    }
+    const coverage = viewportArea > 0 ? totalCloudArea / viewportArea : 0;
+    let coverageOpacity = 1;
+    if (coverage > CLOUD_MAX_COVERAGE) {
+      const fadeRange = CLOUD_COVERAGE_FADE_END - CLOUD_MAX_COVERAGE;
+      coverageOpacity = Math.max(0, 1 - (coverage - CLOUD_MAX_COVERAGE) / fadeRange);
+    }
+    
+    for (const cloud of sortedClouds) {
+      if (cloud.x < viewLeft || cloud.x > viewRight || cloud.y < viewTop || cloud.y > viewBottom) continue;
+      
+      const finalOpacity = cloud.opacity * nightMult * zoomOpacity * coverageOpacity;
+      
+      // Draw each puff with type-specific colors and shape
+      for (const puff of cloud.puffs) {
+        const puffX = cloud.x + puff.offsetX * cloud.scale;
+        const puffY = cloud.y + puff.offsetY * cloud.scale;
+        const puffSize = puff.size * cloud.scale;
+        const puffOpacity = finalOpacity * puff.opacity;
+        const stretchX = puff.stretchX ?? 1;
+        const stretchY = puff.stretchY ?? 1;
+        const maxRadius = Math.max(puffSize * stretchX, puffSize * stretchY);
+        
+        if (puffOpacity <= 0.01) continue;
+        
+        const stops = getCloudGradientStops(cloud.cloudType, puff.portion, puffOpacity);
+        const gradient = ctx.createRadialGradient(puffX, puffY, 0, puffX, puffY, maxRadius);
+        for (const [pos, color] of stops) gradient.addColorStop(pos, color);
+        
+        drawPuff(ctx, puffX, puffY, puffSize, stretchX, stretchY, gradient);
+      }
+      
+      // Shadow/depth (skip for cirrus - too wispy; reduce for stratus)
+      const shadowMult = cloud.cloudType === 'cirrus' ? 0 : cloud.cloudType === 'stratus' ? 0.1 : 0.15;
+      if (shadowMult > 0) {
+        const shadowY = cloud.y + 8 * cloud.scale;
+        for (const puff of cloud.puffs) {
+          const puffX = cloud.x + puff.offsetX * cloud.scale;
+          const puffY = shadowY + puff.offsetY * cloud.scale;
+          const puffSize = puff.size * cloud.scale * 0.9;
+          const stretchX = puff.stretchX ?? 1;
+          const stretchY = puff.stretchY ?? 1;
+          const shadowOpacity = finalOpacity * puff.opacity * shadowMult;
+          if (shadowOpacity <= 0.01) continue;
+          
+          const grad = ctx.createRadialGradient(puffX, puffY, 0, puffX, puffY, puffSize * Math.max(stretchX, stretchY));
+          grad.addColorStop(0, `rgba(160, 168, 185, ${shadowOpacity})`);
+          grad.addColorStop(0.5, `rgba(175, 182, 198, ${shadowOpacity * 0.5})`);
+          grad.addColorStop(1, `rgba(190, 195, 208, 0)`);
+          drawPuff(ctx, puffX, puffY, puffSize, stretchX, stretchY, grad);
+        }
+      }
+    }
+    
+    ctx.restore();
+  }, [worldStateRef, cloudsRef]);
+
   return {
     updateFireworks,
     drawFireworks,
     updateSmog,
     drawSmog,
+    updateClouds,
+    drawClouds,
     findFireworkBuildingsCallback,
     findSmogFactoriesCallback,
   };

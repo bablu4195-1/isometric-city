@@ -1,8 +1,8 @@
 import React, { useCallback, useRef } from 'react';
-import { Car, CarDirection, EmergencyVehicle, EmergencyVehicleType, Pedestrian, PedestrianDestType, WorldRenderState, TILE_WIDTH, TILE_HEIGHT } from './types';
-import { CAR_COLORS, CAR_MIN_ZOOM, CAR_MIN_ZOOM_MOBILE, PEDESTRIAN_MIN_ZOOM, PEDESTRIAN_MIN_ZOOM_MOBILE, DIRECTION_META, PEDESTRIAN_MAX_COUNT, PEDESTRIAN_MAX_COUNT_MOBILE, PEDESTRIAN_ROAD_TILE_DENSITY, PEDESTRIAN_ROAD_TILE_DENSITY_MOBILE, PEDESTRIAN_SPAWN_BATCH_SIZE, PEDESTRIAN_SPAWN_BATCH_SIZE_MOBILE, PEDESTRIAN_SPAWN_INTERVAL, PEDESTRIAN_SPAWN_INTERVAL_MOBILE, VEHICLE_FAR_ZOOM_THRESHOLD } from './constants';
+import { Bus, Car, CarDirection, EmergencyVehicle, EmergencyVehicleType, Pedestrian, PedestrianDestType, WorldRenderState, TILE_WIDTH, TILE_HEIGHT } from './types';
+import { BUS_COLORS, BUS_MIN_POPULATION, BUS_MIN_ZOOM, BUS_SPEED_MAX, BUS_SPEED_MIN, BUS_SPAWN_INTERVAL_MAX, BUS_SPAWN_INTERVAL_MIN, BUS_STOP_DURATION_MAX, BUS_STOP_DURATION_MIN, CAR_COLORS, CAR_MIN_ZOOM, CAR_MIN_ZOOM_MOBILE, DIRECTION_META, MAX_BUSES, MAX_BUSES_MOBILE, PEDESTRIAN_MAX_COUNT, PEDESTRIAN_MAX_COUNT_MOBILE, PEDESTRIAN_MIN_ZOOM, PEDESTRIAN_MIN_ZOOM_MOBILE, PEDESTRIAN_ROAD_TILE_DENSITY, PEDESTRIAN_ROAD_TILE_DENSITY_MOBILE, PEDESTRIAN_SPAWN_BATCH_SIZE, PEDESTRIAN_SPAWN_BATCH_SIZE_MOBILE, PEDESTRIAN_SPAWN_INTERVAL, PEDESTRIAN_SPAWN_INTERVAL_MOBILE, VEHICLE_FAR_ZOOM_THRESHOLD } from './constants';
 import { isRoadTile, getDirectionOptions, pickNextDirection, findPathOnRoads, getDirectionToTile, gridToScreen } from './utils';
-import { findResidentialBuildings, findPedestrianDestinations, findStations, findFires, findRecreationAreas, findEnterableBuildings, SPORTS_TYPES, ACTIVE_RECREATION_TYPES } from './gridFinders';
+import { findBusStops, findResidentialBuildings, findPedestrianDestinations, findStations, findFires, findRecreationAreas, findEnterableBuildings, SPORTS_TYPES, ACTIVE_RECREATION_TYPES } from './gridFinders';
 import { drawPedestrians as drawPedestriansUtil } from './drawPedestrians';
 import { BuildingType, Tile } from '@/types/game';
 import { getTrafficLightState, canProceedThroughIntersection, TRAFFIC_LIGHT_TIMING } from './trafficSystem';
@@ -13,6 +13,8 @@ import {
   updatePedestrianState,
   spawnPedestrianAtRecreation,
   spawnPedestrianFromBuilding,
+  spawnPedestrianInsideBuilding,
+  spawnPedestrianApproachingShop,
   findBeachTiles,
   getRandomBeachTile,
   spawnPedestrianAtBeach,
@@ -31,6 +33,9 @@ export interface VehicleSystemRefs {
   carsRef: React.MutableRefObject<Car[]>;
   carIdRef: React.MutableRefObject<number>;
   carSpawnTimerRef: React.MutableRefObject<number>;
+  busesRef: React.MutableRefObject<Bus[]>;
+  busIdRef: React.MutableRefObject<number>;
+  busSpawnTimerRef: React.MutableRefObject<number>;
   emergencyVehiclesRef: React.MutableRefObject<EmergencyVehicle[]>;
   emergencyVehicleIdRef: React.MutableRefObject<number>;
   emergencyDispatchTimerRef: React.MutableRefObject<number>;
@@ -70,6 +75,9 @@ export function useVehicleSystems(
     carsRef,
     carIdRef,
     carSpawnTimerRef,
+    busesRef,
+    busIdRef,
+    busSpawnTimerRef,
     emergencyVehiclesRef,
     emergencyVehicleIdRef,
     emergencyDispatchTimerRef,
@@ -137,6 +145,97 @@ export function useVehicleSystems(
     return findPedestrianDestinations(currentGrid, currentGridSize);
   }, [worldStateRef]);
 
+  const findBusStopsCallback = useCallback((): { x: number; y: number }[] => {
+    const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    return findBusStops(currentGrid, currentGridSize);
+  }, [worldStateRef]);
+
+  const buildBusRoute = useCallback(() => {
+    const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    if (!currentGrid || currentGridSize <= 0) return null;
+
+    const stops = findBusStopsCallback();
+    if (stops.length < 2) return null;
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const start = stops[Math.floor(Math.random() * stops.length)];
+      let end = stops[Math.floor(Math.random() * stops.length)];
+      if (start.x === end.x && start.y === end.y) {
+        end = stops[(stops.indexOf(start) + 1) % stops.length];
+      }
+
+      const path = findPathOnRoads(currentGrid, currentGridSize, start.x, start.y, end.x, end.y);
+      if (path && path.length > 0) {
+        return { path, stops: [start, end] };
+      }
+    }
+
+    return null;
+  }, [worldStateRef, findBusStopsCallback]);
+
+  const buildBusRouteFrom = useCallback((start: { x: number; y: number }) => {
+    const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    if (!currentGrid || currentGridSize <= 0) return null;
+
+    const stops = findBusStopsCallback();
+    if (stops.length < 2) return null;
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const end = stops[Math.floor(Math.random() * stops.length)];
+      if (end.x === start.x && end.y === start.y) continue;
+
+      const path = findPathOnRoads(currentGrid, currentGridSize, start.x, start.y, end.x, end.y);
+      if (path && path.length > 0) {
+        return { path, stops: [start, end] };
+      }
+    }
+
+    return null;
+  }, [worldStateRef, findBusStopsCallback]);
+
+  const spawnBus = useCallback(() => {
+    const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    if (!currentGrid || currentGridSize <= 0) return false;
+
+    const route = buildBusRoute();
+    if (!route) return false;
+
+    const startTile = route.path[0];
+    let direction: CarDirection = 'south';
+    if (route.path.length > 1) {
+      const nextTile = route.path[1];
+      const dir = getDirectionToTile(startTile.x, startTile.y, nextTile.x, nextTile.y);
+      if (dir) direction = dir;
+    } else {
+      const options = getDirectionOptions(currentGrid, currentGridSize, startTile.x, startTile.y);
+      if (options.length > 0) {
+        direction = options[Math.floor(Math.random() * options.length)];
+      }
+    }
+
+    const baseLaneOffset = 6 + Math.random() * 2.5;
+    const laneSign = (direction === 'north' || direction === 'east') ? 1 : -1;
+
+    busesRef.current.push({
+      id: busIdRef.current++,
+      tileX: startTile.x,
+      tileY: startTile.y,
+      direction,
+      progress: 0,
+      speed: BUS_SPEED_MIN + Math.random() * (BUS_SPEED_MAX - BUS_SPEED_MIN),
+      age: 0,
+      maxAge: 160 + Math.random() * 120,
+      color: BUS_COLORS[Math.floor(Math.random() * BUS_COLORS.length)],
+      laneOffset: laneSign * baseLaneOffset,
+      path: route.path,
+      pathIndex: 0,
+      stopTimer: 0,
+      stops: route.stops,
+    });
+
+    return true;
+  }, [worldStateRef, buildBusRoute, busesRef, busIdRef]);
+
   // Find recreation areas
   const findRecreationAreasCallback = useCallback(() => {
     const { grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
@@ -203,9 +302,22 @@ export function useVehicleSystems(
       
       let dest = destinations[Math.floor(Math.random() * destinations.length)];
       
-      // 40% chance to re-roll and specifically pick a sports/active facility if available
-      // These are rarer in most cities so we boost their selection probability
-      if (Math.random() < 0.4 && dest.type === 'park') {
+      // 35% chance to pick a commercial destination (shop) - boost shopping activity
+      const commercialDests = destinations.filter(d => d.type === 'commercial');
+      if (Math.random() < 0.35 && commercialDests.length > 0) {
+        // Prefer shops over offices for visible shopping
+        const { grid: currentGrid } = worldStateRef.current;
+        const shopDests = commercialDests.filter(d => {
+          const tile = currentGrid[d.y]?.[d.x];
+          const buildingType = tile?.building.type;
+          return buildingType === 'shop_small' || buildingType === 'shop_medium' || buildingType === 'mall';
+        });
+        dest = shopDests.length > 0 
+          ? shopDests[Math.floor(Math.random() * shopDests.length)]
+          : commercialDests[Math.floor(Math.random() * commercialDests.length)];
+      }
+      // 25% chance to re-roll and specifically pick a sports/active facility if available
+      else if (Math.random() < 0.25 && dest.type === 'park') {
         const { grid: currentGrid } = worldStateRef.current;
         const boostedDests = destinations.filter(d => {
           if (d.type !== 'park') return false;
@@ -223,7 +335,15 @@ export function useVehicleSystems(
         return false;
       }
       
-      const startIndex = Math.floor(Math.random() * path.length);
+      // For shop destinations, start closer to destination so we see arrivals more often
+      let startIndex: number;
+      if (dest.type === 'commercial' && path.length > 3) {
+        // Start in the second half of the path (closer to shop)
+        const minStart = Math.floor(path.length * 0.5);
+        startIndex = minStart + Math.floor(Math.random() * (path.length - minStart));
+      } else {
+        startIndex = Math.floor(Math.random() * path.length);
+      }
       const startTile = path[startIndex];
       
       let direction: CarDirection = 'south';
@@ -253,8 +373,8 @@ export function useVehicleSystems(
       return true;
     }
     
-    // 22% - Pedestrian already at a recreation area
-    if (spawnType < 0.87) {
+    // 18% - Pedestrian already at a recreation area
+    if (spawnType < 0.83) {
       const recreationAreas = findRecreationAreasCallback();
       if (recreationAreas.length === 0) return false;
       
@@ -288,7 +408,67 @@ export function useVehicleSystems(
       return false;
     }
     
-    // 15% - Pedestrian exiting from a building
+    // 5% - Pedestrian already inside a shop/building (shopping, working, etc.)
+    if (spawnType < 0.88) {
+      const enterableBuildings = findEnterableBuildingsCallback();
+      if (enterableBuildings.length === 0) return false;
+      
+      // Prefer shops/commercial buildings for more visible shopping activity
+      const shopBuildings = enterableBuildings.filter(b => 
+        b.buildingType === 'shop_small' || b.buildingType === 'shop_medium' || b.buildingType === 'mall'
+      );
+      const buildingList = shopBuildings.length > 0 && Math.random() < 0.7 ? shopBuildings : enterableBuildings;
+      
+      const building = buildingList[Math.floor(Math.random() * buildingList.length)];
+      const home = residentials[Math.floor(Math.random() * residentials.length)];
+      
+      const ped = spawnPedestrianInsideBuilding(
+        pedestrianIdRef.current++,
+        building.x,
+        building.y,
+        currentGrid,
+        currentGridSize,
+        home.x,
+        home.y
+      );
+      
+      if (ped) {
+        pedestriansRef.current.push(ped);
+        return true;
+      }
+      return false;
+    }
+    
+    // 7% - Pedestrian approaching a shop (visible at entrance)
+    if (spawnType < 0.95) {
+      const enterableBuildings = findEnterableBuildingsCallback();
+      const shopBuildings = enterableBuildings.filter(b => 
+        b.buildingType === 'shop_small' || b.buildingType === 'shop_medium' || b.buildingType === 'mall'
+      );
+      
+      if (shopBuildings.length === 0) return false;
+      
+      const shop = shopBuildings[Math.floor(Math.random() * shopBuildings.length)];
+      const home = residentials[Math.floor(Math.random() * residentials.length)];
+      
+      const ped = spawnPedestrianApproachingShop(
+        pedestrianIdRef.current++,
+        shop.x,
+        shop.y,
+        currentGrid,
+        currentGridSize,
+        home.x,
+        home.y
+      );
+      
+      if (ped) {
+        pedestriansRef.current.push(ped);
+        return true;
+      }
+      return false;
+    }
+    
+    // 5% - Pedestrian exiting from a building
     const enterableBuildings = findEnterableBuildingsCallback();
     if (enterableBuildings.length === 0) return false;
     
@@ -979,6 +1159,160 @@ export function useVehicleSystems(
     carsRef.current = updatedCars;
   }, [worldStateRef, carsRef, carSpawnTimerRef, spawnRandomCar, trafficLightTimerRef, isIntersection, isMobile, trainsRef, gridVersionRef, cachedRoadTileCountRef]);
 
+  const updateBuses = useCallback((delta: number) => {
+    const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed, zoom: currentZoom } = worldStateRef.current;
+
+    if (currentZoom < BUS_MIN_ZOOM) {
+      busesRef.current = [];
+      return;
+    }
+
+    if (!currentGrid || currentGridSize <= 0) {
+      busesRef.current = [];
+      return;
+    }
+
+    if (state.stats.population < BUS_MIN_POPULATION) {
+      busesRef.current = [];
+      return;
+    }
+
+    const speedMultiplier = currentSpeed === 0 ? 0 : currentSpeed === 1 ? 1 : currentSpeed === 2 ? 2.5 : 4;
+
+    const currentGridVersion = gridVersionRef.current;
+    let roadTileCount: number;
+    if (cachedRoadTileCountRef.current.gridVersion === currentGridVersion) {
+      roadTileCount = cachedRoadTileCountRef.current.count;
+    } else {
+      roadTileCount = 0;
+      for (let y = 0; y < currentGridSize; y++) {
+        for (let x = 0; x < currentGridSize; x++) {
+          const type = currentGrid[y][x].building.type;
+          if (type === 'road' || type === 'bridge') {
+            roadTileCount++;
+          }
+        }
+      }
+      cachedRoadTileCountRef.current = { count: roadTileCount, gridVersion: currentGridVersion };
+    }
+
+    const maxBuses = isMobile ? MAX_BUSES_MOBILE : MAX_BUSES;
+    const roadFactor = Math.max(1, Math.floor(roadTileCount / 120));
+    const populationFactor = Math.min(1, state.stats.population / 4000);
+    const targetBuses = Math.min(maxBuses, Math.max(2, Math.floor(roadFactor * (1 + populationFactor * 2))));
+
+    busSpawnTimerRef.current -= delta;
+    if (busesRef.current.length < targetBuses && busSpawnTimerRef.current <= 0) {
+      if (spawnBus()) {
+        busSpawnTimerRef.current = BUS_SPAWN_INTERVAL_MIN + Math.random() * (BUS_SPAWN_INTERVAL_MAX - BUS_SPAWN_INTERVAL_MIN);
+      } else {
+        busSpawnTimerRef.current = 1.5;
+      }
+    }
+
+    const trafficTime = trafficLightTimerRef.current;
+    const lightState = getTrafficLightState(trafficTime);
+
+    const updatedBuses: Bus[] = [];
+
+    for (const bus of [...busesRef.current]) {
+      bus.age += delta * speedMultiplier;
+      if (bus.age > bus.maxAge) {
+        continue;
+      }
+
+      if (bus.stopTimer > 0) {
+        bus.stopTimer -= delta * speedMultiplier;
+        updatedBuses.push(bus);
+        continue;
+      }
+
+      let shouldStop = false;
+      const meta = DIRECTION_META[bus.direction];
+      const nextX = bus.tileX + meta.step.x;
+      const nextY = bus.tileY + meta.step.y;
+      const currentIsIntersection = isIntersection(currentGrid, currentGridSize, bus.tileX, bus.tileY);
+      const nextIsIntersection = isIntersection(currentGrid, currentGridSize, nextX, nextY);
+
+      if (!currentIsIntersection && nextIsIntersection) {
+        if (!canProceedThroughIntersection(bus.direction, lightState)) {
+          shouldStop = true;
+        }
+      }
+
+      if (!shouldStop) {
+        if (isRailroadCrossing(currentGrid, currentGridSize, bus.tileX, bus.tileY)) {
+          if (shouldStopAtCrossing(trainsRef.current, bus.tileX, bus.tileY) && bus.progress < 0.3) {
+            shouldStop = true;
+          }
+        }
+        if (!shouldStop && bus.progress > 0.5 && isRailroadCrossing(currentGrid, currentGridSize, nextX, nextY)) {
+          if (shouldStopAtCrossing(trainsRef.current, nextX, nextY)) {
+            shouldStop = true;
+          }
+        }
+      }
+
+      if (!shouldStop) {
+        bus.progress += bus.speed * delta * speedMultiplier;
+      }
+
+      while (bus.progress >= 1 && bus.pathIndex < bus.path.length - 1) {
+        bus.pathIndex++;
+        bus.progress -= 1;
+        const currentTile = bus.path[bus.pathIndex];
+        bus.tileX = currentTile.x;
+        bus.tileY = currentTile.y;
+
+        if (bus.pathIndex + 1 < bus.path.length) {
+          const nextTile = bus.path[bus.pathIndex + 1];
+          const dir = getDirectionToTile(bus.tileX, bus.tileY, nextTile.x, nextTile.y);
+          if (dir) {
+            if (dir !== bus.direction) {
+              const baseLaneOffset = 6 + Math.random() * 2.5;
+              const laneSign = (dir === 'north' || dir === 'east') ? 1 : -1;
+              bus.laneOffset = laneSign * baseLaneOffset;
+            }
+            bus.direction = dir;
+          }
+        }
+      }
+
+      if (bus.pathIndex >= bus.path.length - 1 && bus.progress >= 1) {
+        bus.progress = 0;
+        bus.stopTimer = BUS_STOP_DURATION_MIN + Math.random() * (BUS_STOP_DURATION_MAX - BUS_STOP_DURATION_MIN);
+
+        const currentStop = bus.stops[1] ?? { x: bus.tileX, y: bus.tileY };
+        const nextRoute = buildBusRouteFrom(currentStop);
+        if (!nextRoute) {
+          continue;
+        }
+
+        const nextStart = nextRoute.path[0];
+        bus.tileX = nextStart.x;
+        bus.tileY = nextStart.y;
+        bus.path = nextRoute.path;
+        bus.pathIndex = 0;
+        bus.stops = nextRoute.stops;
+
+        if (nextRoute.path.length > 1) {
+          const nextTile = nextRoute.path[1];
+          const dir = getDirectionToTile(nextStart.x, nextStart.y, nextTile.x, nextTile.y);
+          if (dir) {
+            bus.direction = dir;
+            const baseLaneOffset = 6 + Math.random() * 2.5;
+            const laneSign = (dir === 'north' || dir === 'east') ? 1 : -1;
+            bus.laneOffset = laneSign * baseLaneOffset;
+          }
+        }
+      }
+
+      updatedBuses.push(bus);
+    }
+
+    busesRef.current = updatedBuses;
+  }, [worldStateRef, state.stats.population, isMobile, busesRef, busSpawnTimerRef, spawnBus, buildBusRouteFrom, trafficLightTimerRef, trainsRef, gridVersionRef, cachedRoadTileCountRef, isIntersection]);
+
   const updatePedestrians = useCallback((delta: number) => {
     const { grid: currentGrid, gridSize: currentGridSize, speed: currentSpeed, zoom: currentZoom } = worldStateRef.current;
     
@@ -1141,6 +1475,74 @@ export function useVehicleSystems(
     
     ctx.restore();
   }, [worldStateRef, carsRef, isMobile]);
+
+  const drawBuses = useCallback((ctx: CanvasRenderingContext2D) => {
+    const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
+    const canvas = ctx.canvas;
+    const dpr = window.devicePixelRatio || 1;
+
+    if (currentZoom < BUS_MIN_ZOOM) {
+      return;
+    }
+
+    if (!currentGrid || currentGridSize <= 0 || busesRef.current.length === 0) {
+      return;
+    }
+
+    ctx.save();
+    ctx.scale(dpr * currentZoom, dpr * currentZoom);
+    ctx.translate(currentOffset.x / currentZoom, currentOffset.y / currentZoom);
+
+    const viewWidth = canvas.width / (dpr * currentZoom);
+    const viewHeight = canvas.height / (dpr * currentZoom);
+    const viewLeft = -currentOffset.x / currentZoom - TILE_WIDTH;
+    const viewTop = -currentOffset.y / currentZoom - TILE_HEIGHT * 2;
+    const viewRight = viewWidth - currentOffset.x / currentZoom + TILE_WIDTH;
+    const viewBottom = viewHeight - currentOffset.y / currentZoom + TILE_HEIGHT * 2;
+
+    busesRef.current.forEach(bus => {
+      const { screenX, screenY } = gridToScreen(bus.tileX, bus.tileY, 0, 0);
+      const centerX = screenX + TILE_WIDTH / 2;
+      const centerY = screenY + TILE_HEIGHT / 2;
+      const meta = DIRECTION_META[bus.direction];
+      const busX = centerX + meta.vec.dx * bus.progress + meta.normal.nx * bus.laneOffset;
+      const busY = centerY + meta.vec.dy * bus.progress + meta.normal.ny * bus.laneOffset;
+
+      if (busX < viewLeft - 60 || busX > viewRight + 60 || busY < viewTop - 80 || busY > viewBottom + 80) {
+        return;
+      }
+
+      ctx.save();
+      ctx.translate(busX, busY);
+      ctx.rotate(meta.angle);
+
+      const scale = 0.6;
+      const length = 20 * scale;
+      const width = 7 * scale;
+
+      ctx.fillStyle = bus.color;
+      ctx.fillRect(-length, -width, length * 2, width * 2);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.fillRect(-length * 0.8, -width * 0.7, length * 1.4, width * 0.9);
+
+      ctx.fillStyle = 'rgba(191, 219, 254, 0.8)';
+      for (let i = 0; i < 4; i++) {
+        const wx = -length * 0.7 + i * length * 0.45;
+        ctx.fillRect(wx, -width * 0.55, length * 0.25, width * 1.1);
+      }
+
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(-length * 0.95, -width * 0.9, length * 0.1, width * 1.8);
+
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(length * 0.85, -width * 0.35, length * 0.1, width * 0.7);
+
+      ctx.restore();
+    });
+
+    ctx.restore();
+  }, [worldStateRef, busesRef]);
 
   const drawPedestrians = useCallback((ctx: CanvasRenderingContext2D) => {
     const { offset: currentOffset, zoom: currentZoom, grid: currentGrid, gridSize: currentGridSize } = worldStateRef.current;
@@ -1483,8 +1885,10 @@ export function useVehicleSystems(
     updateEmergencyDispatch,
     updateEmergencyVehicles,
     updateCars,
+    updateBuses,
     updatePedestrians,
     drawCars,
+    drawBuses,
     drawPedestrians,
     drawRecreationPedestrians,
     drawEmergencyVehicles,

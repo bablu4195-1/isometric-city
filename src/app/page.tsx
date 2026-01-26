@@ -524,15 +524,25 @@ export default function HomePage() {
             >
               Load Example
             </Button>
-            <div className="flex items-center justify-between w-full">
-              <a
-                href="https://github.com/amilich/isometric-city"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
-              >
-                Open GitHub
-              </a>
+            <div className="flex items-start justify-between w-full">
+              <div className="flex flex-col">
+                <a
+                  href="https://cursor.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+                >
+                  Made with Cursor
+                </a>
+                <a
+                  href="https://github.com/amilich/isometric-city"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+                >
+                  Open GitHub
+                </a>
+              </div>
               <LanguageSelector variant="ghost" className="text-white/40 hover:text-white/70 hover:bg-white/10" />
             </div>
           </div>
@@ -621,15 +631,25 @@ export default function HomePage() {
               >
                 Load Example
               </Button>
-              <div className="flex items-center justify-between w-64">
-                <a
-                  href="https://github.com/amilich/isometric-city"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
-                >
-                  Open GitHub
-                </a>
+              <div className="flex items-start justify-between w-64">
+                <div className="flex flex-col">
+                  <a
+                    href="https://cursor.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+                  >
+                    Made with Cursor
+                  </a>
+                  <a
+                    href="https://github.com/amilich/isometric-city"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-left py-2 text-sm font-light tracking-wide text-white/40 hover:text-white/70 transition-colors duration-200"
+                  >
+                    Open GitHub
+                  </a>
+                </div>
                 <LanguageSelector variant="ghost" className="text-white/40 hover:text-white/70 hover:bg-white/10" />
               </div>
             </div>

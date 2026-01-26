@@ -66,9 +66,9 @@ export const TRAFFIC_LIGHT_TIMING = {
 
 /** Road rendering constants */
 export const ROAD_CONFIG = {
-  SINGLE_LANE_WIDTH: 0.14,   // Width ratio for single lane
-  AVENUE_LANE_WIDTH: 0.11,   // Narrower lanes for avenues
-  HIGHWAY_LANE_WIDTH: 0.10,  // Even narrower for highways
+  SINGLE_LANE_WIDTH: 0.09,   // Width ratio for single lane (multiplied by 2 for roadW)
+  AVENUE_LANE_WIDTH: 0.10,   // Lanes for avenues
+  HIGHWAY_LANE_WIDTH: 0.11,  // Lanes for highways
   MEDIAN_WIDTH: 0.08,        // Width of center median
   SIDEWALK_WIDTH: 0.08,      // Sidewalk width ratio
 };

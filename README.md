@@ -1,16 +1,27 @@
-# IsoCity
+# IsoCity & IsoCoaster
 
-Try for free at [iso-city.com](https://iso-city.com)!
+Open-source isometric simulation games built with **Next.js**, **TypeScript**, and **HTML5 Canvas**.
 
-IsoCity is a open-source isometric city-building simulation game built with **Next.js**, **TypeScript**, and **Tailwind CSS**. It leverages the HTML5 Canvas API for high-performance rendering of isometric graphics, featuring complex systems for economic simulation, trains, planes, seaplanes, helicopters, cars, pedestrians, and more.
-
-![IsoCity Banner](public/readme-image.png)
+<table>
+<tr>
+<td width="50%" align="center"><strong>IsoCity</strong></td>
+<td width="50%" align="center"><strong>IsoCoaster</strong></td>
+</tr>
+<tr>
+<td><img src="public/readme-image.png" width="100%"></td>
+<td><img src="public/readme-coaster.png" width="100%"></td>
+</tr>
+<tr>
+<td align="center">City builder with trains, planes, cars, and pedestrians<br><a href="https://iso-city.com">iso-city.com</a></td>
+<td align="center">Build theme parks with roller coasters, rides, and guests<br><a href="https://iso-coaster.com">iso-coaster.com</a></td>
+</tr>
+</table>
 
 Made with [Cursor](https://cursor.com)
 
 ## Features
 
--   **Isometric Rendering Engine**: Custom-built rendering system using HTML5 Canvas (`CanvasIsometricGrid`) capable of handling complex depth sorting and layer management.
+-   **Isometric Rendering Engine**: Custom-built rendering system using HTML5 Canvas (`CanvasIsometricGrid`) capable of handling complex depth sorting, layer management, and both image and drawn sprites.
 -   **Dynamic Simulation**:
     -   **Traffic System**: Autonomous vehicles including cars, trains, and aircraft (planes/seaplanes).
     -   **Pedestrian System**: Pathfinding and crowd simulation for city inhabitants.
@@ -21,9 +32,8 @@ Made with [Cursor](https://cursor.com)
 
 ## Tech Stack
 
--   **Framework**: [Next.js 14+](https://nextjs.org/) (App Router)
+-   **Framework**: [Next.js 16](https://nextjs.org/)
 -   **Language**: [TypeScript](https://www.typescriptlang.org/)
--   **Styling**: [Tailwind CSS](https://tailwindcss.com/) & [shadcn/ui](https://ui.shadcn.com/) components.
 -   **Graphics**: HTML5 Canvas API (No external game engine libraries; pure native implementation).
 -   **Icons**: Lucide React.
 

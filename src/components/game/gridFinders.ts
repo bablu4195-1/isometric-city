@@ -23,6 +23,12 @@ const INDUSTRIAL_TYPES = new Set<BuildingType>([
   'factory_small', 'factory_medium', 'factory_large', 'warehouse'
 ]);
 
+const BUS_STOP_TYPES = new Set<BuildingType>([
+  'school', 'university', 'hospital', 'mall', 'office_low', 'office_high',
+  'city_hall', 'museum', 'stadium', 'rail_station', 'subway_station', 'airport',
+  'community_center', 'park', 'park_large', 'park_gate'
+]);
+
 const PARK_TYPES = new Set<BuildingType>([
   'park', 'park_large', 'tennis', 'basketball_courts', 'playground_small',
   'playground_large', 'baseball_field_small', 'soccer_field_small',
@@ -239,6 +245,26 @@ export function findStations(
     }
   }
   return stations;
+}
+
+/**
+ * Find transit hubs used as bus stops.
+ */
+export function findBusStops(
+  grid: Tile[][],
+  gridSize: number
+): { x: number; y: number }[] {
+  if (!grid || gridSize <= 0) return [];
+
+  const stops: { x: number; y: number }[] = [];
+  for (let y = 0; y < gridSize; y++) {
+    for (let x = 0; x < gridSize; x++) {
+      if (BUS_STOP_TYPES.has(grid[y][x].building.type)) {
+        stops.push({ x, y });
+      }
+    }
+  }
+  return stops;
 }
 
 /**

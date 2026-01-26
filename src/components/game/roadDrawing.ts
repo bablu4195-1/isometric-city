@@ -79,6 +79,7 @@ export function drawRoad(
   const mergeInfo = getMergeInfo(gridX, gridY);
   
   // Calculate base road width based on road type
+  // Using narrower widths to ensure sidewalks remain visible on tile edges
   const laneWidthRatio = mergeInfo.type === 'highway' ? 0.16 :
                         mergeInfo.type === 'avenue' ? 0.15 :
                         0.14;
@@ -89,7 +90,7 @@ export function drawRoad(
   const sidewalkColor = ROAD_COLORS.SIDEWALK;
   const curbColor = ROAD_COLORS.CURB;
   
-  // Edge stop distance
+  // Edge stop distance - keep at or below 1.0 to avoid road surfaces overlapping adjacent tile sidewalks
   const edgeStop = 0.98;
   
   // Calculate edge midpoints

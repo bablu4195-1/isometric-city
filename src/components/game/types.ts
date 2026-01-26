@@ -24,6 +24,23 @@ export type Car = {
   laneOffset: number;
 };
 
+export type Bus = {
+  id: number;
+  tileX: number;
+  tileY: number;
+  direction: CarDirection;
+  progress: number;
+  speed: number;
+  age: number;
+  maxAge: number;
+  color: string;
+  laneOffset: number;
+  path: { x: number; y: number }[];
+  pathIndex: number;
+  stopTimer: number;
+  stops: { x: number; y: number }[];
+};
+
 // Airplane types for airport animation
 export type AirplaneState = 'flying' | 'landing' | 'taking_off' | 'taxiing';
 
@@ -199,9 +216,10 @@ export type PedestrianDestType = 'school' | 'commercial' | 'industrial' | 'park'
 // Pedestrian behavioral states
 export type PedestrianState =
   | 'walking'           // Walking along a path
-  | 'entering_building' // Entering a building (fading out animation)
+  | 'approaching_shop'  // Walking up to a shop entrance (visible at door)
+  | 'entering_building' // Entering a building (walking through door)
   | 'inside_building'   // Inside a building (invisible)
-  | 'exiting_building'  // Exiting a building (fading in animation)
+  | 'exiting_building'  // Exiting a building (walking out of door)
   | 'at_recreation'     // At a recreational area doing an activity
   | 'at_beach'          // At the beach (swimming or on mat)
   | 'idle'              // Standing still, waiting
@@ -450,6 +468,49 @@ export type Firework = {
   // Source building tile
   sourceTileX: number;
   sourceTileY: number;
+};
+
+// Cloud types for atmospheric effects - distinct meteorological cloud types
+export type CloudType =
+  | 'cumulus'       // Fluffy fair-weather clouds
+  | 'stratus'       // Flat, layered overcast
+  | 'cirrus'        // Wispy high-altitude
+  | 'cumulonimbus'  // Towering storm clouds (dark base, white top)
+  | 'altocumulus';  // Mid-level patchy mackerel sky
+
+export type CloudPuff = {
+  // Offset from cloud center (for multi-puff clouds)
+  offsetX: number;
+  offsetY: number;
+  // Size of this puff (radius)
+  size: number;
+  // Opacity multiplier
+  opacity: number;
+  // Stretch for non-circular puffs: 1=round, >1=elongated (stratus: wide/flat, cirrus: wispy)
+  stretchX?: number;
+  stretchY?: number;
+  // For cumulonimbus: 'base' (dark) or 'top' (bright) - undefined = use cloud default
+  portion?: 'base' | 'top';
+};
+
+export type Cloud = {
+  id: number;
+  // Screen position (isometric coordinates)
+  x: number;
+  y: number;
+  // Velocity (pixels per second)
+  vx: number;
+  vy: number;
+  // Cloud size scale (1.0 = normal)
+  scale: number;
+  // Base opacity (0-1)
+  opacity: number;
+  // Array of puffs that make up this cloud
+  puffs: CloudPuff[];
+  // Altitude layer (0 = low, 1 = mid, 2 = high) - affects parallax
+  layer: number;
+  // Meteorological cloud type - determines shape, color, and rendering
+  cloudType: CloudType;
 };
 
 // Direction metadata - re-export from core

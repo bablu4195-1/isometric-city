@@ -4,6 +4,19 @@ import { CarDirection, TILE_WIDTH, TILE_HEIGHT } from './types';
 
 // Vehicle colors (duller/muted versions)
 export const CAR_COLORS = ['#d97777', '#d4a01f', '#2ba67a', '#4d84c8', '#9a6ac9'];
+export const BUS_COLORS = ['#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#9333ea'];
+
+// Bus system constants
+export const BUS_MIN_POPULATION = 600; // Minimum population required for buses
+export const BUS_MIN_ZOOM = 0.35; // Minimum zoom to show buses
+export const BUS_SPEED_MIN = 0.3;
+export const BUS_SPEED_MAX = 0.45;
+export const MAX_BUSES = 35;
+export const MAX_BUSES_MOBILE = 8;
+export const BUS_SPAWN_INTERVAL_MIN = 2.5;
+export const BUS_SPAWN_INTERVAL_MAX = 6.0;
+export const BUS_STOP_DURATION_MIN = 1.6;
+export const BUS_STOP_DURATION_MAX = 3.5;
 
 // Pedestrian appearance colors - includes lighter skin tones
 export const PEDESTRIAN_SKIN_COLORS = ['#ffe4c4', '#ffd5b8', '#ffc8a8', '#fdbf7e', '#e0ac69', '#c68642', '#8d5524', '#613318'];
@@ -12,11 +25,12 @@ export const PEDESTRIAN_PANTS_COLORS = ['#1f2937', '#374151', '#4b5563', '#1e3a8
 export const PEDESTRIAN_HAT_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#1f2937', '#ffffff'];
 
 // Pedestrian behavior constants
-export const PEDESTRIAN_BUILDING_ENTER_TIME = 0.8;  // Time to enter/exit building (seconds)
+export const PEDESTRIAN_BUILDING_ENTER_TIME = 2.0;  // Time to enter/exit building (seconds) - slow enough to see
+export const PEDESTRIAN_APPROACH_TIME = 3.0;        // Time spent walking from road to shop entrance
 export const PEDESTRIAN_MIN_ACTIVITY_TIME = 20.0;   // Minimum time at an activity
 export const PEDESTRIAN_MAX_ACTIVITY_TIME = 120.0;  // Maximum time at an activity
-export const PEDESTRIAN_BUILDING_MIN_TIME = 30.0;   // Minimum time inside buildings
-export const PEDESTRIAN_BUILDING_MAX_TIME = 240.0;  // Maximum time inside buildings
+export const PEDESTRIAN_BUILDING_MIN_TIME = 15.0;   // Minimum time inside buildings (reduced for more flow)
+export const PEDESTRIAN_BUILDING_MAX_TIME = 60.0;   // Maximum time inside buildings (reduced for more flow)
 export const PEDESTRIAN_SOCIAL_CHANCE = 0.02;       // Chance to stop and socialize (reduced for perf)
 export const PEDESTRIAN_SOCIAL_DURATION = 4.0;      // How long socializing lasts
 export const PEDESTRIAN_DOG_CHANCE = 0.05;          // Chance of walking a dog (reduced for perf)
@@ -288,3 +302,73 @@ export const FIREWORK_MIN_ZOOM = 0.3;             // Minimum zoom to show firewo
 export const NON_LIT_BUILDING_TYPES = new Set(['grass', 'empty', 'water', 'road', 'tree', 'park', 'park_large', 'tennis']);
 export const RESIDENTIAL_BUILDING_TYPES = new Set(['house_small', 'house_medium', 'mansion', 'apartment_low', 'apartment_high']);
 export const COMMERCIAL_BUILDING_TYPES = new Set(['shop_small', 'shop_medium', 'office_low', 'office_high', 'mall']);
+
+// Cloud system constants
+export const CLOUD_MIN_ZOOM = 0.2;                    // Minimum zoom to show clouds (always visible when not super zoomed out)
+export const CLOUD_MAX_ZOOM = 1.0;                    // Zoom level above which clouds start to fade when zoomed in (focus on city)
+export const CLOUD_FADE_ZOOM = 1.6;                   // Zoom level at which clouds are fully invisible when zoomed in
+export const CLOUD_MAX_COVERAGE = 0.35;               // Viewport fraction (0–1) above which clouds start to fade (e.g. 35% covered)
+export const CLOUD_COVERAGE_FADE_END = 0.7;           // At this coverage fraction, clouds are fully faded (e.g. 70% covered)
+export const CLOUD_MAX_COUNT = 18;                    // Maximum clouds on screen (increased for diversity)
+export const CLOUD_MAX_COUNT_MOBILE = 10;             // Fewer clouds on mobile for performance
+export const CLOUD_SPAWN_INTERVAL = 2.5;              // Seconds between cloud spawn attempts
+export const CLOUD_SPAWN_INTERVAL_MOBILE = 4.5;       // Slower spawning on mobile
+export const CLOUD_SPEED_MIN = 8;                     // Minimum cloud drift speed (pixels/second)
+export const CLOUD_SPEED_MAX = 24;                    // Maximum cloud drift speed (cirrus moves faster)
+export const CLOUD_SCALE_MIN = 0.5;                   // Minimum cloud scale
+export const CLOUD_SCALE_MAX = 1.8;                   // Maximum cloud scale
+export const CLOUD_PUFF_COUNT_MIN = 4;                // Minimum puffs per cloud (cumulus)
+export const CLOUD_PUFF_COUNT_MAX = 10;               // Maximum puffs per cloud
+export const CLOUD_PUFF_SIZE_MIN = 20;                // Minimum puff radius
+export const CLOUD_PUFF_SIZE_MAX = 55;                // Maximum puff radius
+export const CLOUD_WIDTH = 150;                       // Approximate cloud width for spawn offset
+export const CLOUD_DESPAWN_MARGIN = 300;              // Distance past viewport to despawn clouds
+// Wind direction: clouds drift from southwest to northeast (isometric perspective)
+export const CLOUD_WIND_ANGLE = -Math.PI / 4;         // ~-45 degrees (southwest to northeast)
+// Parallax effect: higher clouds move faster
+export const CLOUD_LAYER_SPEEDS = [0.7, 1.0, 1.4];    // Speed multipliers for low/mid/high layers
+export const CLOUD_LAYER_OPACITY = [0.85, 1.0, 0.9];  // Opacity multipliers for layers
+// Night darkening - clouds get slightly darker at night
+export const CLOUD_NIGHT_OPACITY_MULT = 0.6;          // Clouds are less visible at night
+
+// =============================================================================
+// CLOUD TYPE CONFIGURATION - climate diversity and meteorological variety
+// =============================================================================
+// Spawn weights by time of day (hour 0-23): [cumulus, stratus, cirrus, cumulonimbus, altocumulus]
+// Morning (6-9): More stratus/fog lifting, some altocumulus
+// Midday (10-16): Cumulus dominant (fair weather), occasional cumulonimbus (afternoon storms)
+// Evening (17-20): More altocumulus, stratus building, dramatic cumulonimbus at sunset
+// Night (21-5): Cirrus and stratus more common (harder to see but add atmosphere)
+export const CLOUD_TYPE_WEIGHTS_BY_HOUR: Record<number, [number, number, number, number, number]> = {
+  0: [2, 4, 5, 0, 3],  1: [2, 4, 5, 0, 3],  2: [2, 4, 5, 0, 3],  3: [2, 4, 5, 0, 3],
+  4: [2, 4, 5, 0, 3],  5: [3, 5, 4, 0, 4],  // Pre-dawn: stratus, cirrus
+  6: [4, 6, 3, 0, 5],  7: [5, 5, 3, 0, 5],  8: [6, 4, 3, 0, 5],  9: [7, 3, 3, 0, 4],  // Morning: stratus burns off, cumulus builds
+  10: [8, 2, 4, 1, 4], 11: [9, 2, 4, 1, 3], 12: [9, 2, 4, 2, 3], 13: [8, 2, 4, 3, 3],  // Midday: cumulus dominant, afternoon storm chance
+  14: [8, 2, 4, 3, 3], 15: [7, 2, 4, 3, 4], 16: [6, 3, 4, 2, 4],  // Late afternoon: cumulonimbus
+  17: [5, 4, 4, 2, 5], 18: [4, 5, 4, 1, 6], 19: [3, 5, 5, 1, 5],  // Evening: altocumulus, stratus
+  20: [2, 5, 5, 0, 4], 21: [2, 4, 5, 0, 3], 22: [2, 4, 5, 0, 3], 23: [2, 4, 5, 0, 3],  // Night: cirrus, stratus
+};
+
+// Fallback weights when hour not in map
+export const CLOUD_TYPE_WEIGHTS_DEFAULT: [number, number, number, number, number] = [6, 3, 4, 1, 4];
+
+// Cloud types in order for the weights array
+export const CLOUD_TYPES_ORDERED = ['cumulus', 'stratus', 'cirrus', 'cumulonimbus', 'altocumulus'] as const;
+
+// Per-type visual configuration: opacity range, layer restrictions, speed modifier, scale range
+// layer 0=low only, 1=mid only, 2=high only, or -1=any
+export const CLOUD_TYPE_CONFIG: Record<string, {
+  opacityMin: number; opacityMax: number;
+  layerRestriction: number;  // -1 = any layer, 0/1/2 = only that layer
+  speedMult: number;        // 0.8 = slower, 1.2 = faster (cirrus moves fast)
+  scaleMin: number; scaleMax: number;
+  puffCountMin: number; puffCountMax: number;
+  // Puff shape: stretchX, stretchY (1=round, >1=elongated in that axis)
+  puffStretchX: [number, number]; puffStretchY: [number, number];
+}> = {
+  cumulus:    { opacityMin: 0.2,  opacityMax: 0.4,  layerRestriction: -1, speedMult: 1.0,  scaleMin: 0.7, scaleMax: 1.5, puffCountMin: 5, puffCountMax: 9,  puffStretchX: [1, 1],   puffStretchY: [1, 1] },
+  stratus:    { opacityMin: 0.25, opacityMax: 0.45, layerRestriction: 0,  speedMult: 0.85, scaleMin: 1.0, scaleMax: 1.6, puffCountMin: 8, puffCountMax: 14, puffStretchX: [2, 3],   puffStretchY: [0.4, 0.6] },  // Flat, wide, layered
+  cirrus:     { opacityMin: 0.06, opacityMax: 0.18, layerRestriction: 2,  speedMult: 1.5,  scaleMin: 0.8, scaleMax: 1.4, puffCountMin: 2, puffCountMax: 5,  puffStretchX: [2, 4],   puffStretchY: [0.3, 0.5] },  // Wispy, high, faint
+  cumulonimbus: { opacityMin: 0.3, opacityMax: 0.5, layerRestriction: 0,  speedMult: 0.7,  scaleMin: 1.2, scaleMax: 1.9, puffCountMin: 6, puffCountMax: 10, puffStretchX: [1, 1.2], puffStretchY: [1, 1.3] },  // Towering, low, dramatic
+  altocumulus: { opacityMin: 0.15, opacityMax: 0.35, layerRestriction: 1,  speedMult: 1.1,  scaleMin: 0.6, scaleMax: 1.2, puffCountMin: 4, puffCountMax: 8,  puffStretchX: [1, 1.5], puffStretchY: [0.7, 1] },  // Patchy, mid-level
+};
