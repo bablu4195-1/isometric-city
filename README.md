@@ -23,7 +23,7 @@ Made with [Cursor](https://cursor.com)
 
 -   **Isometric Rendering Engine**: Custom-built rendering system using HTML5 Canvas (`CanvasIsometricGrid`) capable of handling complex depth sorting, layer management, and both image and drawn sprites.
 -   **Dynamic Simulation**:
-    -   **Traffic System**: Autonomous vehicles including cars, trains, and aircraft (planes/seaplanes).
+    -   **Traffic System**: Autonomous vehicles including cars, trains, planes, and seaplanes.
     -   **Pedestrian System**: Pathfinding and crowd simulation for city inhabitants.
     -   **Economy & Resources**: Resource management, zoning (Residential, Commercial, Industrial), and city growth logic.
 -   **Interactive Grid**: Tile-based placement system for buildings, roads, parks, and utilities.
@@ -42,7 +42,7 @@ Made with [Cursor](https://cursor.com)
 ### Prerequisites
 
 -   Node.js (v18 or higher)
--   npm or yarn
+-   npm
 
 ### Installation
 
@@ -63,7 +63,7 @@ Made with [Cursor](https://cursor.com)
     ```
 
 4.  **Open the game:**
-    Visit [http://localhost:3000](http://localhost:3000) in your browser.
+    Visit [http://localhost:3000](http://localhost:3000) in your browser. Visit [http://localhost:3000/coaster](http://localhost:3000/coaster) for IsoCoaster.
 
 ## Contributing
 

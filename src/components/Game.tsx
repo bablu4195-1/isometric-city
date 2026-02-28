@@ -16,6 +16,7 @@ import { CommandMenu } from '@/components/ui/CommandMenu';
 import { TipToast } from '@/components/ui/TipToast';
 import { useTipSystem } from '@/hooks/useTipSystem';
 import { useMultiplayerSync } from '@/hooks/useMultiplayerSync';
+import { useCopyRoomLink } from '@/hooks/useCopyRoomLink';
 import { useMultiplayerOptional } from '@/context/MultiplayerContext';
 import { ShareModal } from '@/components/multiplayer/ShareModal';
 import { Copy, Check } from 'lucide-react';
@@ -79,16 +80,7 @@ export default function Game({ onExit }: { onExit?: () => void }) {
     leaveRoom,
   } = useMultiplayerSync();
   
-  // Copy room link state
-  const [copiedRoomLink, setCopiedRoomLink] = useState(false);
-  
-  const handleCopyRoomLink = useCallback(() => {
-    if (!roomCode) return;
-    const url = `${window.location.origin}/coop/${roomCode}`;
-    navigator.clipboard.writeText(url);
-    setCopiedRoomLink(true);
-    setTimeout(() => setCopiedRoomLink(false), 2000);
-  }, [roomCode]);
+  const { copied: copiedRoomLink, handleCopyRoomLink } = useCopyRoomLink(roomCode, 'coop');
   const initialSelectedToolRef = useRef<Tool | null>(null);
   const previousSelectedToolRef = useRef<Tool | null>(null);
   const hasCapturedInitialTool = useRef(false);

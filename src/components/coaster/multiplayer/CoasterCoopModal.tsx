@@ -13,33 +13,31 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useMultiplayer } from '@/context/MultiplayerContext';
-import { GameState } from '@/types/game';
-import { createInitialGameState, DEFAULT_GRID_SIZE } from '@/lib/simulation';
+import { GameState as CoasterGameState } from '@/games/coaster/types';
+import { createInitialCoasterGameState } from '@/context/CoasterContext';
+import { useCopyRoomLink } from '@/hooks/useCopyRoomLink';
 import { Copy, Check, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import { T, useGT, Plural, Var } from 'gt-next';
 
 interface CoopModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onStartGame: (isHost: boolean, initialState?: GameState, roomCode?: string) => void;
-  currentGameState?: GameState;
+  onStartGame: (isHost: boolean, initialState?: CoasterGameState, roomCode?: string) => void;
   pendingRoomCode?: string | null;
 }
 
 type Mode = 'select' | 'create' | 'join';
 
-export function CoopModal({
+export function CoasterCoopModal({
   open,
   onOpenChange,
   onStartGame,
-  currentGameState,
   pendingRoomCode,
 }: CoopModalProps) {
   const gt = useGT();
   const [mode, setMode] = useState<Mode>('select');
-  const [cityName, setCityName] = useState(gt('My Co-op City'));
+  const [parkName, setParkName] = useState(gt('My Co-op Park'));
   const [joinCode, setJoinCode] = useState('');
-  const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [autoJoinAttempted, setAutoJoinAttempted] = useState(false);
   const [waitingForState, setWaitingForState] = useState(false);
@@ -55,61 +53,52 @@ export function CoopModal({
     leaveRoom,
     initialState,
   } = useMultiplayer();
+  const { copied: copiedRoomLink, handleCopyRoomLink, resetCopied } = useCopyRoomLink(roomCode, 'coaster/coop');
 
-  // Auto-join when there's a pending room code - go directly into game
   useEffect(() => {
     if (open && pendingRoomCode && !autoJoinAttempted) {
       setAutoJoinAttempted(true);
       setIsLoading(true);
-      
-      // Join immediately - state will be loaded from Supabase database
+
       joinRoom(pendingRoomCode)
         .then(() => {
-          window.history.replaceState({}, '', `/coop/${pendingRoomCode.toUpperCase()}`);
+          window.history.replaceState({}, '', `/coaster/coop/${pendingRoomCode.toUpperCase()}`);
           setIsLoading(false);
           setWaitingForState(true);
         })
         .catch((err) => {
           console.error('Failed to auto-join room:', err);
           setIsLoading(false);
-          // Show error state instead of redirecting
           const errorMessage = err instanceof Error ? err.message : gt('Failed to join room');
           setAutoJoinError(errorMessage);
         });
     }
-  }, [open, pendingRoomCode, autoJoinAttempted, joinRoom]);
+  }, [open, pendingRoomCode, autoJoinAttempted, joinRoom, gt]);
 
-  // Reset state when modal closes - cleanup any pending connection
   useEffect(() => {
     if (!open) {
-      // Only clean up connection if we were mid-join
       if (waitingForState || (autoJoinAttempted && !initialState)) {
         leaveRoom();
       }
       setMode('select');
       setIsLoading(false);
-      setCopied(false);
+      resetCopied();
       setAutoJoinAttempted(false);
       setWaitingForState(false);
       setAutoJoinError(null);
     }
-  }, [open, waitingForState, autoJoinAttempted, initialState, leaveRoom]);
+  }, [open, waitingForState, autoJoinAttempted, initialState, leaveRoom, resetCopied]);
 
   const handleCreateRoom = async () => {
-    if (!cityName.trim()) return;
-    
+    if (!parkName.trim()) return;
+
     setIsLoading(true);
     try {
-      // Use the current game state if provided, otherwise create a fresh city
-      const stateToShare = currentGameState 
-        ? { ...currentGameState, cityName } 
-        : createInitialGameState(DEFAULT_GRID_SIZE, cityName);
-      
-      const code = await createRoom(cityName, stateToShare);
-      // Update URL to show room code
-      window.history.replaceState({}, '', `/coop/${code}`);
-      
-      // Start the game immediately with the state and close the modal
+      const stateToShare = createInitialCoasterGameState(parkName);
+
+      const code = await createRoom(parkName, stateToShare);
+      window.history.replaceState({}, '', `/coaster/coop/${code}`);
+
       onStartGame(true, stateToShare, code);
       onOpenChange(false);
     } catch (err) {
@@ -122,57 +111,41 @@ export function CoopModal({
   const handleJoinRoom = async () => {
     if (!joinCode.trim()) return;
     if (joinCode.length !== 5) return;
-    
+
     setIsLoading(true);
     try {
-      // State will be loaded from Supabase database
       await joinRoom(joinCode);
-      // Update URL to show room code
-      window.history.replaceState({}, '', `/coop/${joinCode.toUpperCase()}`);
-      // Now wait for state to be received from provider
+      window.history.replaceState({}, '', `/coaster/coop/${joinCode.toUpperCase()}`);
       setIsLoading(false);
       setWaitingForState(true);
     } catch (err) {
       console.error('Failed to join room:', err);
       setIsLoading(false);
-      // Error is already set by the context
     }
   };
-  
-  // When we receive the initial state, start the game
+
   useEffect(() => {
     if (waitingForState && initialState) {
       setWaitingForState(false);
-      // Use the room code from context, joinCode, or pendingRoomCode
       const code = roomCode || joinCode.toUpperCase() || pendingRoomCode?.toUpperCase();
-      onStartGame(false, initialState as GameState, code || undefined);
+      onStartGame(false, initialState as CoasterGameState, code || undefined);
       onOpenChange(false);
     }
   }, [waitingForState, initialState, onStartGame, onOpenChange, roomCode, joinCode, pendingRoomCode]);
-  
-  // Timeout after 15 seconds - if no state received, show error
+
   useEffect(() => {
     if (!waitingForState) return;
-    
+
     const timeout = setTimeout(() => {
       if (waitingForState && !initialState) {
-        console.error('[CoopModal] Timeout waiting for state');
+        console.error('[CoasterCoopModal] Timeout waiting for state');
         setWaitingForState(false);
         leaveRoom();
       }
     }, 15000);
-    
+
     return () => clearTimeout(timeout);
   }, [waitingForState, initialState, leaveRoom]);
-
-  const handleCopyLink = () => {
-    if (!roomCode) return;
-    
-    const url = `${window.location.origin}/coop/${roomCode}`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleBack = () => {
     if (roomCode) {
@@ -181,19 +154,14 @@ export function CoopModal({
     setMode('select');
   };
 
-  // Handle back from auto-join to go to select mode
   const handleBackFromAutoJoin = () => {
-    // Keep autoJoinAttempted true to prevent re-triggering auto-join
-    // (pendingRoomCode prop is still set from parent)
     setWaitingForState(false);
     setIsLoading(false);
     leaveRoom();
-    // Clear the URL parameter
-    window.history.replaceState({}, '', '/');
+    window.history.replaceState({}, '', '/coaster');
     setMode('select');
   };
 
-  // If auto-join failed, show error screen
   if (autoJoinError) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -201,11 +169,11 @@ export function CoopModal({
           <DialogHeader>
             <DialogTitle className="text-2xl font-light text-white flex items-center gap-2">
               <AlertCircle className="w-6 h-6 text-red-400" />
-              <T>Could Not Join Room</T>
+              <T>Could Not Join Park</T>
             </DialogTitle>
             <DialogDescription className="text-slate-400">
               {autoJoinError === 'Room not found' ? (
-                <T>This room doesn&apos;t exist or may have expired.</T>
+                <T>This park room doesn&apos;t exist or may have expired.</T>
               ) : (
                 <T>There was a problem connecting to the room. This may be due to network issues or server limits.</T>
               )}
@@ -221,7 +189,7 @@ export function CoopModal({
                   setIsLoading(true);
                   joinRoom(pendingRoomCode)
                     .then(() => {
-                      window.history.replaceState({}, '', `/coop/${pendingRoomCode.toUpperCase()}`);
+                      window.history.replaceState({}, '', `/coaster/coop/${pendingRoomCode.toUpperCase()}`);
                       setIsLoading(false);
                       setWaitingForState(true);
                     })
@@ -244,7 +212,7 @@ export function CoopModal({
               variant="outline"
               className="w-full py-4 text-base font-light bg-transparent hover:bg-white/10 text-white/70 hover:text-white border border-white/15 rounded-none"
             >
-              <T>Create New City</T>
+              <T>Create New Park</T>
             </Button>
             <Button
               onClick={() => {
@@ -258,12 +226,12 @@ export function CoopModal({
             </Button>
             <Button
               onClick={() => {
-                window.location.href = '/';
+                window.location.href = '/coaster';
               }}
               variant="ghost"
               className="w-full py-4 text-base font-light text-slate-500 hover:text-white hover:bg-transparent"
             >
-              <T>Go to Homepage</T>
+              <T>Go to Park Menu</T>
             </Button>
           </div>
 
@@ -275,15 +243,13 @@ export function CoopModal({
     );
   }
 
-  // If auto-joining, show loading state
   if (autoJoinAttempted && (isLoading || waitingForState)) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white" aria-describedby={undefined}>
           <VisuallyHidden.Root>
-            <DialogTitle><T>Joining Co-op City</T></DialogTitle>
+            <DialogTitle><T>Joining Co-op Park</T></DialogTitle>
           </VisuallyHidden.Root>
-          {/* Back button in top left */}
           <Button
             type="button"
             variant="ghost"
@@ -300,7 +266,7 @@ export function CoopModal({
 
           <div className="flex flex-col items-center justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-slate-400 mb-4" />
-            <T><p className="text-slate-300">Joining city...</p></T>
+            <T><p className="text-slate-300">Joining park...</p></T>
             <T><p className="text-slate-500 text-sm mt-1">Waiting for game state</p></T>
           </div>
         </DialogContent>
@@ -308,7 +274,6 @@ export function CoopModal({
     );
   }
 
-  // Selection screen
   if (mode === 'select') {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -318,7 +283,7 @@ export function CoopModal({
               <T>Co-op Multiplayer</T>
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              <T>Build a city together with friends in real-time</T>
+              <T>Build a theme park together in real-time</T>
             </DialogDescription>
           </DialogHeader>
 
@@ -327,14 +292,14 @@ export function CoopModal({
               onClick={() => setMode('create')}
               className="w-full py-6 text-lg font-light bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none"
             >
-              <T>Create City</T>
+              <T>Create Park</T>
             </Button>
             <Button
               onClick={() => setMode('join')}
               variant="outline"
               className="w-full py-6 text-lg font-light bg-transparent hover:bg-white/10 text-white/70 hover:text-white border border-white/15 rounded-none"
             >
-              <T>Join City</T>
+              <T>Join Park</T>
             </Button>
           </div>
         </DialogContent>
@@ -342,20 +307,19 @@ export function CoopModal({
     );
   }
 
-  // Create room screen
   if (mode === 'create') {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
           <DialogHeader>
             <DialogTitle className="text-2xl font-light text-white">
-              <T>Create Co-op City</T>
+              <T>Create Co-op Park</T>
             </DialogTitle>
             <DialogDescription className="text-slate-400">
               {roomCode ? (
                 <T>Share the invite code with friends</T>
               ) : (
-                <T>Set up your co-op city</T>
+                <T>Set up your co-op park</T>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -363,14 +327,14 @@ export function CoopModal({
           {!roomCode ? (
             <div className="flex flex-col gap-4 mt-4">
               <div className="space-y-2">
-                <Label htmlFor="cityName" className="text-slate-300">
-                  <T>City Name</T>
+                <Label htmlFor="parkName" className="text-slate-300">
+                  <T>Park Name</T>
                 </Label>
                 <Input
-                  id="cityName"
-                  value={cityName}
-                  onChange={(e) => setCityName(e.target.value)}
-                  placeholder={gt('My Co-op City')}
+                  id="parkName"
+                  value={parkName}
+                  onChange={(e) => setParkName(e.target.value)}
+                  placeholder={gt('My Co-op Park')}
                   className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
                 />
               </div>
@@ -392,7 +356,7 @@ export function CoopModal({
                 </Button>
                 <Button
                   onClick={handleCreateRoom}
-                  disabled={isLoading || !cityName.trim()}
+                  disabled={isLoading || !parkName.trim()}
                   className="flex-1 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none"
                 >
                   {isLoading ? (
@@ -401,14 +365,13 @@ export function CoopModal({
                       Creating...
                     </T>
                   ) : (
-                    <T>Create City</T>
+                    <T>Create Park</T>
                   )}
                 </Button>
               </div>
             </div>
           ) : (
             <div className="flex flex-col gap-4 mt-4">
-              {/* Invite Code Display */}
               <div className="bg-slate-800 rounded-lg p-6 text-center">
                 <T><p className="text-slate-400 text-sm mb-2">Invite Code</p></T>
                 <p className="text-4xl font-mono font-bold tracking-widest text-white">
@@ -416,13 +379,12 @@ export function CoopModal({
                 </p>
               </div>
 
-              {/* Copy Link Button */}
               <Button
-                onClick={handleCopyLink}
+                onClick={handleCopyRoomLink}
                 variant="outline"
                 className="w-full bg-transparent hover:bg-white/10 text-white border-white/20 rounded-none"
               >
-                {copied ? (
+                {copiedRoomLink ? (
                   <T>
                     <Check className="w-4 h-4 mr-2" />
                     Copied!
@@ -435,7 +397,6 @@ export function CoopModal({
                 )}
               </Button>
 
-              {/* Connected Players */}
               {players.length > 0 && (
                 <div className="bg-slate-800/50 rounded-lg p-4">
                   <T>
@@ -457,7 +418,6 @@ export function CoopModal({
                 </div>
               )}
 
-              {/* Continue button */}
               <Button
                 onClick={() => onOpenChange(false)}
                 className="w-full mt-2 bg-slate-700 hover:bg-slate-600 text-white border border-slate-600 rounded-md"
@@ -471,13 +431,12 @@ export function CoopModal({
     );
   }
 
-  // Join room screen
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-white">
         <DialogHeader>
           <DialogTitle className="text-2xl font-light text-white">
-            <T>Join Co-op City</T>
+            <T>Join Co-op Park</T>
           </DialogTitle>
           <DialogDescription className="text-slate-400">
             <T>Enter the 5-character invite code to join</T>
@@ -506,7 +465,6 @@ export function CoopModal({
             </div>
           )}
 
-          {/* Connection Status when joining */}
           {connectionState === 'connecting' && !waitingForState && (
             <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -514,7 +472,6 @@ export function CoopModal({
             </div>
           )}
 
-          {/* Waiting for state */}
           {waitingForState && (
             <div className="bg-slate-800/50 rounded-lg p-4 text-center">
               <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-400" />
@@ -542,7 +499,7 @@ export function CoopModal({
                   Joining...
                 </T>
               ) : (
-                <T>Join City</T>
+                <T>Join Park</T>
               )}
             </Button>
           </div>

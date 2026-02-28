@@ -104,30 +104,33 @@ export function useMultiplayerSync() {
     }
     
     switch (action.type) {
-      case 'place':
+      case 'place': {
         // Save current tool, apply placement, restore tool
         const currentTool = game.state.selectedTool;
-        game.setTool(action.tool);
+        game.setTool(action.tool as Tool);
         game.placeAtTile(action.x, action.y, true); // isRemote = true
         game.setTool(currentTool);
         break;
+      }
         
-      case 'placeBatch':
+      case 'placeBatch': {
         // Apply multiple placements from a single message (e.g., road drag)
         const originalTool = game.state.selectedTool;
         for (const placement of action.placements) {
-          game.setTool(placement.tool);
+          game.setTool(placement.tool as Tool);
           game.placeAtTile(placement.x, placement.y, true); // isRemote = true
         }
         game.setTool(originalTool);
         break;
+      }
         
-      case 'bulldoze':
+      case 'bulldoze': {
         const savedTool = game.state.selectedTool;
         game.setTool('bulldoze');
         game.placeAtTile(action.x, action.y, true); // isRemote = true
         game.setTool(savedTool);
         break;
+      }
         
       case 'setTaxRate':
         game.setTaxRate(action.rate);

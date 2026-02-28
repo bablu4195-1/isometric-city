@@ -1,6 +1,12 @@
 // Multiplayer types for co-op gameplay
 
-import { Tool, GameState, Budget } from '@/types/game';
+import { Tool as IsoCityTool, GameState as IsoCityGameState, Budget } from '@/types/game';
+import { Tool as CoasterTool, GameState as CoasterGameState } from '@/games/coaster/types';
+import { ParkSettings } from '@/games/coaster/types/economy';
+import { CoasterType } from '@/games/coaster/types/tracks';
+
+export type MultiplayerGameState = IsoCityGameState | CoasterGameState;
+export type MultiplayerTool = IsoCityTool | CoasterTool;
 
 // Base action properties
 interface BaseAction {
@@ -10,27 +16,35 @@ interface BaseAction {
 
 // Game actions that get synced via Supabase Realtime
 export type GameAction =
-  | (BaseAction & { type: 'place'; x: number; y: number; tool: Tool })
-  | (BaseAction & { type: 'placeBatch'; placements: Array<{ x: number; y: number; tool: Tool }> })
+  | (BaseAction & { type: 'place'; x: number; y: number; tool: MultiplayerTool })
+  | (BaseAction & { type: 'placeBatch'; placements: Array<{ x: number; y: number; tool: MultiplayerTool }> })
   | (BaseAction & { type: 'bulldoze'; x: number; y: number })
   | (BaseAction & { type: 'setTaxRate'; rate: number })
   | (BaseAction & { type: 'setBudget'; key: keyof Budget; funding: number })
   | (BaseAction & { type: 'setSpeed'; speed: 0 | 1 | 2 | 3 })
   | (BaseAction & { type: 'setDisasters'; enabled: boolean })
   | (BaseAction & { type: 'createBridges'; pathTiles: Array<{ x: number; y: number }>; trackType: 'road' | 'rail' })
-  | (BaseAction & { type: 'fullState'; state: GameState })
+  | (BaseAction & { type: 'setParkSettings'; settings: Partial<ParkSettings> })
+  | (BaseAction & { type: 'coasterStartBuild'; coasterType: CoasterType; coasterId: string })
+  | (BaseAction & { type: 'coasterFinishBuild' })
+  | (BaseAction & { type: 'coasterCancelBuild' })
+  | (BaseAction & { type: 'fullState'; state: MultiplayerGameState })
   | (BaseAction & { type: 'tick'; tickData: TickData });
 
 // Action input types (without timestamp and playerId, which are added automatically)
-export type PlaceAction = { type: 'place'; x: number; y: number; tool: Tool };
-export type PlaceBatchAction = { type: 'placeBatch'; placements: Array<{ x: number; y: number; tool: Tool }> };
+export type PlaceAction = { type: 'place'; x: number; y: number; tool: MultiplayerTool };
+export type PlaceBatchAction = { type: 'placeBatch'; placements: Array<{ x: number; y: number; tool: MultiplayerTool }> };
 export type BulldozeAction = { type: 'bulldoze'; x: number; y: number };
 export type SetTaxRateAction = { type: 'setTaxRate'; rate: number };
 export type SetBudgetAction = { type: 'setBudget'; key: keyof Budget; funding: number };
 export type SetSpeedAction = { type: 'setSpeed'; speed: 0 | 1 | 2 | 3 };
 export type SetDisastersAction = { type: 'setDisasters'; enabled: boolean };
 export type CreateBridgesAction = { type: 'createBridges'; pathTiles: Array<{ x: number; y: number }>; trackType: 'road' | 'rail' };
-export type FullStateAction = { type: 'fullState'; state: GameState };
+export type SetParkSettingsAction = { type: 'setParkSettings'; settings: Partial<ParkSettings> };
+export type CoasterStartBuildAction = { type: 'coasterStartBuild'; coasterType: CoasterType; coasterId: string };
+export type CoasterFinishBuildAction = { type: 'coasterFinishBuild' };
+export type CoasterCancelBuildAction = { type: 'coasterCancelBuild' };
+export type FullStateAction = { type: 'fullState'; state: MultiplayerGameState };
 export type TickAction = { type: 'tick'; tickData: TickData };
 
 export type GameActionInput = 
@@ -42,6 +56,10 @@ export type GameActionInput =
   | SetSpeedAction
   | SetDisastersAction
   | CreateBridgesAction
+  | SetParkSettingsAction
+  | CoasterStartBuildAction
+  | CoasterFinishBuildAction
+  | CoasterCancelBuildAction
   | FullStateAction
   | TickAction;
 
@@ -52,12 +70,12 @@ export interface TickData {
   day: number;
   hour: number;
   tick: number;
-  stats: GameState['stats'];
+  stats: IsoCityGameState['stats'];
   // Only send changed tiles to minimize bandwidth
   changedTiles?: Array<{
     x: number;
     y: number;
-    tile: GameState['grid'][0][0];
+    tile: IsoCityGameState['grid'][0][0];
   }>;
 }
 
@@ -89,7 +107,7 @@ export interface RoomData {
 export interface AwarenessState {
   player: Player;
   cursor?: { x: number; y: number };
-  selectedTool?: Tool;
+  selectedTool?: MultiplayerTool;
 }
 
 // Word lists for random name generation

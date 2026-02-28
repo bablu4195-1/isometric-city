@@ -2,12 +2,14 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useCoaster } from '@/context/CoasterContext';
+import { useMultiplayerOptional } from '@/context/MultiplayerContext';
 import { Tool, TOOL_INFO } from '@/games/coaster/types';
 import { WEATHER_DISPLAY, WEATHER_EFFECTS } from '@/games/coaster/types/economy';
 import { COASTER_TYPE_STATS, CoasterType, getCoasterCategory } from '@/games/coaster/types/tracks';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { openCoasterCommandMenu } from '@/components/coaster/CommandMenu';
+import { CoasterShareModal } from '@/components/coaster/multiplayer/CoasterShareModal';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +24,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Users } from 'lucide-react';
 
 // =============================================================================
 // WEATHER DISPLAY COMPONENT
@@ -588,6 +591,9 @@ export function Sidebar({ onExit }: SidebarProps) {
   const { state, setTool, saveGame, startCoasterBuild, cancelCoasterBuild } = useCoaster();
   const { selectedTool, finances, weather, buildingCoasterType } = state;
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const multiplayer = useMultiplayerOptional();
+  const hasShownShareModalRef = useRef(false);
   
   const handleSaveAndExit = useCallback(() => {
     saveGame();
@@ -612,6 +618,14 @@ export function Sidebar({ onExit }: SidebarProps) {
       setTool(tool);
     }
   }, [setTool, startCoasterBuild]);
+
+  useEffect(() => {
+    const isHost = multiplayer?.connectionState === 'connected' && multiplayer?.roomCode && !multiplayer?.initialState;
+    if (isHost && !hasShownShareModalRef.current) {
+      hasShownShareModalRef.current = true;
+      setShowShareModal(true);
+    }
+  }, [multiplayer?.connectionState, multiplayer?.roomCode, multiplayer?.initialState]);
   
   return (
     <div className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col h-screen fixed left-0 top-0 z-40">
@@ -638,6 +652,17 @@ export function Sidebar({ onExit }: SidebarProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </Button>
+            {multiplayer && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowShareModal(true)}
+                title="Invite Players"
+                className="h-7 w-7 text-muted-foreground hover:text-sidebar-foreground"
+              >
+                <Users className="w-4 h-4" />
+              </Button>
+            )}
             {onExit && (
               <Button
                 variant="ghost"
@@ -792,6 +817,13 @@ export function Sidebar({ onExit }: SidebarProps) {
         onSaveAndExit={handleSaveAndExit}
         onExitWithoutSaving={handleExitWithoutSaving}
       />
+
+      {multiplayer && (
+        <CoasterShareModal
+          open={showShareModal}
+          onOpenChange={setShowShareModal}
+        />
+      )}
     </div>
   );
 }
