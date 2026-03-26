@@ -1,6 +1,6 @@
 # IsoCity & IsoCoaster
 
-Open-source isometric simulation games built with **Next.js**, **TypeScript**, and **HTML5 Canvas**.
+Open-source isometric simulation games built with Next.js, TypeScript, and HTML5 Canvas.
 
 <table>
 <tr>
@@ -17,24 +17,25 @@ Open-source isometric simulation games built with **Next.js**, **TypeScript**, a
 </tr>
 </table>
 
-Made with [Cursor](https://cursor.com)
+Made with [Cursor](https://cursor.com).
 
 ## Features
 
--   **Isometric Rendering Engine**: Custom-built rendering system using HTML5 Canvas (`CanvasIsometricGrid`) capable of handling complex depth sorting, layer management, and both image and drawn sprites.
+-   **Isometric Rendering Engine**: Rendering with HTML5 Canvas (`CanvasIsometricGrid`) capable of handling complex depth sorting, layer management, and both image and drawn sprites.
 -   **Dynamic Simulation**:
     -   **Traffic System**: Autonomous vehicles including cars, trains, planes, and seaplanes.
+    -   **Trains, bridges, buses, barges, and more**: Vehicles will navigate throughout your city.
     -   **Pedestrian System**: Pathfinding and crowd simulation for city inhabitants.
     -   **Economy & Resources**: Resource management, zoning (Residential, Commercial, Industrial), and city growth logic.
--   **Interactive Grid**: Tile-based placement system for buildings, roads, parks, and utilities.
+-   **Interactive Grid**: Tile-based placement system for buildings, roads, rail, parks, utilities, and more.
 -   **State Management**: Save/Load functionality for multiple cities.
--   **Responsive Design**: Mobile-friendly interface with specialized touch controls and toolbars.
+-   **Responsive Design**: Mobile-friendly interface with touch controls and toolbars.
 
 ## Tech Stack
 
 -   **Framework**: [Next.js 16](https://nextjs.org/)
 -   **Language**: [TypeScript](https://www.typescriptlang.org/)
--   **Graphics**: HTML5 Canvas API (No external game engine libraries; pure native implementation).
+-   **Graphics**: HTML5 Canvas (No external game engine libraries; pure native implementation).
 -   **Icons**: Lucide React.
 
 ## Getting Started
@@ -46,30 +47,29 @@ Made with [Cursor](https://cursor.com)
 
 ### Installation
 
-1.  **Clone the repository:**
+1.  **Clone the repository**
     ```bash
     git clone https://github.com/amilich/isometric-city.git
     cd isometric-city
     ```
 
-2.  **Install dependencies:**
+2.  **Install dependencies**
     ```bash
     npm install
     ```
 
-3.  **Run the development server:**
+3.  **Run the development server**
     ```bash
     npm run dev
     ```
 
-4.  **Open the game:**
-    Visit [http://localhost:3000](http://localhost:3000) in your browser. Visit [http://localhost:3000/coaster](http://localhost:3000/coaster) for IsoCoaster.
+4.  **Open the game**
+    Visit [http://localhost:3000](http://localhost:3000) in your browser. 
+    Visit [http://localhost:3000/coaster](http://localhost:3000/coaster) for IsoCoaster.
 
 ## Contributing
 
-Contributions are welcome! Whether it's reporting a bug, proposing a new feature, or submitting a pull request, your input is valued.
-
-Please ensure your code follows the existing style and conventions.
+Contributions, bug reports, feature requests, and pull requests are welcome.
 
 ## License
 

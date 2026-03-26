@@ -51,6 +51,48 @@ function isStarterBuilding(x: number, y: number, buildingType: string): boolean 
   return false;
 }
 
+const GREEN_POLLUTION_REDUCERS = new Set<BuildingType>([
+  'tree',
+  'park',
+  'park_large',
+  'tennis',
+  'basketball_courts',
+  'playground_small',
+  'playground_large',
+  'baseball_field_small',
+  'soccer_field_small',
+  'football_field',
+  'swimming_pool',
+  'skate_park',
+  'mini_golf_course',
+  'bleachers_field',
+  'amphitheater',
+  'greenhouse_garden',
+  'community_garden',
+  'pond_park',
+  'park_gate',
+  'campground',
+  'mountain_trailhead',
+]);
+
+function getPollutionCleanupProfile(buildingType: BuildingType): { radius: number; strength: number } | null {
+  if (!GREEN_POLLUTION_REDUCERS.has(buildingType)) return null;
+
+  const pollution = BUILDING_STATS[buildingType]?.pollution ?? 0;
+  if (pollution >= 0) return null;
+
+  if (buildingType === 'tree') {
+    return { radius: 2, strength: 2 };
+  }
+
+  const footprint = getBuildingSize(buildingType);
+  const largestDimension = Math.max(footprint.width, footprint.height);
+  const radius = Math.max(2, largestDimension);
+  const strength = Math.max(2, Math.min(8, Math.round(Math.abs(pollution) * 0.35)));
+
+  return { radius, strength };
+}
+
 // Perlin-like noise for terrain generation (exported for reuse in other games)
 function noise2D(x: number, y: number, seed: number = 42): number {
   const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453123;
@@ -2324,6 +2366,43 @@ export function simulateTick(state: GameState): GameState {
           Math.random() < 0.00003) {
         tile.building.onFire = true;
         tile.building.fireProgress = 0;
+      }
+    }
+  }
+
+  // Green amenities clean up nearby pollution after all buildings have updated.
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const buildingType = newGrid[y][x].building.type;
+      const cleanupProfile = getPollutionCleanupProfile(buildingType);
+      if (!cleanupProfile) continue;
+
+      const footprint = getBuildingSize(buildingType);
+      const minX = Math.max(0, x - cleanupProfile.radius);
+      const maxX = Math.min(size - 1, x + footprint.width - 1 + cleanupProfile.radius);
+      const minY = Math.max(0, y - cleanupProfile.radius);
+      const maxY = Math.min(size - 1, y + footprint.height - 1 + cleanupProfile.radius);
+
+      for (let targetY = minY; targetY <= maxY; targetY++) {
+        for (let targetX = minX; targetX <= maxX; targetX++) {
+          const dx =
+            targetX < x ? x - targetX :
+            targetX > x + footprint.width - 1 ? targetX - (x + footprint.width - 1) :
+            0;
+          const dy =
+            targetY < y ? y - targetY :
+            targetY > y + footprint.height - 1 ? targetY - (y + footprint.height - 1) :
+            0;
+          const distance = dx + dy;
+
+          if (distance > cleanupProfile.radius) continue;
+
+          const cleanupAmount = cleanupProfile.strength * (1 - distance / (cleanupProfile.radius + 1));
+          if (cleanupAmount <= 0) continue;
+
+          const targetTile = getModifiableTile(targetX, targetY);
+          targetTile.pollution = Math.max(0, targetTile.pollution - cleanupAmount);
+        }
       }
     }
   }
